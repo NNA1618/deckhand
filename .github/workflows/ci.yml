@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          swift --version
+      - name: Build the app
+        run: NO_INSTALL=1 SIGN_ID=- ./scripts/bundle.sh release
+      - name: Self-test
+        run: .build/release/Deckhand.app/Contents/MacOS/Deckhand --selftest

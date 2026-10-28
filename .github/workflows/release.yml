@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+      - name: Build
+        run: NO_INSTALL=1 SIGN_ID=- ./scripts/bundle.sh release
+      - name: Self-test
+        run: .build/release/Deckhand.app/Contents/MacOS/Deckhand --selftest
+      - name: Package
+        run: ditto -c -k --keepParent .build/release/Deckhand.app Deckhand.zip
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" Deckhand.zip --clobber

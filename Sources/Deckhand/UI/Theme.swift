@@ -42,6 +42,7 @@ struct GlassBackground: NSViewRepresentable {
             flat.layer?.cornerRadius = cornerRadius
             return flat
         }
+        #if compiler(>=6.2)   // Liquid Glass needs the macOS 26 SDK (Xcode 26)
         if #available(macOS 26.0, *) {
             let glass = NSGlassEffectView()
             glass.cornerRadius = cornerRadius
@@ -49,6 +50,7 @@ struct GlassBackground: NSViewRepresentable {
             glass.style = .regular
             return glass
         }
+        #endif
         let blur = NSVisualEffectView()
         blur.material = .hudWindow
         blur.blendingMode = .behindWindow
@@ -62,12 +64,14 @@ struct GlassBackground: NSViewRepresentable {
     }
 
     func updateNSView(_ view: NSView, context: Context) {
+        #if compiler(>=6.2)
         if #available(macOS 26.0, *), let glass = view as? NSGlassEffectView {
             glass.cornerRadius = cornerRadius
             glass.tintColor = tint
-        } else {
-            view.layer?.cornerRadius = cornerRadius
+            return
         }
+        #endif
+        view.layer?.cornerRadius = cornerRadius
     }
 }
 
@@ -77,10 +81,16 @@ extension View {
     func glassChip<S: Shape>(in shape: S, interactive: Bool = false) -> some View {
         if Theme.flatForSnapshot {
             self.background(Theme.surface2, in: shape)
-        } else if #available(macOS 26.0, *) {
-            self.glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
         } else {
+            #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                self.glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
+            } else {
+                self.background(Theme.surface2, in: shape)
+            }
+            #else
             self.background(Theme.surface2, in: shape)
+            #endif
         }
     }
 }
