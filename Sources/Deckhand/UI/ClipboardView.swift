@@ -104,7 +104,7 @@ struct ClipboardRow: View {
     }
 
     @ViewBuilder private var leading: some View {
-        if item.kind == .image, let path = item.imagePath, let image = NSImage(contentsOfFile: path) {
+        if item.kind == .image, let path = item.imagePath, let image = ThumbnailCache.image(at: path) {
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fill)

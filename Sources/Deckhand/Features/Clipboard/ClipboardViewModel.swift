@@ -10,7 +10,6 @@ final class ClipboardViewModel: ObservableObject {
 
     private let store = ClipboardStore.shared
     private var cancellables = Set<AnyCancellable>()
-    private var reloadTask: Task<Void, Never>?
 
     init() {
         reload()
@@ -19,16 +18,10 @@ final class ClipboardViewModel: ObservableObject {
             .sink { [weak self] _ in self?.reload() }
             .store(in: &cancellables)
 
-        reloadTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                self?.reload()
-            }
-        }
-    }
-
-    deinit {
-        reloadTask?.cancel()
+        NotificationCenter.default.publisher(for: .clipboardHistoryChanged)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.reload() }
+            .store(in: &cancellables)
     }
 
     func reload() {
