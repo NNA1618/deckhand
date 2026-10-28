@@ -21,6 +21,13 @@ final class EditorModel: ObservableObject {
     @Published var pendingText = ""
     @Published var status: String?
 
+    // Ask Claude about the image
+    @Published var askVisible = false
+    @Published var question = ""
+    @Published var answer = ""
+    @Published var asking = false
+    @Published var askError: String?
+
     /// Pixels per point of the source image: 2 for Retina screenshots.
     let pixelScale: CGFloat
     private var undoStack: [Snapshot] = []
@@ -219,6 +226,38 @@ final class EditorModel: ObservableObject {
             try? data.write(to: url)
             flash(String(localized: "Saved"))
         }
+    }
+
+    func askClaude() {
+        commitText()
+        guard let cg = renderCGImage(), let png = Self.pngForUpload(cg) else { return }
+        let q = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prompt = q.isEmpty ? String(localized: "What is on this screenshot? Point out anything important.") : q
+        asking = true
+        askError = nil
+        answer = ""
+        Task { @MainActor in
+            do {
+                answer = try await ClaudeAPI.shared.ask(about: png, question: prompt)
+            } catch {
+                askError = error.localizedDescription
+            }
+            asking = false
+        }
+    }
+
+    /// Downscales to 1568 px on the long edge, the size Claude reads best, and encodes PNG.
+    static func pngForUpload(_ image: CGImage) -> Data? {
+        let longEdge = CGFloat(max(image.width, image.height))
+        let k = min(1, 1568 / longEdge)
+        let w = Int(CGFloat(image.width) * k), h = Int(CGFloat(image.height) * k)
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        ctx.interpolationQuality = .high
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        guard let scaled = ctx.makeImage() else { return nil }
+        return NSBitmapImageRep(cgImage: scaled).representation(using: .png, properties: [:])
     }
 
     private func flash(_ text: String) {

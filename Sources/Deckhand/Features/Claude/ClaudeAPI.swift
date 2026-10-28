@@ -72,6 +72,25 @@ final class ClaudeAPI: @unchecked Sendable {
                   messages: [ClaudeMessage],
                   model: ClaudeModel = .sonnet55,
                   maxTokens: Int = 1024) async throws -> String {
+        try await send(system: system,
+                       messages: messages.map { ["role": $0.role.rawValue, "content": $0.content] },
+                       model: model, maxTokens: maxTokens)
+    }
+
+    /// Asks about an image. `png` should be at most about 1568 px on the long edge.
+    func ask(about png: Data, question: String, model: ClaudeModel = .sonnet55) async throws -> String {
+        let content: [[String: Any]] = [
+            ["type": "image", "source": ["type": "base64", "media_type": "image/png", "data": png.base64EncodedString()]],
+            ["type": "text", "text": question],
+        ]
+        return try await send(
+            system: "You look at screenshots for the user. Answer in the language of the question. Be concise and specific.",
+            messages: [["role": "user", "content": content]],
+            model: model, maxTokens: 1024
+        )
+    }
+
+    private func send(system: String?, messages: [[String: Any]], model: ClaudeModel, maxTokens: Int) async throws -> String {
         guard let key = apiKey, !key.isEmpty else {
             throw APIError(message: String(localized: "No API key. Add it in Settings → Claude."))
         }
@@ -85,7 +104,7 @@ final class ClaudeAPI: @unchecked Sendable {
         var body: [String: Any] = [
             "model": model.rawValue,
             "max_tokens": maxTokens,
-            "messages": messages.map { ["role": $0.role.rawValue, "content": $0.content] }
+            "messages": messages,
         ]
         if let system, !system.isEmpty {
             body["system"] = system
