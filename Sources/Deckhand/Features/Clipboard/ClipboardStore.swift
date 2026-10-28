@@ -3,11 +3,11 @@ import AppKit
 import SQLite
 import CryptoKit
 
-/// Clipboard history in SQLite: insert, search, pin and trim.
 extension Notification.Name {
     static let clipboardHistoryChanged = Notification.Name("clipboardHistoryChanged")
 }
 
+/// Clipboard history in SQLite: insert, search, pin and trim.
 @MainActor
 final class ClipboardStore {
     static let shared = ClipboardStore()
