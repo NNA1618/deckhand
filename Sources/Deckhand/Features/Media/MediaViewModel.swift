@@ -24,15 +24,23 @@ final class NowPlayingMonitor: ObservableObject {
         }
     }
 
+    private var frozen = false
+
+    /// For `--snapshot` only: shows a fixed track and stops polling until cleared with nil.
+    func showForSnapshot(_ value: NowPlaying?) {
+        frozen = value != nil
+        now = value ?? .empty
+    }
+
     func refresh() {
-        guard !busy else { return }
+        guard !busy, !frozen else { return }
         busy = true
         queue.async {
             let current = MediaInfoService.shared.currentNowPlaying()
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     self.busy = false
-                    if self.now != current { self.now = current }
+                    if !self.frozen, self.now != current { self.now = current }
                 }
             }
         }

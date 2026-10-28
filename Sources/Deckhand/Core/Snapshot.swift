@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// `Deckhand --snapshot DIR` renders every panel tab, every Settings tab and the editor to PNG
 /// files and quits. Uses the app's own view hierarchy, so no Screen Recording permission is needed.
@@ -16,6 +17,13 @@ enum Snapshot {
             }
         }
         notch.close()
+
+        NowPlayingMonitor.shared.showForSnapshot(NowPlaying(title: "Midnight City", artist: "M83", isPlaying: true, source: "Apple Music"))
+        try? await Task.sleep(for: .milliseconds(1200))
+        if let (window, cutout) = notch.snapshotTarget {
+            save(window, cutout: cutout, to: dir.appendingPathComponent("closed-now-playing.png"))
+        }
+        NowPlayingMonitor.shared.showForSnapshot(nil)
 
         SettingsWindow.show()
         for tab in SettingsTab.allCases {

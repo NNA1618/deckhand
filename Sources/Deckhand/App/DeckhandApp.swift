@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMenuBar()
         setupHotkeys()
         ClipboardWatcher.shared.start()
+        if Settings.shared.showPlayingInNotch { NowPlayingMonitor.shared.start() }
 
         // For testing: `Deckhand --open clipboard` opens a tab on launch
         let args = CommandLine.arguments

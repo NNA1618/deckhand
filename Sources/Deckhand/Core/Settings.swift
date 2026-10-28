@@ -15,12 +15,14 @@ final class Settings: ObservableObject {
     @Published var claudeInstructions: String { didSet { d.set(claudeInstructions, forKey: "claudeInstructions") } }
     @Published var watchedFolders: [String] { didSet { d.set(watchedFolders, forKey: "watchedFolders") } }
     @Published var screenshotToast: Bool { didSet { d.set(screenshotToast, forKey: "screenshotToast") } }
+    @Published var showPlayingInNotch: Bool { didSet { d.set(showPlayingInNotch, forKey: "showPlayingInNotch") } }
 
     private init() {
         d.register(defaults: [
             "savePasswordsToHistory": false,
             "historyLimit": 500,
             "screenshotToast": true,
+            "showPlayingInNotch": true,
         ])
         savePasswordsToHistory = d.bool(forKey: "savePasswordsToHistory")
         historyLimit = d.integer(forKey: "historyLimit")
@@ -29,5 +31,6 @@ final class Settings: ObservableObject {
         let downloads = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads").path
         watchedFolders = d.stringArray(forKey: "watchedFolders") ?? [downloads]
         screenshotToast = d.bool(forKey: "screenshotToast")
+        showPlayingInNotch = d.bool(forKey: "showPlayingInNotch")
     }
 }

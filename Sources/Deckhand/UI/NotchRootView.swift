@@ -7,22 +7,33 @@ import SwiftUI
 /// The top of the panel runs past the screen edge, so top corners are square and bottom corners round.
 struct NotchRootView: View {
     @EnvironmentObject var vm: NotchViewModel
+    @ObservedObject private var player = NowPlayingMonitor.shared
+    @ObservedObject private var settings = Settings.shared
 
     private let panelRadius: CGFloat = 26
     private var showToast: Bool { !vm.isOpen && vm.toast != nil }
+    private var showPlaying: Bool {
+        !vm.isOpen && vm.toast == nil && settings.showPlayingInNotch && player.now.isPlaying && !player.now.title.isEmpty
+    }
 
     private var size: CGSize {
         if vm.isOpen { return NotchWindow.panelSize }
         if showToast { return CGSize(width: vm.notchSize.width + 280, height: vm.notchSize.height) }
+        if showPlaying { return CGSize(width: vm.notchSize.width + NowPlayingBadge.sideWidth * 2, height: vm.notchSize.height) }
         return CGSize(width: max(vm.notchSize.width - 6, 10), height: max(vm.notchSize.height - 2, 10))
     }
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                NotchShape(topRadius: showToast ? 8 : 0, bottomRadius: showToast ? 14 : 9)
+                NotchShape(topRadius: showToast || showPlaying ? 8 : 0, bottomRadius: showToast || showPlaying ? 14 : 9)
                     .fill(Color.black)
                     .opacity(vm.isOpen ? 0 : 1)
+
+                if showPlaying {
+                    NowPlayingBadge(now: player.now, notchWidth: vm.notchSize.width, height: vm.notchSize.height)
+                        .transition(.opacity)
+                }
 
                 if showToast, let toast = vm.toast {
                     HStack(spacing: 0) {
@@ -67,6 +78,7 @@ struct NotchRootView: View {
         .environment(\.colorScheme, .dark)
         .animation(.spring(response: 0.42, dampingFraction: 0.82), value: vm.isOpen)
         .animation(.spring(response: 0.38, dampingFraction: 0.75), value: vm.toast)
+        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showPlaying)
     }
 }
 
