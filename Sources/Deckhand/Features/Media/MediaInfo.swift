@@ -13,8 +13,8 @@ struct NowPlaying: Equatable {
     static let empty = NowPlaying(title: "", artist: "", isPlaying: false, source: "")
 }
 
-@MainActor
-final class MediaInfoService {
+/// Not tied to the main actor: AppleScript calls can take a while and must not block the UI.
+final class MediaInfoService: @unchecked Sendable {
     static let shared = MediaInfoService()
     private init() {}
 
