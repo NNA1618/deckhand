@@ -8,7 +8,7 @@ struct ClipboardView: View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
                 SearchField(placeholder: "Search", text: $vm.search)
-                Text("Click an image to edit it")
+                Text("Click to copy, double-click to paste")
                     .font(Theme.caption).foregroundColor(Theme.fgMute)
             }
 
@@ -26,6 +26,7 @@ struct ClipboardView: View {
                             ClipboardRow(
                                 item: item,
                                 onCopy: { vm.copy($0) },
+                                onPaste: { paste($0) },
                                 onEdit: { edit($0) },
                                 onPin: { vm.togglePin($0) },
                                 onDelete: { vm.delete($0) }
@@ -35,6 +36,14 @@ struct ClipboardView: View {
                 }
                 .fadeBottom()
             }
+        }
+    }
+
+    private func paste(_ item: ClipboardItem) {
+        vm.copy(item)
+        notch.requestClose()
+        if !PasteService.pasteIntoFrontApp() {
+            Log.info("paste: accessibility permission missing, item left in clipboard")
         }
     }
 
@@ -51,6 +60,7 @@ struct ClipboardView: View {
 struct ClipboardRow: View {
     let item: ClipboardItem
     let onCopy: (ClipboardItem) -> Void
+    let onPaste: (ClipboardItem) -> Void
     let onEdit: (ClipboardItem) -> Void
     let onPin: (ClipboardItem) -> Void
     let onDelete: (ClipboardItem) -> Void
@@ -81,6 +91,9 @@ struct ClipboardRow: View {
 
             if hover || item.pinned {
                 HStack(spacing: 8) {
+                    if hover {
+                        rowButton("arrow.turn.down.left", "Paste into the app you were using") { onPaste(item) }
+                    }
                     if item.kind == .image && hover {
                         rowButton("pencil.tip.crop.circle", "Edit") { onEdit(item) }
                         rowButton("doc.on.doc", "Copy") { copy() }
@@ -104,6 +117,7 @@ struct ClipboardRow: View {
         )
         .contentShape(Rectangle())
         .onHover { hover = $0 }
+        .onTapGesture(count: 2) { onPaste(item) }
         .onTapGesture {
             if item.kind == .image { onEdit(item) } else { copy() }
         }

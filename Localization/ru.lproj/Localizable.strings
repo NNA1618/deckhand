@@ -147,3 +147,5 @@
 "Close" = "Закрыть";
 "What is on this screenshot? Point out anything important." = "Что на этом скриншоте? Отметь всё важное.";
 "Show the playing track around the notch" = "Показывать играющий трек вокруг чёлки";
+"Paste into the app you were using" = "Вставить в приложение, где вы работали";
+"Click to copy, double-click to paste" = "Клик копирует, двойной клик вставляет";
