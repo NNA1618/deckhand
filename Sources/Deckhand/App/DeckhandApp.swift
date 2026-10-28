@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Log.info("launch")
+        if CommandLine.arguments.contains("--snapshot") { Theme.flatForSnapshot = true }
         notch.start()
         setupMenuBar()
         setupHotkeys()
@@ -35,6 +36,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             notch.open(tab: NotchTab(rawValue: name) ?? .home)
         }
         if args.contains("--settings") { SettingsWindow.show() }
+        if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
+            let dir = URL(fileURLWithPath: args[i + 1])
+            Task { @MainActor in
+                await Snapshot.run(dir: dir, notch: notch)
+                NSApp.terminate(nil)
+            }
+        }
     }
 
     // MARK: - Menu bar

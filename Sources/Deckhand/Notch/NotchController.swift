@@ -160,6 +160,14 @@ final class NotchController {
 
     // MARK: - Public
 
+    /// For `--snapshot`: the notch window and the notch cutout in window coordinates.
+    var snapshotTarget: (NSWindow, CGRect)? {
+        guard let window else { return nil }
+        let notch = NotchGeometry.current().rect
+        return (window, CGRect(x: notch.minX - window.frame.minX, y: notch.minY - window.frame.minY,
+                               width: notch.width, height: notch.height))
+    }
+
     func toggle() {
         viewModel.isOpen ? close() : open(tab: viewModel.tab, manual: true)
     }
