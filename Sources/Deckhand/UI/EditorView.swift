@@ -134,9 +134,7 @@ struct EditorView: View {
 
             ZStack(alignment: .topLeading) {
                 Canvas { ctx, _ in
-                    ctx.draw(Image(decorative: model.base, scale: 1), in: CGRect(origin: .zero, size: size))
-                    for a in model.annotations { a.draw(in: &ctx, scale: k) }
-                    if let d = model.draft { d.draw(in: &ctx, scale: k) }
+                    model.drawContent(in: &ctx, scale: k, includeDraft: true, outlines: false)
                     if let crop = model.cropRect {
                         let r = CGRect(x: crop.minX * k, y: crop.minY * k, width: crop.width * k, height: crop.height * k)
                         var dim = Path(CGRect(origin: .zero, size: size))

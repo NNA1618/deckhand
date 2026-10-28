@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum EditorTool: String, CaseIterable, Identifiable {
-    case pen, marker, rect, ellipse, line, arrow, text, crop
+    case pen, marker, rect, ellipse, line, arrow, text, blur, crop
 
     var id: String { rawValue }
     var title: String {
@@ -13,6 +13,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
         case .line: return String(localized: "Line")
         case .arrow: return String(localized: "Arrow")
         case .text: return String(localized: "Text")
+        case .blur: return String(localized: "Blur")
         case .crop: return String(localized: "Crop")
         }
     }
@@ -25,6 +26,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
         case .line: return "line.diagonal"
         case .arrow: return "arrow.up.right"
         case .text: return "textformat"
+        case .blur: return "checkerboard.rectangle"
         case .crop: return "crop"
         }
     }
@@ -37,6 +39,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
         case .line: return "l"
         case .arrow: return "a"
         case .text: return "t"
+        case .blur: return "b"
         case .crop: return "c"
         }
     }
@@ -53,6 +56,8 @@ struct Annotation: Identifiable {
         case line(CGPoint, CGPoint)
         case arrow(CGPoint, CGPoint)
         case text(CGPoint, String)
+        /// Hides a region by pixelation. The pixels come from EditorModel; here only the outline.
+        case pixelate(CGPoint, CGPoint)
     }
 
     let id = UUID()
@@ -100,6 +105,8 @@ struct Annotation: Identifiable {
             tip.move(to: end); tip.addLine(to: left); tip.addLine(to: right); tip.closeSubpath()
             ctx.fill(tip, with: .color(color))
             ctx.stroke(tip, with: .color(color), style: StrokeStyle(lineWidth: w * 0.6, lineJoin: .round))
+        case .pixelate(let a, let b):
+            ctx.stroke(Path(box(a, b)), with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
         case .text(let at, let string):
             let size = width * 6 * s
             let text = Text(string)
@@ -124,5 +131,12 @@ struct Annotation: Identifiable {
         }
         path.addLine(to: pts[pts.count - 1])
         return path
+    }
+}
+
+extension Annotation {
+    var pixelateRect: CGRect? {
+        guard case .pixelate(let a, let b) = kind else { return nil }
+        return CGRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(a.x - b.x), height: abs(a.y - b.y))
     }
 }

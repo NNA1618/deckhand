@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreImage
 import AppKit
 import UniformTypeIdentifiers
 
@@ -85,6 +86,7 @@ final class EditorModel: ObservableObject {
                 draft = Annotation(kind: tool == .pen ? .pen([a, b]) : .marker([a, b]), color: color, width: strokeWidth)
             }
         case .rect: draft = Annotation(kind: .rect(a, b), color: color, width: strokeWidth)
+        case .blur: draft = Annotation(kind: .pixelate(a, b), color: color, width: strokeWidth)
         case .ellipse: draft = Annotation(kind: .ellipse(a, b), color: color, width: strokeWidth)
         case .line: draft = Annotation(kind: .line(a, b), color: color, width: strokeWidth)
         case .arrow: draft = Annotation(kind: .arrow(a, b), color: color, width: strokeWidth)
@@ -141,16 +143,51 @@ final class EditorModel: ObservableObject {
 
     func renderCGImage() -> CGImage? {
         let size = imageSize
-        let base = self.base
-        let items = annotations
-        let view = Canvas { ctx, _ in
-            ctx.draw(Image(decorative: base, scale: 1), in: CGRect(origin: .zero, size: size))
-            for a in items { a.draw(in: &ctx, scale: 1) }
+        let view = Canvas { [self] ctx, _ in
+            drawContent(in: &ctx, scale: 1, includeDraft: false, outlines: false)
         }
         .frame(width: size.width, height: size.height)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 1
         return renderer.cgImage
+    }
+
+    /// Draws the base image and all annotations. `scale` maps image pixels to canvas points.
+    /// Pixelated regions are drawn from a pixelated copy of the base, clipped to each region.
+    func drawContent(in ctx: inout GraphicsContext, scale: CGFloat, includeDraft: Bool, outlines: Bool) {
+        let frame = CGRect(x: 0, y: 0, width: CGFloat(base.width) * scale, height: CGFloat(base.height) * scale)
+        ctx.draw(Image(decorative: base, scale: 1), in: frame)
+        var items = annotations
+        if includeDraft, let draft { items.append(draft) }
+        for a in items {
+            if let r = a.pixelateRect {
+                if let pix = pixelatedBase() {
+                    let clip = CGRect(x: r.minX * scale, y: r.minY * scale, width: r.width * scale, height: r.height * scale)
+                    ctx.drawLayer { layer in
+                        layer.clip(to: Path(clip))
+                        layer.draw(Image(decorative: pix, scale: 1), in: frame)
+                    }
+                }
+                if outlines { a.draw(in: &ctx, scale: scale) }
+            } else {
+                a.draw(in: &ctx, scale: scale)
+            }
+        }
+    }
+
+    private var pixelCache: (source: CGImage, result: CGImage)?
+
+    private func pixelatedBase() -> CGImage? {
+        if let cache = pixelCache, cache.source === base { return cache.result }
+        let input = CIImage(cgImage: base)
+        let filter = CIFilter(name: "CIPixellate")!
+        filter.setValue(input.clampedToExtent(), forKey: kCIInputImageKey)
+        filter.setValue(max(10, Double(min(base.width, base.height)) / 36), forKey: kCIInputScaleKey)
+        filter.setValue(CIVector(x: 0, y: 0), forKey: kCIInputCenterKey)
+        guard let output = filter.outputImage?.cropped(to: input.extent),
+              let cg = CIContext().createCGImage(output, from: input.extent) else { return nil }
+        pixelCache = (base, cg)
+        return cg
     }
 
     func renderNSImage() -> NSImage? {

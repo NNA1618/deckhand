@@ -59,6 +59,23 @@ enum SelfTest {
             check(ru.localizedString(forKey: "Settings", value: nil, table: nil) == "Настройки", "russian localization bundled")
         }
 
+        // Blur: pixelating a striped image must change pixels inside the region
+        let stripes = NSImage(size: NSSize(width: 200, height: 100))
+        stripes.lockFocus()
+        for x in stride(from: 0, to: 200, by: 4) {
+            (x % 8 == 0 ? NSColor.black : NSColor.white).setFill()
+            NSRect(x: x, y: 0, width: 4, height: 100).fill()
+        }
+        stripes.unlockFocus()
+        if let blurModel = EditorModel(image: stripes), let before = blurModel.renderCGImage() {
+            blurModel.tool = .blur
+            let w = CGFloat(before.width), h = CGFloat(before.height)
+            blurModel.dragChanged(start: CGPoint(x: 0, y: 0), current: CGPoint(x: w / 2, y: h))
+            blurModel.dragEnded(start: CGPoint(x: 0, y: 0), end: CGPoint(x: w / 2, y: h))
+            let after = blurModel.renderCGImage()
+            check(after.map { !pixelsEqual($0, before) } ?? false, "blur changes pixels")
+        }
+
         let ocrImage = NSImage(size: NSSize(width: 600, height: 160))
         ocrImage.lockFocus()
         NSColor.white.setFill(); NSRect(x: 0, y: 0, width: 600, height: 160).fill()
@@ -77,5 +94,10 @@ enum SelfTest {
         check(sc.display == "⇧⌘S", "shortcut display \(sc.display)")
 
         return ok
+    }
+
+    private static func pixelsEqual(_ a: CGImage, _ b: CGImage) -> Bool {
+        guard let da = a.dataProvider?.data, let db = b.dataProvider?.data else { return false }
+        return (da as Data) == (db as Data)
     }
 }
