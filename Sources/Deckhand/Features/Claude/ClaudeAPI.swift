@@ -44,7 +44,7 @@ final class ClaudeAPI: @unchecked Sendable {
         get {
             if let key = Keychain.get(keychainAccount) { return key }
             for (domain, name) in [("com.fringe.app", "FringeAnthropicAPIKey"), (AppPaths.bundleId, "DeckhandAnthropicAPIKey")] {
-                let defaults = UserDefaults(suiteName: domain)
+                let defaults = domain == AppPaths.bundleId ? UserDefaults.standard : UserDefaults(suiteName: domain)
                 if let legacy = defaults?.string(forKey: name), !legacy.isEmpty {
                     Keychain.set(legacy, for: keychainAccount)
                     defaults?.removeObject(forKey: name)
