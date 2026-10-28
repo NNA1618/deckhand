@@ -1,0 +1,15 @@
+{
+  "originHash" : "667b4a2d6dbc2598924be8059421b8c02ad49875477421a764830dc2c2cf7c7c",
+  "pins" : [
+    {
+      "identity" : "sqlite.swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/stephencelis/SQLite.swift",
+      "state" : {
+        "revision" : "4114679379eeb4538638f49ec14e1854dd9cf73c",
+        "version" : "0.17.0"
+      }
+    }
+  ],
+  "version" : 3
+}
