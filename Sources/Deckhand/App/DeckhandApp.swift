@@ -41,9 +41,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupMenuBar() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled",
-                                     accessibilityDescription: "Deckhand")
-        item.button?.image?.isTemplate = true
+        item.button?.image = Brand.menuBarIcon
+        item.button?.toolTip = "Deckhand"
         statusItem = item
         rebuildMenu()
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in

@@ -167,9 +167,12 @@ struct HomeView: View {
                 Text("NNA1618")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundColor(Theme.fgMute)
-                Text("Deckhand")
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundColor(Theme.fg)
+                HStack(spacing: 10) {
+                    BrandMark(size: 34)
+                    Text("Deckhand")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundColor(Theme.fg)
+                }
                 Text("Hover over the notch to open. Move away, press Esc or click outside to close. Drop a file on the notch to keep it on the shelf.")
                     .font(Theme.caption)
                     .foregroundColor(Theme.fgDim)

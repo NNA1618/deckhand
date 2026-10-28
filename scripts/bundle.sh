@@ -26,7 +26,9 @@ cp "$BIN_PATH" "$APP_PATH/Contents/MacOS/$APP_NAME"
 
 # Translations live next to the binary so Bundle.main finds them
 cp -R Localization/*.lproj "$APP_PATH/Contents/Resources/"
-[ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$APP_PATH/Contents/Resources/"
+[ -f Resources/AppIcon.icns ] || swift scripts/make-icons.swift
+cp Resources/AppIcon.icns "$APP_PATH/Contents/Resources/"
+cp Resources/Brand/*.svg "$APP_PATH/Contents/Resources/"
 
 cat > "$APP_PATH/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
