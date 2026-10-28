@@ -45,6 +45,7 @@ struct PromptsView: View {
                         }
                     }
                 }
+                .fadeBottom()
             }
         }
         .sheet(item: $vm.editing) { p in

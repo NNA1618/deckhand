@@ -16,6 +16,9 @@ enum Theme {
     static let accentSoft = Color.white.opacity(0.16)
     static let warn = Color(red: 1.0, green: 0.62, blue: 0.04)
 
+    /// `--snapshot` cannot capture glass, so it swaps glass for flat dark fills.
+    nonisolated(unsafe) static var flatForSnapshot = false
+
     static let title: Font = .system(size: 15, weight: .semibold)
     static let body: Font = .system(size: 13)
     static let caption: Font = .system(size: 11)
@@ -29,9 +32,16 @@ enum Theme {
 /// Liquid Glass on macOS 26, a regular blur on older systems.
 struct GlassBackground: NSViewRepresentable {
     var cornerRadius: CGFloat
-    var tint: NSColor = NSColor.black.withAlphaComponent(0.55)
+    var tint: NSColor = NSColor.black.withAlphaComponent(0.38)
 
     func makeNSView(context: Context) -> NSView {
+        if Theme.flatForSnapshot {
+            let flat = NSView()
+            flat.wantsLayer = true
+            flat.layer?.backgroundColor = NSColor(white: 0.08, alpha: 0.92).cgColor
+            flat.layer?.cornerRadius = cornerRadius
+            return flat
+        }
         if #available(macOS 26.0, *) {
             let glass = NSGlassEffectView()
             glass.cornerRadius = cornerRadius
@@ -65,7 +75,9 @@ extension View {
     /// Glass backing for controls inside the panel (buttons, tabs, fields).
     @ViewBuilder
     func glassChip<S: Shape>(in shape: S, interactive: Bool = false) -> some View {
-        if #available(macOS 26.0, *) {
+        if Theme.flatForSnapshot {
+            self.background(Theme.surface2, in: shape)
+        } else if #available(macOS 26.0, *) {
             self.glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
         } else {
             self.background(Theme.surface2, in: shape)
@@ -127,6 +139,7 @@ struct PrimaryButton: View {
                 .foregroundColor(.black)
                 .padding(.horizontal, 13).padding(.vertical, 6)
                 .background(Capsule().fill(Theme.accent))
+                .fixedSize()
         }
         .buttonStyle(.plain)
     }
@@ -185,5 +198,17 @@ struct EmptyState: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+extension View {
+    /// Fades scrolling content out at the bottom edge instead of cutting it hard.
+    func fadeBottom(_ height: CGFloat = 28) -> some View {
+        mask(
+            VStack(spacing: 0) {
+                Rectangle()
+                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: height)
+            }
+        )
     }
 }

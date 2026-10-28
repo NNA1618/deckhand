@@ -33,6 +33,7 @@ struct ClipboardView: View {
                         }
                     }
                 }
+                .fadeBottom()
             }
         }
     }

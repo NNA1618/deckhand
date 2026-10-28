@@ -3,16 +3,74 @@ import AppKit
 import ServiceManagement
 
 /// Settings window in the style of System Settings: tabs with grouped forms.
+enum SettingsTab: String, CaseIterable { case general, shortcuts, clipboard, claude, recents }
+
+@MainActor
+final class SettingsRouter: ObservableObject {
+    static let shared = SettingsRouter()
+    @Published var tab: SettingsTab = .general
+}
+
 struct SettingsView: View {
-    var body: some View {
-        TabView {
-            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
-            ShortcutSettings().tabItem { Label("Shortcuts", systemImage: "command") }
-            ClipboardSettings().tabItem { Label("Clipboard", systemImage: "doc.on.clipboard") }
-            ClaudeSettings().tabItem { Label("Claude", systemImage: "sparkle") }
-            RecentsSettings().tabItem { Label("Recents", systemImage: "photo.stack") }
+    @ObservedObject private var router = SettingsRouter.shared
+
+    private func title(_ tab: SettingsTab) -> LocalizedStringKey {
+        switch tab {
+        case .general: return "General"
+        case .shortcuts: return "Shortcuts"
+        case .clipboard: return "Clipboard"
+        case .claude: return "Claude"
+        case .recents: return "Recents"
         }
-        .frame(width: 560, height: 460)
+    }
+
+    private func symbol(_ tab: SettingsTab) -> String {
+        switch tab {
+        case .general: return "gearshape"
+        case .shortcuts: return "command"
+        case .clipboard: return "doc.on.clipboard"
+        case .claude: return "sparkle"
+        case .recents: return "photo.stack"
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 4) {
+                ForEach(SettingsTab.allCases, id: \.self) { tab in
+                    let active = router.tab == tab
+                    Button { router.tab = tab } label: {
+                        VStack(spacing: 4) {
+                            Image(systemName: symbol(tab)).font(.system(size: 17, weight: .regular))
+                                .frame(height: 20)
+                            Text(title(tab)).font(.system(size: 11))
+                        }
+                        .frame(width: 110, height: 50)
+                        .foregroundStyle(active ? Color.primary : Color.secondary)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(active ? Color.primary.opacity(0.10) : Color.clear)
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 30)   // clear of the window buttons
+            .padding(.bottom, 8)
+            Divider()
+            Group {
+                switch router.tab {
+                case .general: GeneralSettings()
+                case .shortcuts: ShortcutSettings()
+                case .clipboard: ClipboardSettings()
+                case .claude: ClaudeSettings()
+                case .recents: RecentsSettings()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(width: 600, height: 560)
     }
 }
 
@@ -301,7 +359,7 @@ struct RecentsSettings: View {
 
 @MainActor
 enum SettingsWindow {
-    private static var window: NSWindow?
+    private(set) static var window: NSWindow?
 
     static func show() {
         if let window {
@@ -310,12 +368,14 @@ enum SettingsWindow {
             return
         }
         let w = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 460),
-            styleMask: [.titled, .closable],
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 560),
+            styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         w.title = String(localized: "Deckhand Settings")
+        w.titlebarAppearsTransparent = true
+        w.titleVisibility = .hidden
         w.contentViewController = NSHostingController(rootView: SettingsView())
         w.isReleasedWhenClosed = false
         w.center()

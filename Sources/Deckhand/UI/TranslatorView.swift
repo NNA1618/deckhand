@@ -12,37 +12,20 @@ struct TranslatorView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            // Lang row
-            HStack(spacing: 10) {
-                Text(TranslatorService.name(of: vm.sourceLang))
-                    .font(Theme.monoSmall)
-                    .foregroundColor(Theme.accent)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Theme.accent.opacity(0.1))
-                    .cornerRadius(6)
-                Button(action: { vm.swapLanguages() }) {
+            HStack(spacing: 8) {
+                Chip(text: TranslatorService.name(of: vm.sourceLang), active: true)
+                Button { vm.swapLanguages() } label: {
                     Image(systemName: "arrow.left.arrow.right")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Theme.fgDim)
-                        .font(.system(size: 11))
-                }.buttonStyle(.plain)
-                Text(TranslatorService.name(of: vm.targetLang))
-                    .font(Theme.monoSmall)
-                    .foregroundColor(Theme.accent)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Theme.accent.opacity(0.1))
-                    .cornerRadius(6)
-                Spacer()
-                if vm.isTranslating {
-                    ProgressView().controlSize(.small)
+                        .frame(width: 26, height: 26)
+                        .glassChip(in: Circle(), interactive: true)
                 }
-                Button(action: translate) {
-                    Text("Translate")
-                        .font(Theme.monoSmall)
-                        .foregroundColor(Theme.bg)
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(Theme.accent)
-                        .cornerRadius(6)
-                }.buttonStyle(.plain)
+                .buttonStyle(.plain)
+                Chip(text: TranslatorService.name(of: vm.targetLang))
+                Spacer()
+                if vm.isTranslating { ProgressView().controlSize(.small) }
+                PrimaryButton(title: "Translate") { translate() }
                     .disabled(vm.input.isEmpty || vm.isTranslating)
             }
 
@@ -52,18 +35,16 @@ struct TranslatorView: View {
                 .padding(8)
                 .font(Theme.body)
                 .foregroundColor(Theme.fg)
-                .background(Theme.surface2)
-                .cornerRadius(8)
-                .frame(minHeight: 100, maxHeight: 160)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .frame(height: 130)
                 .onChange(of: vm.input) { _, _ in
                     vm.refreshLanguages()
                 }
 
             // Output
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Theme.surface2.opacity(0.5))
-                    .frame(minHeight: 100)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Theme.surface.opacity(0.6))
                 if vm.output.isEmpty {
                     Text(vm.error.map { LocalizedStringKey($0) } ?? "The translation appears here")
                         .font(Theme.body)
@@ -86,16 +67,16 @@ struct TranslatorView: View {
                         if !vm.output.isEmpty {
                             Button(action: { vm.copyOutput() }) {
                                 Image(systemName: "doc.on.doc")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(Theme.fgDim)
-                                    .padding(6)
-                                    .background(Theme.surface)
-                                    .cornerRadius(6)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(Theme.fg)
+                                    .frame(width: 28, height: 28)
+                                    .glassChip(in: Circle(), interactive: true)
                             }.buttonStyle(.plain)
                         }
-                    }.padding(6)
+                    }.padding(8)
                 }
             }
+            .frame(maxHeight: .infinity)
         }
         .onAppear {
             vm.loadFromClipboardIfEmpty()

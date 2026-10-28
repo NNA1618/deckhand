@@ -24,6 +24,6 @@ enum TranslatorService {
     /// Language name for the UI in the user's language.
     static func name(of code: String) -> String {
         let locale = Locale.current
-        return locale.localizedString(forLanguageCode: code) ?? code
+        return (locale.localizedString(forLanguageCode: code) ?? code).capitalized(with: locale)
     }
 }

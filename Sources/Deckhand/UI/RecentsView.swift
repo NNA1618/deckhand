@@ -44,6 +44,7 @@ struct RecentsView: View {
                             ForEach(vm.recent) { MediaTile(file: $0) }
                         }
                     }
+                    .fadeBottom()
                 }
             }
         }

@@ -45,6 +45,7 @@ struct ShelfView: View {
                         }
                         .padding(12)
                     }
+                    .fadeBottom()
                 }
             }
             .animation(.easeOut(duration: 0.15), value: targeted)

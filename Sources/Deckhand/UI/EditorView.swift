@@ -23,7 +23,7 @@ struct EditorView: View {
     // MARK: - Toolbar
 
     private var toolbar: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             HStack(spacing: 2) {
                 ForEach(EditorTool.allCases) { tool in
                     Button {
@@ -63,9 +63,7 @@ struct EditorView: View {
                         .contentShape(Circle())
                         .onTapGesture { model.color = c }
                 }
-                ColorPicker("", selection: $model.color, supportsOpacity: false)
-                    .labelsHidden()
-                    .frame(width: 26)
+                ColorWell(color: $model.color)
                     .help(Text("Custom color"))
             }
 
@@ -99,18 +97,18 @@ struct EditorView: View {
                 Text(status).font(Theme.monoSmall).foregroundColor(Theme.accent)
                     .transition(.opacity)
             }
-            Button("Save") { model.save() }
-                .buttonStyle(.plain).font(Theme.monoSmall).foregroundColor(Theme.fgDim)
+            iconButton("square.and.arrow.down", "Save ⌘S", enabled: true) { model.save() }
                 .keyboardShortcut("s", modifiers: .command)
-            Button("Copy") { model.copyToClipboard() }
-                .buttonStyle(.plain).font(Theme.monoSmall).foregroundColor(Theme.fgDim)
+            iconButton("doc.on.doc", "Copy ⌘C", enabled: true) { model.copyToClipboard() }
                 .keyboardShortcut(model.pendingTextPoint == nil ? KeyboardShortcut("c", modifiers: .command) : nil)
             PrimaryButton(title: "Done") {
                 model.copyToClipboard()
                 onClose()
             }
+            .fixedSize()
             .help(Text("Copy and close"))
         }
+        .lineLimit(1)
         .animation(.easeOut(duration: 0.15), value: model.status)
     }
 
@@ -208,10 +206,11 @@ struct EditorView: View {
 enum EditorWindow {
     private static var windows: [NSWindow] = []
 
-    static func open(image: NSImage) {
+    @discardableResult
+    static func open(image: NSImage) -> NSWindow? {
         guard let model = EditorModel(image: image) else {
             Log.info("editor: cannot read image")
-            return
+            return nil
         }
         let window = NSWindow(
             contentRect: .zero,
@@ -226,12 +225,12 @@ enum EditorWindow {
         window.backgroundColor = .black
         window.appearance = NSAppearance(named: .darkAqua)
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 820, height: 420)
+        window.minSize = NSSize(width: 940, height: 460)
 
         let visible = (NSScreen.main ?? NSScreen.screens[0]).visibleFrame
         let pts = image.size
         let k = min(1, (visible.width * 0.85 - 40) / max(pts.width, 1), (visible.height * 0.85 - 110) / max(pts.height, 1))
-        let size = NSSize(width: max(880, pts.width * k + 40), height: max(460, pts.height * k + 110))
+        let size = NSSize(width: max(960, pts.width * k + 40), height: max(480, pts.height * k + 110))
         window.setContentSize(size)
         window.center()
 
@@ -246,5 +245,45 @@ enum EditorWindow {
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         Log.info("editor opened \(Int(pts.width))x\(Int(pts.height))")
+        return window
+    }
+}
+
+/// A rainbow swatch that opens the system color panel and feeds the picked color back.
+struct ColorWell: View {
+    @Binding var color: Color
+
+    var body: some View {
+        Button {
+            ColorPanelBridge.shared.open(current: color) { color = $0 }
+        } label: {
+            Circle()
+                .fill(AngularGradient(colors: [.red, .yellow, .green, .cyan, .blue, .purple, .red], center: .center))
+                .frame(width: 16, height: 16)
+                .overlay(Circle().stroke(Color.white.opacity(0.25), lineWidth: 1))
+                .frame(width: 22, height: 22)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+@MainActor
+final class ColorPanelBridge: NSObject {
+    static let shared = ColorPanelBridge()
+    private var onChange: ((Color) -> Void)?
+
+    func open(current: Color, onChange: @escaping (Color) -> Void) {
+        self.onChange = onChange
+        let panel = NSColorPanel.shared
+        panel.showsAlpha = false
+        panel.color = NSColor(current)
+        panel.setTarget(self)
+        panel.setAction(#selector(changed(_:)))
+        panel.orderFront(nil)
+    }
+
+    @objc private func changed(_ panel: NSColorPanel) {
+        onChange?(Color(nsColor: panel.color))
     }
 }

@@ -20,12 +20,6 @@ struct NotchRootView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                // Glass is taller than the window by its radius, so the top rounding falls off screen
-                GlassBackground(cornerRadius: panelRadius)
-                    .frame(width: size.width, height: size.height + panelRadius)
-                    .offset(y: -panelRadius)
-                    .opacity(vm.isOpen ? 1 : 0)
-
                 NotchShape(topRadius: showToast ? 8 : 0, bottomRadius: showToast ? 14 : 9)
                     .fill(Color.black)
                     .opacity(vm.isOpen ? 0 : 1)
@@ -56,6 +50,14 @@ struct NotchRootView: View {
                 }
             }
             .frame(width: size.width, height: size.height, alignment: .top)
+            // Glass is taller than the panel by its radius so the top rounding falls off screen.
+            // It sits in a background so its extra height never affects the content layout.
+            .background(alignment: .top) {
+                GlassBackground(cornerRadius: panelRadius)
+                    .frame(width: size.width, height: size.height + panelRadius)
+                    .offset(y: -panelRadius)
+                    .opacity(vm.isOpen ? 1 : 0)
+            }
             .clipped(antialiased: true)
             .shadow(color: .black.opacity(vm.isOpen ? 0.45 : 0), radius: 22, y: 10)
 
@@ -178,11 +180,6 @@ struct HomeView: View {
                     .foregroundColor(Theme.fgDim)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: 260, alignment: .leading)
-                Spacer()
-                GlassButton(title: "Settings", symbol: "gearshape") {
-                    vm.requestClose()
-                    SettingsWindow.show()
-                }
             }
             VStack(alignment: .leading, spacing: 7) {
                 Text("Shortcuts")
