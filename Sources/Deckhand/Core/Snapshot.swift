@@ -55,7 +55,8 @@ enum Snapshot {
             .draw(in: NSRect(origin: .zero, size: size), angle: -90)
         rep.draw(in: NSRect(origin: .zero, size: size))
         if let cutout {
-            NSColor.systemRed.withAlphaComponent(0.55).setFill()
+            // The real notch is black; the debug run marks it red to check what it covers
+            (CommandLine.arguments.contains("--clean") ? NSColor.black : NSColor.systemRed.withAlphaComponent(0.55)).setFill()
             NSBezierPath(roundedRect: cutout, xRadius: 8, yRadius: 8).fill()
         }
         out.unlockFocus()
