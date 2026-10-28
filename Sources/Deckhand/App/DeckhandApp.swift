@@ -63,6 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         add(menu, String(localized: "Open Deckhand"), #selector(toggleNotch), .toggle)
         add(menu, String(localized: "Capture Area"), #selector(takeScreenshot), .screenshot)
+        add(menu, String(localized: "Copy Text from Screen"), #selector(captureText), .captureText)
+        add(menu, String(localized: "Pick Color"), #selector(pickColor), .colorPicker)
         menu.addItem(.separator())
         for tab in NotchTab.allCases where tab != .home {
             let mi = NSMenuItem(title: tab.title, action: #selector(openTab(_:)), keyEquivalent: "")
@@ -92,6 +94,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hk = HotkeyManager.shared
         hk.setHandler(.toggle) { [weak self] in self?.notch.toggle() }
         hk.setHandler(.screenshot) { [weak self] in self?.takeScreenshot() }
+        hk.setHandler(.captureText) { [weak self] in self?.captureText() }
+        hk.setHandler(.colorPicker) { [weak self] in self?.pickColor() }
         let tabs: [(HotkeyAction, NotchTab)] = [
             (.clipboard, .clipboard), (.translator, .translator), (.claude, .claude),
             (.prompts, .prompts), (.media, .media), (.shelf, .shelf), (.recents, .recents),
@@ -109,6 +113,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ScreenshotService.captureRegion { [weak self] in
             guard Settings.shared.screenshotToast else { return }
             self?.notch.showToast(symbol: "camera.viewfinder", text: String(localized: "Copied to clipboard"))
+        }
+    }
+
+    @objc private func captureText() {
+        notch.close()
+        ScreenshotService.captureText { [weak self] text in
+            guard let text else {
+                self?.notch.showToast(symbol: "text.viewfinder", text: String(localized: "No text found"))
+                return
+            }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            self?.notch.showToast(symbol: "text.viewfinder", text: String(localized: "Text copied"))
+        }
+    }
+
+    @objc private func pickColor() {
+        notch.close()
+        NSColorSampler().show { [weak self] color in
+            guard let color, let rgb = color.usingColorSpace(.sRGB) else { return }
+            let hex = String(format: "#%02X%02X%02X",
+                             Int((rgb.redComponent * 255).rounded()),
+                             Int((rgb.greenComponent * 255).rounded()),
+                             Int((rgb.blueComponent * 255).rounded()))
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(hex, forType: .string)
+            MainActor.assumeIsolated { self?.notch.showToast(symbol: "eyedropper", text: hex) }
         }
     }
 

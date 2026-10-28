@@ -154,6 +154,7 @@ struct HomeView: View {
         switch action {
         case .toggle: return nil
         case .screenshot, .clipboard: return .clipboard
+        case .captureText, .colorPicker: return nil
         case .translator: return .translator
         case .claude: return .claude
         case .prompts: return .prompts

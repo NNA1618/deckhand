@@ -35,7 +35,7 @@ struct Shortcut: Codable, Equatable, Hashable {
 }
 
 enum HotkeyAction: String, CaseIterable, Identifiable, Codable {
-    case toggle, screenshot, clipboard, translator, claude, prompts, media, shelf, recents
+    case toggle, screenshot, captureText, colorPicker, clipboard, translator, claude, prompts, media, shelf, recents
 
     var id: String { rawValue }
 
@@ -43,6 +43,8 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .toggle: return String(localized: "Open or close Deckhand")
         case .screenshot: return String(localized: "Capture area to clipboard")
+        case .captureText: return String(localized: "Copy text from screen area")
+        case .colorPicker: return String(localized: "Pick a color from screen")
         case .clipboard: return String(localized: "Clipboard")
         case .translator: return String(localized: "Translate")
         case .claude: return String(localized: "Claude")
@@ -58,6 +60,8 @@ enum HotkeyAction: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .toggle: return Shortcut(keyCode: UInt32(kVK_Space), modifiers: ctrlOpt)
         case .screenshot: return Shortcut(keyCode: UInt32(kVK_ANSI_S), modifiers: UInt32(cmdKey | shiftKey))
+        case .captureText: return Shortcut(keyCode: UInt32(kVK_ANSI_E), modifiers: UInt32(cmdKey | shiftKey))
+        case .colorPicker: return Shortcut(keyCode: UInt32(kVK_ANSI_C), modifiers: ctrlOpt)
         case .clipboard: return Shortcut(keyCode: UInt32(kVK_ANSI_V), modifiers: ctrlOpt)
         case .translator: return Shortcut(keyCode: UInt32(kVK_ANSI_T), modifiers: ctrlOpt)
         case .claude: return Shortcut(keyCode: UInt32(kVK_ANSI_K), modifiers: ctrlOpt)

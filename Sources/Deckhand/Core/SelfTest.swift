@@ -59,6 +59,20 @@ enum SelfTest {
             check(ru.localizedString(forKey: "Settings", value: nil, table: nil) == "Настройки", "russian localization bundled")
         }
 
+        let ocrImage = NSImage(size: NSSize(width: 600, height: 160))
+        ocrImage.lockFocus()
+        NSColor.white.setFill(); NSRect(x: 0, y: 0, width: 600, height: 160).fill()
+        ("Deckhand reads text" as NSString).draw(at: NSPoint(x: 30, y: 60), withAttributes: [
+            .font: NSFont.systemFont(ofSize: 40, weight: .medium), .foregroundColor: NSColor.black,
+        ])
+        ocrImage.unlockFocus()
+        let ocrFile = FileManager.default.temporaryDirectory.appendingPathComponent("deckhand-selftest-ocr.png")
+        if let tiff = ocrImage.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+            try? png.write(to: ocrFile)
+        }
+        let recognized = TextRecognizer.recognize(at: ocrFile) ?? ""
+        check(recognized.contains("Deckhand reads text"), "text recognition: \(recognized)")
+
         let sc = Shortcut(keyCode: 1, modifiers: UInt32(1 << 8 | 1 << 9)) // ⌘⇧S
         check(sc.display == "⇧⌘S", "shortcut display \(sc.display)")
 
