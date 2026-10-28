@@ -54,8 +54,14 @@ cat > "$APP_PATH/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
-# Ad-hoc signature: no Apple Developer certificate yet
-codesign --force --deep --sign - "$APP_PATH"
+# Sign with the stable local identity if it exists (keeps macOS permissions across rebuilds),
+# otherwise ad-hoc. Create the identity once with ./scripts/setup-signing.sh
+SIGN_ID="${SIGN_ID:-}"
+if [ -z "$SIGN_ID" ] && security find-certificate -c "Deckhand Local Signing" >/dev/null 2>&1; then
+    SIGN_ID="Deckhand Local Signing"
+fi
+codesign --force --deep --sign "${SIGN_ID:--}" "$APP_PATH"
+echo "==> signed with ${SIGN_ID:-ad-hoc}"
 echo "==> built $APP_PATH"
 
 [ "${NO_INSTALL:-0}" = "1" ] && exit 0
