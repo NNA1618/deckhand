@@ -76,6 +76,12 @@ enum SelfTest {
             check(after.map { !pixelsEqual($0, before) } ?? false, "blur changes pixels")
         }
 
+        if let big = CGContext(data: nil, width: 4000, height: 1000, bitsPerComponent: 8, bytesPerRow: 0,
+                               space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage(),
+           let png = EditorModel.pngForUpload(big), let rep = NSBitmapImageRep(data: png) {
+            check(rep.pixelsWide == 1568 && rep.pixelsHigh == 392, "upload image downscaled to 1568")
+        }
+
         let ocrImage = NSImage(size: NSSize(width: 600, height: 160))
         ocrImage.lockFocus()
         NSColor.white.setFill(); NSRect(x: 0, y: 0, width: 600, height: 160).fill()

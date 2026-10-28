@@ -84,6 +84,11 @@ struct ClipboardRow: View {
                     if item.kind == .image && hover {
                         rowButton("pencil.tip.crop.circle", "Edit") { onEdit(item) }
                         rowButton("doc.on.doc", "Copy") { copy() }
+                        rowButton("pip", "Pin on Screen") {
+                            if let path = item.imagePath, let image = NSImage(contentsOfFile: path) {
+                                PinnedImageWindow.show(image)
+                            }
+                        }
                     }
                     rowButton(item.pinned ? "pin.fill" : "pin", "Pin", tint: item.pinned ? Theme.accent : nil) { onPin(item) }
                     if hover {

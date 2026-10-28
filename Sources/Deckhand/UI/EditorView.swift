@@ -13,8 +13,17 @@ struct EditorView: View {
                 .padding(.top, 30)   // clear of the window buttons
                 .padding(.bottom, 10)
             Divider().overlay(Theme.border)
-            canvasArea
-                .padding(20)
+            HStack(spacing: 0) {
+                canvasArea
+                    .padding(20)
+                if model.askVisible {
+                    Divider().overlay(Theme.border)
+                    askPanel
+                        .frame(width: 320)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.askVisible)
         }
         .background(Color.black)
         .preferredColorScheme(.dark)
@@ -97,6 +106,11 @@ struct EditorView: View {
                 Text(status).font(Theme.monoSmall).foregroundColor(Theme.accent)
                     .transition(.opacity)
             }
+            iconButton("sparkle", "Ask Claude", enabled: true) { model.askVisible.toggle() }
+            iconButton("pin", "Pin on Screen", enabled: true) {
+                model.commitText()
+                if let image = model.renderNSImage() { PinnedImageWindow.show(image) }
+            }
             iconButton("square.and.arrow.down", "Save ⌘S", enabled: true) { model.save() }
                 .keyboardShortcut("s", modifiers: .command)
             iconButton("doc.on.doc", "Copy ⌘C", enabled: true) { model.copyToClipboard() }
@@ -122,6 +136,46 @@ struct EditorView: View {
         .buttonStyle(.plain)
         .disabled(!enabled)
         .help(Text(help))
+    }
+
+    // MARK: - Ask Claude
+
+    private var askPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Ask Claude about this image").font(Theme.title).foregroundColor(Theme.fg)
+            TextField("What is on this screenshot?", text: $model.question, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(Theme.body).foregroundColor(Theme.fg)
+                .lineLimit(1...4)
+                .padding(9)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .onSubmit { model.askClaude() }
+            HStack {
+                PrimaryButton(title: "Ask") { model.askClaude() }
+                    .disabled(model.asking)
+                if model.asking { ProgressView().controlSize(.small) }
+                Spacer()
+                if !model.answer.isEmpty {
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(model.answer, forType: .string)
+                    } label: { Image(systemName: "doc.on.doc").foregroundColor(Theme.fgDim) }
+                    .buttonStyle(.plain)
+                    .help(Text("Copy"))
+                }
+            }
+            if let error = model.askError {
+                Text(error).font(Theme.caption).foregroundColor(Theme.warn)
+            }
+            ScrollView {
+                Text(model.answer)
+                    .font(Theme.body).foregroundColor(Theme.fg)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .fadeBottom()
+        }
+        .padding(16)
     }
 
     // MARK: - Canvas
