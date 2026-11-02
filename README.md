@@ -26,7 +26,8 @@ It is a native macOS app written in Swift and SwiftUI. No Electron, no account, 
 **Clipboard**
 - History of text, images and files with search and pinning.
 - Click to copy, double-click to paste straight into the app you were using.
-- Passwords copied from password managers paste normally but stay out of the history.
+- Type to search, pick with the arrows, press Return to paste. `⌘1`–`⌘9` paste one of the first nine.
+- Passwords copied from password managers, including Apple Passwords, paste normally but stay out of the history.
 
 **Screenshots**
 - `⇧⌘S` captures an area straight to the clipboard: no file on the desktop, no floating thumbnail.
@@ -35,6 +36,13 @@ It is a native macOS app written in Swift and SwiftUI. No Electron, no account, 
 - Ask Claude about an image right from the editor, or pin it on top of other windows.
 
 <p align="center"><img src="docs/images/editor.png" width="760" alt="The image editor"></p>
+
+**Mac conveniences**
+- **Keep Awake.** Stops the Mac from sleeping for an hour, two, four or until you turn it off, like Amphetamine. Toggle it with `⌃⌥A`, from the Home tab or the menu bar. A cup and the time left show around the closed notch.
+- **Battery.** Plugging in the charger shows the level in the notch, and so does the battery dropping to 20% and 10%.
+- **Appearance.** Transparent or tinted Liquid Glass, or a solid panel, with a tint slider and three panel sizes. Hovering can be delayed or turned off, and the panel stays closed while an app is in full screen.
+
+<p align="center"><img src="docs/images/keep-awake.png" width="500" alt="Keep Awake around the notch"></p>
 
 **Everything else**
 - **Translate.** On-device translation through Apple's Translation framework. Detects the language and picks the direction.
@@ -73,6 +81,7 @@ English and Russian. The app follows your system language.
 | Capture area to clipboard | `⇧⌘S` |
 | Copy text from screen area | `⇧⌘E` |
 | Pick a color from screen | `⌃⌥C` |
+| Keep Mac awake | `⌃⌥A` |
 | Clipboard | `⌃⌥V` |
 | Translate | `⌃⌥T` |
 | Claude | `⌃⌥K` |
@@ -83,7 +92,7 @@ English and Russian. The app follows your system language.
 
 Every shortcut can be changed in Settings → Shortcuts: click it and press new keys.
 
-<p align="center"><img src="docs/images/settings.png" width="480" alt="Shortcut settings"></p>
+<p align="center"><img src="docs/images/settings.png" width="480" alt="Appearance settings"></p>
 
 ## Privacy
 
@@ -92,7 +101,7 @@ Everything stays on your Mac. The clipboard history lives in `~/Library/Applicat
 Permissions macOS may ask for:
 
 - **Screen Recording**, for screenshots and text capture.
-- **Accessibility**, only to paste into another app.
+- **Accessibility**, only to paste into another app and to tell when the app in front is in full screen.
 - **Automation**, to read the current track from Music, Spotify or a browser.
 
 ## Build from source
