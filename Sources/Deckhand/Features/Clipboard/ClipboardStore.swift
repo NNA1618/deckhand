@@ -148,6 +148,16 @@ final class ClipboardStore {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
+    /// Removes unpinned items copied from the given apps. Returns how many were removed.
+    @discardableResult
+    func deleteItems(fromApps apps: Set<String>) -> Int {
+        guard let rows = try? db.prepare(t.filter(cPinned == 0)) else { return 0 }
+        let ids = rows.filter { row in row[cSrcApp].map(apps.contains) ?? false }.map { $0[cId] }
+        for id in ids { delete(id: id) }
+        if !ids.isEmpty { NotificationCenter.default.post(name: .clipboardHistoryChanged, object: nil) }
+        return ids.count
+    }
+
     private func trimOldItems() {
         // Drop the oldest unpinned items above the limit
         let maxItems = Settings.shared.historyLimit

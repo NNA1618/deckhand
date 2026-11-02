@@ -27,6 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notch.start()
         setupMenuBar()
         setupHotkeys()
+        if !Settings.shared.savePasswordsToHistory {
+            // Older versions kept copies from password apps that set no concealed type
+            ClipboardStore.shared.deleteItems(fromApps: ClipboardWatcher.passwordApps)
+        }
         ClipboardWatcher.shared.start()
         if Settings.shared.showPlayingInNotch { NowPlayingMonitor.shared.start() }
 

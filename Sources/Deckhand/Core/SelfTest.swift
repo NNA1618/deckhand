@@ -54,6 +54,13 @@ enum SelfTest {
         let out = model.renderNSImage()
         check(out?.size == NSSize(width: 100, height: 50), "nsimage point size after crop")
 
+        check(ClipboardWatcher.isPassword(types: ["public.utf8-plain-text"], sourceApp: "com.apple.Passwords"),
+              "copies from Apple Passwords count as passwords")
+        check(ClipboardWatcher.isPassword(types: ["org.nspasteboard.ConcealedType"], sourceApp: nil),
+              "concealed type counts as password")
+        check(!ClipboardWatcher.isPassword(types: ["public.utf8-plain-text"], sourceApp: "com.microsoft.edgemac"),
+              "plain copy is not a password")
+
         // Only meaningful inside the .app, where the .lproj folders are bundled
         if let path = Bundle.main.path(forResource: "ru", ofType: "lproj"), let ru = Bundle(path: path) {
             check(ru.localizedString(forKey: "Settings", value: nil, table: nil) == "Настройки", "russian localization bundled")

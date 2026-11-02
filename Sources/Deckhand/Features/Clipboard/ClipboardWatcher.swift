@@ -39,13 +39,28 @@ final class ClipboardWatcher {
         "com.agilebits.onepassword",
     ]
 
+    /// Apps whose copies are passwords even when they do not set a concealed type,
+    /// e.g. Apple's Passwords app.
+    static let passwordApps: Set<String> = [
+        "com.apple.Passwords",
+        "com.apple.keychainaccess",
+        "com.1password.1password",
+        "com.bitwarden.desktop",
+    ]
+
+    /// A password manager marked the copy as concealed, or it came from a password app.
+    static func isPassword(types: Set<String>, sourceApp: String?) -> Bool {
+        if !types.isDisjoint(with: concealedTypes) { return true }
+        return sourceApp.map(passwordApps.contains) ?? false
+    }
+
     private func capture(pb: NSPasteboard) {
         let source = currentSource()
         let settings = Settings.shared
 
         let types = Set((pb.types ?? []).map(\.rawValue))
-        if !settings.savePasswordsToHistory && !types.isDisjoint(with: Self.concealedTypes) {
-            Log.info("clipboard: concealed item skipped")
+        if Self.isPassword(types: types, sourceApp: source.bundleId) && !settings.savePasswordsToHistory {
+            Log.info("clipboard: password skipped")
             return
         }
         if let app = source.bundleId, settings.excludedApps.contains(app) { return }
