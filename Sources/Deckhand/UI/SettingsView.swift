@@ -103,6 +103,7 @@ struct GeneralSettings: View {
                     Text(loginError).font(.caption).foregroundStyle(.orange)
                 }
                 Toggle("Show a notice in the notch after a screenshot", isOn: $settings.screenshotToast)
+                Toggle("Show charging and low battery in the notch", isOn: $settings.batteryNotices)
                 Toggle("Show the playing track around the notch", isOn: $settings.showPlayingInNotch)
                     .onChange(of: settings.showPlayingInNotch) { _, on in
                         if on { NowPlayingMonitor.shared.start() }

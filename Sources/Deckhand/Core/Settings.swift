@@ -51,6 +51,8 @@ final class Settings: ObservableObject {
     @Published var hoverDelay: Double { didSet { d.set(hoverDelay, forKey: "hoverDelay") } }
     @Published var hideInFullScreen: Bool { didSet { d.set(hideInFullScreen, forKey: "hideInFullScreen") } }
 
+    @Published var batteryNotices: Bool { didSet { d.set(batteryNotices, forKey: "batteryNotices") } }
+
     // Keep Awake
     /// Seconds; 0 is stored for "until turned off".
     @Published var keepAwakeDefaultDuration: TimeInterval? {
@@ -76,6 +78,7 @@ final class Settings: ObservableObject {
             "keepAwakeDefaultDuration": 0.0,
             "keepAwakeAllowDisplaySleep": false,
             "keepAwakeIndicator": true,
+            "batteryNotices": true,
         ])
         savePasswordsToHistory = d.bool(forKey: "savePasswordsToHistory")
         historyLimit = d.integer(forKey: "historyLimit")
@@ -95,5 +98,6 @@ final class Settings: ObservableObject {
         keepAwakeDefaultDuration = awake > 0 ? awake : nil
         keepAwakeAllowDisplaySleep = d.bool(forKey: "keepAwakeAllowDisplaySleep")
         keepAwakeIndicator = d.bool(forKey: "keepAwakeIndicator")
+        batteryNotices = d.bool(forKey: "batteryNotices")
     }
 }

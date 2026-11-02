@@ -61,6 +61,16 @@ enum SelfTest {
         check(!ClipboardWatcher.isPassword(types: ["public.utf8-plain-text"], sourceApp: "com.microsoft.edgemac"),
               "plain copy is not a password")
 
+        var warned = Set<Int>()
+        let onBattery = BatteryMonitor.State(percent: 50, onAC: false, charging: false)
+        let plugged = BatteryMonitor.State(percent: 50, onAC: true, charging: true)
+        check(BatteryMonitor.events(from: onBattery, to: plugged, warned: &warned) == [.pluggedIn(percent: 50)],
+              "battery: plugging in is reported")
+        let low = BatteryMonitor.State(percent: 19, onAC: false, charging: false)
+        check(BatteryMonitor.events(from: onBattery, to: low, warned: &warned) == [.low(percent: 19)]
+              && BatteryMonitor.events(from: low, to: low, warned: &warned).isEmpty,
+              "battery: low level is reported once")
+
         let awake = KeepAwake.shared
         awake.start(for: 60)
         check(awake.isActive && awake.holdsAssertion, "keep awake holds a power assertion")
@@ -71,6 +81,9 @@ enum SelfTest {
         // Only meaningful inside the .app, where the .lproj folders are bundled
         if let path = Bundle.main.path(forResource: "ru", ofType: "lproj"), let ru = Bundle(path: path) {
             check(ru.localizedString(forKey: "Settings", value: nil, table: nil) == "Настройки", "russian localization bundled")
+            let percent = 50
+            let charging = String(localized: "Charging, \(percent)%", bundle: ru)
+            check(charging == "Заряжается, 50%", "russian interpolated string: \(charging)")
         }
 
         // Blur: pixelating a striped image must change pixels inside the region

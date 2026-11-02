@@ -35,6 +35,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         ClipboardWatcher.shared.start()
         if Settings.shared.showPlayingInNotch { NowPlayingMonitor.shared.start() }
+        BatteryMonitor.shared.onEvent = { [weak self] event in
+            guard Settings.shared.batteryNotices else { return }
+            switch event {
+            case .pluggedIn(let percent):
+                self?.notch.showToast(symbol: "bolt.fill", text: String(localized: "Charging, \(percent)%"))
+            case .low(let percent):
+                self?.notch.showToast(symbol: "battery.25percent", text: String(localized: "Battery \(percent)%"))
+            }
+        }
+        BatteryMonitor.shared.start()
 
         // For testing: `Deckhand --open clipboard` opens a tab on launch
         let args = CommandLine.arguments
