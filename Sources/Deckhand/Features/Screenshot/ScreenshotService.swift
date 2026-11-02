@@ -57,6 +57,10 @@ enum ScreenshotService {
 enum TextRecognizer {
     static func recognize(at url: URL) -> String? {
         guard let image = NSImage(contentsOf: url)?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        return recognize(image)
+    }
+
+    nonisolated static func recognize(_ image: CGImage) -> String? {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
@@ -65,5 +69,26 @@ enum TextRecognizer {
         let lines = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
         let text = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         return text.isEmpty ? nil : text
+    }
+
+    /// Recognizes off the main thread and copies the text. Returns whether any text was found.
+    @MainActor
+    static func copyText(fromFile url: URL) async -> Bool {
+        let text = await Task.detached { recognize(at: url) }.value
+        return put(text)
+    }
+
+    @MainActor
+    static func copyText(from image: CGImage) async -> Bool {
+        let text = await Task.detached { recognize(image) }.value
+        return put(text)
+    }
+
+    @MainActor
+    private static func put(_ text: String?) -> Bool {
+        guard let text else { return false }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        return true
     }
 }

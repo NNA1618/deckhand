@@ -6,6 +6,12 @@ enum NotchTab: String, CaseIterable, Identifiable {
     case home, clipboard, translator, claude, prompts, media, shelf, recents
 
     var id: String { rawValue }
+
+    /// The tabs shown in the panel, in order.
+    @MainActor static var visible: [NotchTab] {
+        allCases.filter { $0 == .home || !Settings.shared.hiddenTabs.contains($0.rawValue) }
+    }
+
     var title: String {
         switch self {
         case .home: return String(localized: "Home")
@@ -40,6 +46,8 @@ final class NotchViewModel: ObservableObject {
     @Published var notchSize = CGSize(width: 200, height: 32)
     /// A short notice shown in the closed notch, e.g. after a screenshot.
     @Published var toast: Toast?
+    /// Width of the closed shape, wider than the cutout while a badge shows; hovering any of it opens the panel.
+    var closedWidth: CGFloat = 0
     /// Lets tabs close the panel, e.g. before opening the editor window.
     var requestClose: () -> Void = {}
 }
@@ -131,8 +139,9 @@ final class NotchController {
                 if self.viewModel.isOpen {
                     return window.panelRect(notch: notch).insetBy(dx: -12, dy: -12)
                 }
-                // Slightly wider than the cutout and a few points below it
-                return notch.rect.insetBy(dx: -14, dy: -4)
+                // The cutout, or the badge around it, plus a margin and a few points below
+                let extra = max(0, (self.viewModel.closedWidth - notch.rect.width) / 2)
+                return notch.rect.insetBy(dx: -14 - extra, dy: -4)
             },
             onEnter: { [weak self] in self?.cursorEntered() },
             onExit: { [weak self] in self?.cursorLeft() }
@@ -172,7 +181,7 @@ final class NotchController {
             open(tab: .shelf, manual: false)
         } else if settings.openOnHover,
                   !(settings.hideInFullScreen && FullScreen.isFrontmostFullScreen(on: NotchGeometry.current().screen)) {
-            open(tab: viewModel.tab, manual: false)
+            open(tab: NotchTab.visible.contains(viewModel.tab) ? viewModel.tab : .home, manual: false)
         }
     }
 
@@ -193,7 +202,7 @@ final class NotchController {
     }
 
     func toggle() {
-        viewModel.isOpen ? close() : open(tab: viewModel.tab, manual: true)
+        viewModel.isOpen ? close() : open(tab: NotchTab.visible.contains(viewModel.tab) ? viewModel.tab : .home, manual: true)
     }
 
     func open(tab: NotchTab, manual: Bool = true) {

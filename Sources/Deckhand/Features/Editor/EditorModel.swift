@@ -211,6 +211,16 @@ final class EditorModel: ObservableObject {
         flash(String(localized: "Copied"))
     }
 
+    /// Copies the text in the image, read on device.
+    func copyRecognizedText() {
+        commitText()
+        guard let cg = renderCGImage() else { return }
+        Task { @MainActor in
+            let found = await TextRecognizer.copyText(from: cg)
+            flash(found ? String(localized: "Text copied") : String(localized: "No text found"))
+        }
+    }
+
     func save() {
         commitText()
         guard let cg = renderCGImage() else { return }

@@ -13,6 +13,8 @@ enum FullScreen {
         // With Accessibility access the focused window says so directly
         if AXIsProcessTrusted() {
             let axApp = AXUIElementCreateApplication(pid)
+            // A busy app would otherwise stall the main thread for seconds on every hover
+            AXUIElementSetMessagingTimeout(axApp, 0.1)
             var window: CFTypeRef?
             if AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &window) == .success,
                let window, CFGetTypeID(window) == AXUIElementGetTypeID() {

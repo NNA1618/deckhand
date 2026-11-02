@@ -112,6 +112,11 @@ struct ShelfTile: View {
             Button("Open") { NSWorkspace.shared.open(item.url) }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
             Button("AirDrop") { onAirDrop() }
+            if let type = UTType(filenameExtension: item.url.pathExtension), type.conforms(to: .image) {
+                Button("Copy Text from Image") {
+                    Task { @MainActor in _ = await TextRecognizer.copyText(fromFile: item.url) }
+                }
+            }
             Divider()
             Button("Remove from Shelf") { onRemove() }
         }

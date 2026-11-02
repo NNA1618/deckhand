@@ -50,6 +50,9 @@ final class Settings: ObservableObject {
     @Published var hoverDelay: Double { didSet { d.set(hoverDelay, forKey: "hoverDelay") } }
     @Published var hideInFullScreen: Bool { didSet { d.set(hideInFullScreen, forKey: "hideInFullScreen") } }
 
+    /// Panel tabs the user turned off. Home always stays.
+    @Published var hiddenTabs: [String] { didSet { d.set(hiddenTabs, forKey: "hiddenTabs") } }
+
     @Published var batteryNotices: Bool { didSet { d.set(batteryNotices, forKey: "batteryNotices") } }
 
     // Claude
@@ -115,6 +118,7 @@ final class Settings: ObservableObject {
         keepAwakeAllowDisplaySleep = d.bool(forKey: "keepAwakeAllowDisplaySleep")
         keepAwakeIndicator = d.bool(forKey: "keepAwakeIndicator")
         batteryNotices = d.bool(forKey: "batteryNotices")
+        hiddenTabs = d.stringArray(forKey: "hiddenTabs") ?? []
         // Earlier versions only had the API, so a saved key keeps working as before
         let storedBackend = d.persistentDomain(forName: AppPaths.bundleId)?["claudeBackend"] as? String
         claudeBackend = ClaudeBackend(rawValue: storedBackend ?? "")

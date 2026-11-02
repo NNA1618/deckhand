@@ -112,6 +112,9 @@ struct NotchRootView: View {
         .animation(.spring(response: 0.38, dampingFraction: 0.75), value: vm.toast)
         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showPlaying)
         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showAwake)
+        .onChange(of: size.width, initial: true) { _, width in
+            if !vm.isOpen { vm.closedWidth = width }
+        }
         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showClaude)
         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showTimer)
     }
@@ -164,7 +167,7 @@ struct TabStrip: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(NotchTab.allCases) { tab in
+            ForEach(NotchTab.visible) { tab in
                 let active = vm.tab == tab
                 Button { vm.tab = tab } label: {
                     HStack(spacing: 5) {

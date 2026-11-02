@@ -111,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         add(menu, String(localized: "Pick Color"), #selector(pickColor), .colorPicker)
         menu.addItem(keepAwakeMenuItem())
         menu.addItem(.separator())
-        for tab in NotchTab.allCases where tab != .home {
+        for tab in NotchTab.visible where tab != .home {
             let mi = NSMenuItem(title: tab.title, action: #selector(openTab(_:)), keyEquivalent: "")
             mi.target = self
             mi.representedObject = tab.rawValue

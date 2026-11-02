@@ -106,6 +106,7 @@ struct EditorView: View {
                 Text(status).font(Theme.monoSmall).foregroundColor(Theme.accent)
                     .transition(.opacity)
             }
+            iconButton("text.viewfinder", "Copy Text from Image", enabled: true) { model.copyRecognizedText() }
             iconButton("sparkle", "Ask Claude", enabled: true) { model.askVisible.toggle() }
             iconButton("pin", "Pin on Screen", enabled: true) {
                 model.commitText()

@@ -149,6 +149,11 @@ enum SelfTest {
         check(cliArgs.starts(with: ["-p", "--model", "haiku"]) && cliArgs.suffix(2) == ["--tools", ""]
               && cliArgs.contains("--no-session-persistence"), "claude code call has no tools and no saved session")
 
+        let savedHidden = Settings.shared.hiddenTabs
+        Settings.shared.hiddenTabs = ["prompts", "home"]
+        check(!NotchTab.visible.contains(.prompts) && NotchTab.visible.first == .home, "hidden tabs leave the strip, Home stays")
+        Settings.shared.hiddenTabs = savedHidden
+
         let timer = Countdown.shared
         timer.start(minutes: 5)
         check(timer.isRunning && timer.remainingText() == "5:00", "timer starts at 5:00 (\(timer.remainingText()))")

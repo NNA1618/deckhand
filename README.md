@@ -33,7 +33,7 @@ It is a native macOS app written in Swift and SwiftUI. No Electron, no account, 
 - `⇧⌘S` captures an area straight to the clipboard: no file on the desktop, no floating thumbnail.
 - `⇧⌘E` copies the text from a screen area, recognized on device.
 - Click an image in the clipboard to open the editor: crop, pen, highlighter, rectangles, ellipses, lines, arrows, text, and blur for anything private. Any color.
-- Ask Claude about an image right from the editor, or pin it on top of other windows.
+- Copy the text from any image: in the editor, on a clipboard image, or from the menu of a shelf or Recents file. Ask Claude about an image right from the editor, or pin it on top of other windows.
 
 <p align="center"><img src="docs/images/editor.png" width="760" alt="The image editor"></p>
 
@@ -49,7 +49,7 @@ It is a native macOS app written in Swift and SwiftUI. No Electron, no account, 
 - **Timer.** 5, 15, 25 or 45 minutes from the Home tab, with pause and +1 minute. The time left shows around the closed notch, and a chime plays at the end.
 - **Quick toggles.** Dark Mode, Mute, Hide Desktop icons (handy before a screen share) and Hidden Files in Finder, one click each.
 - **Battery.** Plugging in the charger shows the level in the notch, and so does the battery dropping to 20% and 10%.
-- **Appearance.** Transparent or tinted Liquid Glass, or a solid panel, with a tint slider and three panel sizes. Hovering can be delayed or turned off, and the panel stays closed while an app is in full screen.
+- **Appearance.** Transparent or tinted Liquid Glass, or a solid panel, with a tint slider and three panel sizes. Tabs you do not use can be hidden. Hovering can be delayed or turned off, and the panel stays closed while an app is in full screen.
 
 <p align="center"><img src="docs/images/keep-awake.png" width="500" alt="Keep Awake around the notch"></p>
 

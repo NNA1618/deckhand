@@ -133,6 +133,7 @@ struct ClipboardRow: View {
     let onDelete: (ClipboardItem) -> Void
     @State private var hover = false
     @State private var copied = false
+    @State private var notice: LocalizedStringKey?
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -154,6 +155,8 @@ struct ClipboardRow: View {
 
             if copied {
                 Text("Copied").font(Theme.label).foregroundColor(Theme.accent)
+            } else if let notice {
+                Text(notice).font(Theme.label).foregroundColor(Theme.fgDim)
             }
 
             if let number, !hover {
@@ -168,6 +171,7 @@ struct ClipboardRow: View {
                     if item.kind == .image && hover {
                         rowButton("pencil.tip.crop.circle", "Edit") { onEdit(item) }
                         rowButton("doc.on.doc", "Copy") { copy() }
+                        rowButton("text.viewfinder", "Copy Text from Image") { copyImageText() }
                         rowButton("pip", "Pin on Screen") {
                             if let path = item.imagePath, let image = NSImage(contentsOfFile: path) {
                                 PinnedImageWindow.show(image)
@@ -215,6 +219,15 @@ struct ClipboardRow: View {
         }
         .buttonStyle(.plain)
         .help(Text(help))
+    }
+
+    private func copyImageText() {
+        guard let path = item.imagePath else { return }
+        Task { @MainActor in
+            let found = await TextRecognizer.copyText(fromFile: URL(fileURLWithPath: path))
+            notice = found ? "Text copied" : "No text found"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { notice = nil }
+        }
     }
 
     private func copy() {

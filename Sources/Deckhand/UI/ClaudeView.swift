@@ -227,7 +227,6 @@ struct ClaudeStateIcon: View {
             Image(systemName: "sparkle")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Theme.fg)
-                .symbolEffect(.pulse, options: .repeating)
         case .waiting:
             Image(systemName: "hand.raised.fill")
                 .font(.system(size: 11, weight: .semibold))

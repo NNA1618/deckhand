@@ -101,6 +101,7 @@ final class ClaudeCodeMonitor: ObservableObject {
             guard let data = try? Data(contentsOf: url),
                   let event = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
             let signal = Self.apply(event: event, app: Self.appId(fromFileName: url.lastPathComponent), now: Date(), to: &byId)
+            Log.info("claude event \(event["hook_event_name"] as? String ?? "?") session=\((event["session_id"] as? String ?? "").prefix(8))")
             if let signal, let id = event["session_id"] as? String, let session = byId[id] {
                 onSignal(session, signal)
             }

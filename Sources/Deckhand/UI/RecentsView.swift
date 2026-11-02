@@ -93,6 +93,11 @@ struct MediaTile: View {
             Button("Open") { NSWorkspace.shared.open(file.url) }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([file.url]) }
             Button("Add to Shelf") { ShelfStore.shared.add([file.url]) }
+            if !file.isVideo {
+                Button("Copy Text from Image") {
+                    Task { @MainActor in _ = await TextRecognizer.copyText(fromFile: file.url) }
+                }
+            }
         }
         .task(id: file.id) { thumb = await Thumbnail.make(for: file.url, size: 192) }
     }

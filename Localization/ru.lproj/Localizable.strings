@@ -241,3 +241,8 @@
 /* Language */
 "Same as macOS" = "Как в macOS";
 "Deckhand restarts to switch the language. Deckhand by NNA1618, open source under the MIT license." = "При смене языка Deckhand перезапустится. Deckhand от NNA1618, открытый код под лицензией MIT.";
+
+/* Text from images, tabs */
+"Copy Text from Image" = "Скопировать текст с картинки";
+"Tabs" = "Вкладки";
+"Hidden tabs leave the panel and the menu bar. Their shortcuts still open them." = "Скрытые вкладки пропадают из панели и строки меню. Сочетания клавиш по-прежнему их открывают.";
