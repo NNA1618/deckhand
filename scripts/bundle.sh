@@ -9,8 +9,8 @@ cd "$(dirname "$0")/.."
 CONFIG="${1:-debug}"
 APP_NAME="Deckhand"
 BUNDLE_ID="com.nna1618.deckhand"
-VERSION="0.3.0"
-BUILD="3"
+VERSION="0.4.0"
+BUILD="4"
 
 echo "==> swift build ($CONFIG)"
 swift build -c "$CONFIG"
@@ -49,7 +49,7 @@ cat > "$APP_PATH/Contents/Info.plist" <<EOF
     <key>LSMinimumSystemVersion</key><string>15.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHumanReadableCopyright</key><string>© 2026 NNA1618. MIT License.</string>
-    <key>NSAppleEventsUsageDescription</key><string>Deckhand reads the current track from Music, Spotify and browser tabs to show what is playing.</string>
+    <key>NSAppleEventsUsageDescription</key><string>Deckhand reads the current track from Music, Spotify and browser tabs, and switches Dark Mode when you ask.</string>
 </dict>
 </plist>
 EOF

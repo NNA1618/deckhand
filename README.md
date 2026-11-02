@@ -37,8 +37,17 @@ It is a native macOS app written in Swift and SwiftUI. No Electron, no account, 
 
 <p align="center"><img src="docs/images/editor.png" width="760" alt="The image editor"></p>
 
+**Claude Code in the notch**
+- See every Claude Code session at a glance: which project it works on, the tool it runs right now and for how long. Works for Claude Code in Terminal, editors and the Claude app.
+- While Claude works, a sparkle and the time spent show around the closed notch. When it needs a permission or an answer, the notch shows a raised hand and plays a sound. When a task is done, you get a short notice.
+- Click a session to bring its window to the front. Connect it in Settings → Claude with one click: Deckhand adds a small hook to `~/.claude/settings.json` and keeps a backup.
+
+<p align="center"><img src="docs/images/claude-code.png" width="500" alt="Claude Code working, shown around the notch"></p>
+
 **Mac conveniences**
 - **Keep Awake.** Stops the Mac from sleeping for an hour, two, four or until you turn it off, like Amphetamine. Toggle it with `⌃⌥A`, from the Home tab or the menu bar. A cup and the time left show around the closed notch.
+- **Timer.** 5, 15, 25 or 45 minutes from the Home tab, with pause and +1 minute. The time left shows around the closed notch, and a chime plays at the end.
+- **Quick toggles.** Dark Mode, Mute, Hide Desktop icons (handy before a screen share) and Hidden Files in Finder, one click each.
 - **Battery.** Plugging in the charger shows the level in the notch, and so does the battery dropping to 20% and 10%.
 - **Appearance.** Transparent or tinted Liquid Glass, or a solid panel, with a tint slider and three panel sizes. Hovering can be delayed or turned off, and the panel stays closed while an app is in full screen.
 
@@ -46,7 +55,7 @@ It is a native macOS app written in Swift and SwiftUI. No Electron, no account, 
 
 **Everything else**
 - **Translate.** On-device translation through Apple's Translation framework. Detects the language and picks the direction.
-- **Claude.** One-click presets for text (rewrite, shorten, fix grammar, explain, review code, improve a prompt) and a quick chat. Uses your own Anthropic API key, stored in the Keychain.
+- **Claude.** One-click actions for text: rewrite, shorten, fix grammar, explain, review code, improve a prompt, translate to English. They run through Claude Code with your Claude plan, so no API key is needed. An API key in the Keychain still works if you prefer it. Chat opens the Claude app.
 - **Prompts.** A searchable library of prompts by category. Click to copy.
 - **Music.** Play, pause and skip for any player. While music plays, the track scrolls around the closed notch.
 - **Shelf.** Drop files on the notch to keep them at hand, then drag them out anywhere or send them with AirDrop.
@@ -55,7 +64,7 @@ It is a native macOS app written in Swift and SwiftUI. No Electron, no account, 
 
 <p align="center"><img src="docs/images/now-playing.png" width="500" alt="The playing track around the notch"></p>
 
-English and Russian. The app follows your system language.
+English and Russian. Pick the language in Settings → General, or let it follow macOS.
 
 ## Requirements
 
@@ -96,13 +105,13 @@ Every shortcut can be changed in Settings → Shortcuts: click it and press new 
 
 ## Privacy
 
-Everything stays on your Mac. The clipboard history lives in `~/Library/Application Support/Deckhand`. Deckhand talks to the network only when you use Claude, and then only to the Anthropic API with your key.
+Everything stays on your Mac. The clipboard history lives in `~/Library/Application Support/Deckhand`. Deckhand itself never talks to the network. Claude actions go through your local Claude Code, or to the Anthropic API if you chose an API key. The Claude Code hook only writes event files to that folder; Deckhand reads the project folder name and the tool name and never stores prompts or code.
 
 Permissions macOS may ask for:
 
 - **Screen Recording**, for screenshots and text capture.
 - **Accessibility**, only to paste into another app and to tell when the app in front is in full screen.
-- **Automation**, to read the current track from Music, Spotify or a browser.
+- **Automation**, to read the current track from Music, Spotify or a browser, and for the Dark Mode toggle.
 
 ## Build from source
 
