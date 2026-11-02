@@ -109,6 +109,20 @@ struct GeneralSettings: View {
                     }
             }
             Section {
+                Picker("Default length", selection: $settings.keepAwakeDefaultDuration) {
+                    ForEach(Array(KeepAwake.durations.enumerated()), id: \.offset) { _, d in
+                        Text(KeepAwake.title(for: d)).tag(d)
+                    }
+                }
+                Toggle("Let the display sleep", isOn: $settings.keepAwakeAllowDisplaySleep)
+                Toggle("Show a cup around the notch while awake", isOn: $settings.keepAwakeIndicator)
+            } header: {
+                Text("Keep Awake")
+            } footer: {
+                Text("Stops the Mac from sleeping when idle. With the lid closed it still sleeps unless an external display, keyboard and power are connected.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
                 LabeledContent("Language") {
                     Text("Follows the system language")
                         .foregroundStyle(.secondary)

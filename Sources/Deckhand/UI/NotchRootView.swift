@@ -9,6 +9,7 @@ struct NotchRootView: View {
     @EnvironmentObject var vm: NotchViewModel
     @ObservedObject private var player = NowPlayingMonitor.shared
     @ObservedObject private var settings = Settings.shared
+    @ObservedObject private var awake = KeepAwake.shared
 
     private let panelRadius: CGFloat = 26
     private var showToast: Bool { !vm.isOpen && vm.toast != nil }
@@ -16,22 +17,34 @@ struct NotchRootView: View {
         !vm.isOpen && vm.toast == nil && settings.showPlayingInNotch && player.now.isPlaying && !player.now.title.isEmpty
     }
 
+    private var showAwake: Bool {
+        !vm.isOpen && vm.toast == nil && !showPlaying && settings.keepAwakeIndicator && awake.isActive
+    }
+    /// Something is shown around the closed notch, so the shape grows past the cutout.
+    private var showBadge: Bool { showToast || showPlaying || showAwake }
+
     private var size: CGSize {
         if vm.isOpen { return settings.panelSize.size }
         if showToast { return CGSize(width: vm.notchSize.width + 280, height: vm.notchSize.height) }
         if showPlaying { return CGSize(width: vm.notchSize.width + NowPlayingBadge.sideWidth * 2, height: vm.notchSize.height) }
+        if showAwake { return CGSize(width: vm.notchSize.width + KeepAwakeBadge.sideWidth * 2, height: vm.notchSize.height) }
         return CGSize(width: max(vm.notchSize.width - 6, 10), height: max(vm.notchSize.height - 2, 10))
     }
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                NotchShape(topRadius: showToast || showPlaying ? 8 : 0, bottomRadius: showToast || showPlaying ? 14 : 9)
+                NotchShape(topRadius: showBadge ? 8 : 0, bottomRadius: showBadge ? 14 : 9)
                     .fill(Color.black)
                     .opacity(vm.isOpen ? 0 : 1)
 
                 if showPlaying {
                     NowPlayingBadge(now: player.now, notchWidth: vm.notchSize.width, height: vm.notchSize.height)
+                        .transition(.opacity)
+                }
+
+                if showAwake {
+                    KeepAwakeBadge(notchWidth: vm.notchSize.width, height: vm.notchSize.height)
                         .transition(.opacity)
                 }
 
@@ -81,6 +94,7 @@ struct NotchRootView: View {
         .animation(.spring(response: 0.42, dampingFraction: 0.82), value: vm.isOpen)
         .animation(.spring(response: 0.38, dampingFraction: 0.75), value: vm.toast)
         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showPlaying)
+        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showAwake)
     }
 }
 
@@ -168,7 +182,7 @@ struct HomeView: View {
         switch action {
         case .toggle: return nil
         case .screenshot, .clipboard: return .clipboard
-        case .captureText, .colorPicker: return nil
+        case .captureText, .colorPicker, .keepAwake: return nil
         case .translator: return .translator
         case .claude: return .claude
         case .prompts: return .prompts
@@ -195,12 +209,16 @@ struct HomeView: View {
                     .foregroundColor(Theme.fgDim)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: 260, alignment: .leading)
+                Spacer(minLength: 12)
+                KeepAwakeCard()
+                    .frame(maxWidth: 260)
             }
             VStack(alignment: .leading, spacing: 7) {
                 Text("Shortcuts")
                     .font(Theme.label).foregroundColor(Theme.fgMute)
                 ForEach(HotkeyAction.allCases) { action in
                     Button {
+                        if action == .keepAwake { KeepAwake.shared.toggle() }
                         if let t = tab(for: action) { vm.tab = t }
                     } label: {
                         HStack {
@@ -218,5 +236,77 @@ struct HomeView: View {
             }
             .frame(maxWidth: .infinity)
         }
+    }
+}
+
+// MARK: - Keep Awake
+
+/// Home tab control: a switch and the session lengths.
+struct KeepAwakeCard: View {
+    @ObservedObject private var awake = KeepAwake.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: awake.isActive ? "cup.and.saucer.fill" : "cup.and.saucer")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(awake.isActive ? Theme.fg : Theme.fgDim)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Keep Awake").font(Theme.label).foregroundColor(Theme.fg)
+                    TimelineView(.periodic(from: .now, by: 20)) { context in
+                        Text(status(now: context.date)).font(Theme.caption).foregroundColor(Theme.fgMute)
+                    }
+                }
+                Spacer()
+                Toggle("Keep Awake", isOn: Binding(get: { awake.isActive }, set: { _ in awake.toggle() }))
+                    .toggleStyle(.switch).controlSize(.mini).labelsHidden()
+            }
+            HStack(spacing: 6) {
+                ForEach(Array(KeepAwake.durations.enumerated()), id: \.offset) { _, d in
+                    let active = awake.isActive && awake.duration == d
+                    Button { active ? awake.stop() : awake.start(for: d) } label: {
+                        Chip(text: KeepAwake.shortTitle(for: d), active: active)
+                    }
+                    .buttonStyle(.plain)
+                    .help(Text(KeepAwake.title(for: d)))
+                }
+            }
+        }
+        .padding(12)
+        .glassChip(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func status(now: Date) -> String {
+        guard awake.isActive else { return String(localized: "Off") }
+        if awake.endsAt == nil { return String(localized: "On until turned off") }
+        return String(localized: "On, \(awake.remainingText(now: now)) left")
+    }
+}
+
+/// Shown around the closed notch while Keep Awake is on: a cup on the left, time left on the right.
+struct KeepAwakeBadge: View {
+    let notchWidth: CGFloat
+    let height: CGFloat
+    static let sideWidth: CGFloat = 46
+    @ObservedObject private var awake = KeepAwake.shared
+
+    var body: some View {
+        Color.clear
+            .frame(width: notchWidth + Self.sideWidth * 2, height: height)
+            .overlay(alignment: .leading) {
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Theme.fg)
+                    .padding(.leading, 18)
+            }
+            .overlay(alignment: .trailing) {
+                TimelineView(.periodic(from: .now, by: 20)) { context in
+                    Text(awake.remainingText(now: context.date))
+                        .font(.system(size: 11, weight: .medium).monospacedDigit())
+                        .foregroundColor(Theme.fg)
+                }
+                .padding(.trailing, 14)
+            }
     }
 }

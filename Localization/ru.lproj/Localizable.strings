@@ -170,3 +170,16 @@
 "Stay hidden while an app is in full screen" = "Не открывать, пока приложение во весь экран";
 "Shortcuts and files dragged to the notch open the panel either way." = "Хоткеи и файлы, перетащенные на чёлку, открывают панель в любом случае.";
 "↑↓ to pick, Return to paste, ⌘1–9 for the first nine" = "↑↓ выбрать, Return вставить, ⌘1–9 первые девять";
+"Keep Awake" = "Не спать";
+"Keep Mac awake" = "Не давать Mac уснуть";
+"Until turned off" = "Пока не выключу";
+"On until turned off" = "Включено, пока не выключите";
+"On, %@ left" = "Включено, осталось %@";
+"Off" = "Выключено";
+"Awake until turned off" = "Не сплю, пока не выключите";
+"Awake for %@" = "Не сплю: %@";
+"Sleep as usual" = "Сон как обычно";
+"Default length" = "Длительность по умолчанию";
+"Let the display sleep" = "Разрешить дисплею гаснуть";
+"Show a cup around the notch while awake" = "Показывать чашку у чёлки, пока включено";
+"Stops the Mac from sleeping when idle. With the lid closed it still sleeps unless an external display, keyboard and power are connected." = "Не даёт Mac уснуть от бездействия. С закрытой крышкой он всё равно уснёт, если не подключены внешний монитор, клавиатура и питание.";

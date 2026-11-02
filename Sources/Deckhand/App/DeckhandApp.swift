@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Combine
 
 @main
 struct DeckhandApp {
@@ -20,6 +21,7 @@ struct DeckhandApp {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private let notch = NotchController()
+    private var subscriptions = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Log.info("launch")
@@ -50,6 +52,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        KeepAwake.shared.stop()
+    }
+
     // MARK: - Menu bar
 
     private func setupMenuBar() {
@@ -61,6 +67,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.rebuildMenu() }
         }
+        KeepAwake.shared.$isActive.combineLatest(KeepAwake.shared.$duration)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.rebuildMenu() }
+            .store(in: &subscriptions)
     }
 
     /// The menu shows current shortcuts, so it is rebuilt when they change.
@@ -70,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         add(menu, String(localized: "Capture Area"), #selector(takeScreenshot), .screenshot)
         add(menu, String(localized: "Copy Text from Screen"), #selector(captureText), .captureText)
         add(menu, String(localized: "Pick Color"), #selector(pickColor), .colorPicker)
+        menu.addItem(keepAwakeMenuItem())
         menu.addItem(.separator())
         for tab in NotchTab.allCases where tab != .home {
             let mi = NSMenuItem(title: tab.title, action: #selector(openTab(_:)), keyEquivalent: "")
@@ -84,6 +95,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: String(localized: "Quit Deckhand"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem?.menu = menu
+    }
+
+    private func keepAwakeMenuItem() -> NSMenuItem {
+        let awake = KeepAwake.shared
+        let item = NSMenuItem(title: String(localized: "Keep Awake"), action: nil, keyEquivalent: "")
+        item.state = awake.isActive ? .on : .off
+        let sub = NSMenu()
+        let off = NSMenuItem(title: String(localized: "Off"), action: #selector(keepAwakeOff), keyEquivalent: "")
+        off.target = self
+        off.state = awake.isActive ? .off : .on
+        sub.addItem(off)
+        sub.addItem(.separator())
+        for (i, d) in KeepAwake.durations.enumerated() {
+            let mi = NSMenuItem(title: KeepAwake.title(for: d), action: #selector(keepAwakeFor(_:)), keyEquivalent: "")
+            mi.target = self
+            mi.tag = i
+            mi.state = awake.isActive && awake.duration == d ? .on : .off
+            sub.addItem(mi)
+        }
+        item.submenu = sub
+        return item
     }
 
     private func add(_ menu: NSMenu, _ title: String, _ action: Selector, _ hotkey: HotkeyAction) {
@@ -101,6 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hk.setHandler(.screenshot) { [weak self] in self?.takeScreenshot() }
         hk.setHandler(.captureText) { [weak self] in self?.captureText() }
         hk.setHandler(.colorPicker) { [weak self] in self?.pickColor() }
+        hk.setHandler(.keepAwake) { [weak self] in self?.toggleKeepAwake() }
         let tabs: [(HotkeyAction, NotchTab)] = [
             (.clipboard, .clipboard), (.translator, .translator), (.claude, .claude),
             (.prompts, .prompts), (.media, .media), (.shelf, .shelf), (.recents, .recents),
@@ -146,6 +179,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSPasteboard.general.setString(hex, forType: .string)
             MainActor.assumeIsolated { self?.notch.showToast(symbol: "eyedropper", text: hex) }
         }
+    }
+
+    private func toggleKeepAwake() {
+        let awake = KeepAwake.shared
+        awake.toggle()
+        let text = awake.isActive
+            ? (awake.endsAt == nil ? String(localized: "Awake until turned off")
+                                   : String(localized: "Awake for \(KeepAwake.title(for: awake.duration))"))
+            : String(localized: "Sleep as usual")
+        notch.showToast(symbol: awake.isActive ? "cup.and.saucer.fill" : "moon.zzz", text: text)
+    }
+
+    @objc private func keepAwakeOff() { KeepAwake.shared.stop() }
+
+    @objc private func keepAwakeFor(_ sender: NSMenuItem) {
+        guard KeepAwake.durations.indices.contains(sender.tag) else { return }
+        KeepAwake.shared.start(for: KeepAwake.durations[sender.tag])
     }
 
     @objc private func toggleNotch() {

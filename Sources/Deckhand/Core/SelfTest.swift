@@ -61,6 +61,13 @@ enum SelfTest {
         check(!ClipboardWatcher.isPassword(types: ["public.utf8-plain-text"], sourceApp: "com.microsoft.edgemac"),
               "plain copy is not a password")
 
+        let awake = KeepAwake.shared
+        awake.start(for: 60)
+        check(awake.isActive && awake.holdsAssertion, "keep awake holds a power assertion")
+        check(awake.remainingText() == "0:01", "keep awake time left \(awake.remainingText())")
+        awake.stop()
+        check(!awake.isActive && !awake.holdsAssertion, "keep awake releases the assertion")
+
         // Only meaningful inside the .app, where the .lproj folders are bundled
         if let path = Bundle.main.path(forResource: "ru", ofType: "lproj"), let ru = Bundle(path: path) {
             check(ru.localizedString(forKey: "Settings", value: nil, table: nil) == "Настройки", "russian localization bundled")

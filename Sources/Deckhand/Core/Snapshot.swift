@@ -25,6 +25,14 @@ enum Snapshot {
         }
         NowPlayingMonitor.shared.showForSnapshot(nil)
 
+        let wasAwake = KeepAwake.shared.isActive
+        KeepAwake.shared.start(for: 2 * 3600)
+        try? await Task.sleep(for: .milliseconds(1200))
+        if let (window, cutout) = notch.snapshotTarget {
+            save(window, cutout: cutout, to: dir.appendingPathComponent("closed-keep-awake.png"))
+        }
+        if !wasAwake { KeepAwake.shared.stop() }
+
         SettingsWindow.show()
         for tab in SettingsTab.allCases {
             SettingsRouter.shared.tab = tab

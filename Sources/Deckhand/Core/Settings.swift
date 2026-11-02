@@ -51,6 +51,16 @@ final class Settings: ObservableObject {
     @Published var hoverDelay: Double { didSet { d.set(hoverDelay, forKey: "hoverDelay") } }
     @Published var hideInFullScreen: Bool { didSet { d.set(hideInFullScreen, forKey: "hideInFullScreen") } }
 
+    // Keep Awake
+    /// Seconds; 0 is stored for "until turned off".
+    @Published var keepAwakeDefaultDuration: TimeInterval? {
+        didSet { d.set(keepAwakeDefaultDuration ?? 0, forKey: "keepAwakeDefaultDuration") }
+    }
+    @Published var keepAwakeAllowDisplaySleep: Bool {
+        didSet { d.set(keepAwakeAllowDisplaySleep, forKey: "keepAwakeAllowDisplaySleep") }
+    }
+    @Published var keepAwakeIndicator: Bool { didSet { d.set(keepAwakeIndicator, forKey: "keepAwakeIndicator") } }
+
     private init() {
         d.register(defaults: [
             "savePasswordsToHistory": false,
@@ -63,6 +73,9 @@ final class Settings: ObservableObject {
             "openOnHover": true,
             "hoverDelay": 0.08,
             "hideInFullScreen": true,
+            "keepAwakeDefaultDuration": 0.0,
+            "keepAwakeAllowDisplaySleep": false,
+            "keepAwakeIndicator": true,
         ])
         savePasswordsToHistory = d.bool(forKey: "savePasswordsToHistory")
         historyLimit = d.integer(forKey: "historyLimit")
@@ -78,5 +91,9 @@ final class Settings: ObservableObject {
         openOnHover = d.bool(forKey: "openOnHover")
         hoverDelay = d.double(forKey: "hoverDelay")
         hideInFullScreen = d.bool(forKey: "hideInFullScreen")
+        let awake = d.double(forKey: "keepAwakeDefaultDuration")
+        keepAwakeDefaultDuration = awake > 0 ? awake : nil
+        keepAwakeAllowDisplaySleep = d.bool(forKey: "keepAwakeAllowDisplaySleep")
+        keepAwakeIndicator = d.bool(forKey: "keepAwakeIndicator")
     }
 }
