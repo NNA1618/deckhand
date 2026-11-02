@@ -10,11 +10,11 @@ struct ShelfView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            HStack {
-                Text("\(store.items.count) on the shelf")
-                    .font(Theme.label).foregroundColor(Theme.fgMute)
-                Spacer()
-                if !store.items.isEmpty {
+            if !store.items.isEmpty {
+                HStack {
+                    Text("\(store.items.count) on the shelf")
+                        .font(Theme.label).foregroundColor(Theme.fgMute)
+                    Spacer()
                     GlassButton(title: "AirDrop All", symbol: "airplayaudio") { airdrop(store.items.map(\.url)) }
                     GlassButton(title: "Clear", symbol: "trash") { store.clear() }
                 }
