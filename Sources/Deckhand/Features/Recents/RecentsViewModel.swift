@@ -50,7 +50,7 @@ final class RecentsViewModel: ObservableObject {
     }
 
     func loadPromptFromClipboard() {
-        if prompt.isEmpty, let s = NSPasteboard.general.string(forType: .string) {
+        if prompt.isEmpty, let s = NSPasteboard.general.prefillText {
             prompt = s
         }
     }

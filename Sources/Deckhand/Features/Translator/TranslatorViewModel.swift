@@ -12,7 +12,7 @@ final class TranslatorViewModel: ObservableObject {
     /// Prefill with the clipboard text when the tab opens.
     func loadFromClipboardIfEmpty() {
         guard input.isEmpty else { return }
-        if let s = NSPasteboard.general.string(forType: .string), !s.isEmpty {
+        if let s = NSPasteboard.general.prefillText {
             input = s
             refreshLanguages()
         }

@@ -29,3 +29,25 @@ enum PasteService {
         return true
     }
 }
+
+extension NSPasteboard {
+    /// Clipboard text worth prefilling a text field with: words, not a password,
+    /// an address, a number or a link.
+    var prefillText: String? {
+        let types = Set((types ?? []).map(\.rawValue))
+        guard !ClipboardWatcher.isPassword(types: types, sourceApp: nil),
+              let s = string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              s.looksLikeProse else { return nil }
+        return s
+    }
+}
+
+extension String {
+    /// Mostly letters, and not an e-mail or a link.
+    var looksLikeProse: Bool {
+        guard !contains("://"), !contains("@") else { return false }
+        let visible = unicodeScalars.filter { !CharacterSet.whitespacesAndNewlines.contains($0) }
+        let letters = visible.filter { CharacterSet.letters.contains($0) }
+        return letters.count >= 2 && Double(letters.count) >= Double(visible.count) * 0.5
+    }
+}

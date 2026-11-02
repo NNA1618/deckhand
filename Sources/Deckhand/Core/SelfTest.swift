@@ -61,6 +61,10 @@ enum SelfTest {
         check(!ClipboardWatcher.isPassword(types: ["public.utf8-plain-text"], sourceApp: "com.microsoft.edgemac"),
               "plain copy is not a password")
 
+        check("Translate this sentence".looksLikeProse && "привет".looksLikeProse, "prose is prefilled")
+        check(!"77.88.8.8".looksLikeProse && !"me@example.com".looksLikeProse && !"https://a.b/c".looksLikeProse,
+              "addresses and links are not prefilled")
+
         var warned = Set<Int>()
         let onBattery = BatteryMonitor.State(percent: 50, onAC: false, charging: false)
         let plugged = BatteryMonitor.State(percent: 50, onAC: true, charging: true)
