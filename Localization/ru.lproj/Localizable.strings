@@ -14,12 +14,10 @@
 "AirDrop All" = "Всё по AirDrop";
 "All" = "Все";
 "Arrow" = "Стрелка";
-"Ask anything" = "Спросите что угодно";
 "Cancel" = "Отменить";
 "Capture Area" = "Снимок области";
 "Capture area to clipboard" = "Снимок области в буфер";
 "Category" = "Категория";
-"Chat" = "Чат";
 "Claude" = "Claude";
 "Clear" = "Очистить";
 "Click a shortcut and press new keys. Use ⌘, ⌥ or ⌃. Esc cancels, ⌫ clears." = "Нажмите на сочетание и введите новое. Нужны ⌘, ⌥ или ⌃. Esc отменяет, ⌫ удаляет.";
@@ -34,10 +32,8 @@
 "Could not read the API response" = "Не удалось прочитать ответ API";
 "Crop" = "Обрезать";
 "Custom color" = "Свой цвет";
-"Custom instructions for chat" = "Инструкции для чата";
 "Deckhand" = "Deckhand";
 "Deckhand Settings" = "Настройки Deckhand";
-"Deckhand by NNA1618. Open source under the MIT license." = "Deckhand от NNA1618. Открытый код под лицензией MIT.";
 "Delete" = "Удалить";
 "Done" = "Готово";
 "Drop files on the notch or here" = "Перетащите файлы на чёлку или сюда";
@@ -49,13 +45,10 @@
 "Favorite" = "Избранное";
 "File" = "Файл";
 "Fix Grammar" = "Исправить ошибки";
-"Follows the system language" = "Как в системе";
 "General" = "Основные";
 "Get a key at console.anthropic.com" = "Получить ключ на console.anthropic.com";
 "Highlighter" = "Маркер";
 "Home" = "Главная";
-"Hover over the notch to open. Move away, press Esc or click outside to close. Drop a file on the notch to keep it on the shelf." = "Наведите на чёлку, чтобы открыть. Уведите курсор, нажмите Esc или кликните мимо, чтобы закрыть. Перетащите файл на чёлку, и он ляжет на полку.";
-"How Claude should talk to you, for example tone, language or style rules." = "Как Claude должен с вами говорить: тон, язык, правила стиля.";
 "Ignore apps" = "Не сохранять из приложений";
 "Image" = "Изображение";
 "Improve Prompt" = "Улучшить промпт";
@@ -84,7 +77,6 @@
 "Pen" = "Карандаш";
 "Pin" = "Закрепить";
 "Play still works: it sends the system media key to whatever player you use" = "Кнопка воспроизведения всё равно работает: она отправляет системную медиаклавишу любому плееру";
-"Presets" = "Пресеты";
 "Press keys…" = "Нажмите клавиши…";
 "Prompt" = "Промпт";
 "Prompts" = "Промпты";
@@ -114,14 +106,12 @@
 "Shorten" = "Сократить";
 "Show a notice in the notch after a screenshot" = "Показывать уведомление в чёлке после снимка";
 "Show in Finder" = "Показать в Finder";
-"Start a conversation" = "Начните разговор";
 "Taken by another app. Pick a different shortcut." = "Занято другим приложением. Выберите другое сочетание.";
 "Text" = "Текст";
 "The translation appears here" = "Здесь появится перевод";
 "Then drag them anywhere you need" = "Потом перетаскивайте их куда нужно";
 "Thick" = "Толсто";
 "Thin" = "Тонко";
-"Thinking…" = "Думает…";
 "Title" = "Название";
 "To English" = "На английский";
 "Translate" = "Перевод";
@@ -186,3 +176,68 @@
 "Charging, %lld%%" = "Заряжается, %lld%%";
 "Battery %lld%%" = "Батарея %lld%%";
 "Show charging and low battery in the notch" = "Показывать зарядку и низкий заряд в чёлке";
+
+/* Claude Code in the notch */
+"Claude Code" = "Claude Code";
+"%lld active" = "активно: %lld";
+"See when Claude Code works, finishes or needs you, right in the notch." = "Видно прямо в чёлке, когда Claude Code работает, закончил или ждёт вас.";
+"Connect" = "Подключить";
+"Disconnect" = "Отключить";
+"Connected" = "Подключено";
+"Not connected" = "Не подключено";
+"Status" = "Статус";
+"No sessions right now. Start Claude Code in Terminal or the Claude app." = "Сейчас сессий нет. Запустите Claude Code в Терминале или в приложении Claude.";
+"Working" = "Работает";
+"Needs you" = "Ждёт вас";
+"Waiting for a prompt" = "Ждёт задачу";
+"Done · %@" = "Готово · %@";
+"Needs you · %@" = "Ждёт вас · %@";
+"Claude Code in the notch" = "Claude Code в чёлке";
+"Show working sessions around the notch" = "Показывать работающие сессии у чёлки";
+"Show a notice when a task is done" = "Сообщать, когда задача готова";
+"Play a sound when Claude needs you" = "Звук, когда Claude ждёт вас";
+"Connect adds a small hook to ~/.claude/settings.json and keeps a backup next to it. Events stay on this Mac; prompts and code are never saved. Works for Claude Code in Terminal, editors and the Claude app." = "«Подключить» добавляет небольшой хук в ~/.claude/settings.json и сохраняет рядом резервную копию. События остаются на этом Mac, промпты и код не сохраняются. Работает для Claude Code в Терминале, редакторах и приложении Claude.";
+"~/.claude/settings.json is not valid JSON, so it was left as is." = "~/.claude/settings.json — не корректный JSON, файл не тронут.";
+
+/* Quick actions through Claude Code */
+"Quick actions" = "Быстрые действия";
+"Run with" = "Через";
+"Claude Code (your plan)" = "Claude Code (ваша подписка)";
+"Not signed in" = "Вход не выполнен";
+"Sign In…" = "Войти…";
+"Not installed" = "Не установлен";
+"Install" = "Установить";
+"Rewrite, translate, Ask Claude in the editor and prompt help run through Claude Code with your Claude subscription. No API key needed." = "Переписать, перевести, «Спросить Claude» в редакторе и помощь с промптами работают через Claude Code по вашей подписке Claude. Ключ API не нужен.";
+"via Claude Code" = "через Claude Code";
+"via API key" = "через ключ API";
+"Open Claude" = "Открыть Claude";
+"Chat in the Claude app" = "Чат в приложении Claude";
+"Use as Input" = "Взять как текст";
+"Install Claude Code for quick actions" = "Установите Claude Code для быстрых действий";
+"Quick actions run through Claude Code with your Claude plan, so no API key is needed." = "Быстрые действия работают через Claude Code по вашей подписке, ключ API не нужен.";
+"Claude Code is not installed. Install it or add an API key in Settings → Claude." = "Claude Code не установлен. Установите его или добавьте ключ API в Настройки → Claude.";
+"Claude Code is not signed in. Use Sign In in Settings → Claude." = "В Claude Code не выполнен вход. Нажмите «Войти» в Настройки → Claude.";
+"Claude Code returned nothing" = "Claude Code ничего не ответил";
+"Claude Code did not answer in time" = "Claude Code не ответил вовремя";
+
+/* Home, timer and toggles */
+"Hover to open · Esc to close · Drop files on the notch" = "Наведите, чтобы открыть · Esc закрывает · Файлы кидайте на чёлку";
+"Timer" = "Таймер";
+"Pause" = "Пауза";
+"Resume" = "Продолжить";
+"Stop" = "Стоп";
+"Add a minute" = "Добавить минуту";
+"Time is up" = "Время вышло";
+"Dark Mode" = "Тёмная тема";
+"Mute" = "Без звука";
+"Hide Desktop" = "Скрыть стол";
+"Hidden Files" = "Скрытые файлы";
+"Switch the Mac between light and dark appearance" = "Переключить Mac между светлой и тёмной темой";
+"Mute or unmute the sound output" = "Выключить или включить звук";
+"Hide the icons on the desktop, e.g. before a screen share" = "Спрятать значки на рабочем столе, например перед показом экрана";
+"Show hidden files in Finder" = "Показывать скрытые файлы в Finder";
+"macOS did not allow this. Allow Deckhand in System Settings → Privacy & Security → Automation." = "macOS не разрешила это. Разрешите Deckhand в Системных настройках → Конфиденциальность и безопасность → Автоматизация.";
+
+/* Language */
+"Same as macOS" = "Как в macOS";
+"Deckhand restarts to switch the language. Deckhand by NNA1618, open source under the MIT license." = "При смене языка Deckhand перезапустится. Deckhand от NNA1618, открытый код под лицензией MIT.";

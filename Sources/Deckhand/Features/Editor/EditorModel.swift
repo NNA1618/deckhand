@@ -238,7 +238,7 @@ final class EditorModel: ObservableObject {
         answer = ""
         Task { @MainActor in
             do {
-                answer = try await ClaudeAPI.shared.ask(about: png, question: prompt)
+                answer = try await ClaudeEngine.ask(about: png, question: prompt)
             } catch {
                 askError = error.localizedDescription
             }

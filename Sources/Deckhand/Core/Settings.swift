@@ -36,7 +36,6 @@ final class Settings: ObservableObject {
     /// 0 means unlimited.
     @Published var historyLimit: Int { didSet { d.set(historyLimit, forKey: "historyLimit") } }
     @Published var excludedApps: [String] { didSet { d.set(excludedApps, forKey: "excludedApps") } }
-    @Published var claudeInstructions: String { didSet { d.set(claudeInstructions, forKey: "claudeInstructions") } }
     @Published var watchedFolders: [String] { didSet { d.set(watchedFolders, forKey: "watchedFolders") } }
     @Published var screenshotToast: Bool { didSet { d.set(screenshotToast, forKey: "screenshotToast") } }
     @Published var showPlayingInNotch: Bool { didSet { d.set(showPlayingInNotch, forKey: "showPlayingInNotch") } }
@@ -52,6 +51,20 @@ final class Settings: ObservableObject {
     @Published var hideInFullScreen: Bool { didSet { d.set(hideInFullScreen, forKey: "hideInFullScreen") } }
 
     @Published var batteryNotices: Bool { didSet { d.set(batteryNotices, forKey: "batteryNotices") } }
+
+    // Claude
+    @Published var claudeBackend: ClaudeBackend { didSet { d.set(claudeBackend.rawValue, forKey: "claudeBackend") } }
+    @Published var claudeInNotch: Bool { didSet { d.set(claudeInNotch, forKey: "claudeInNotch") } }
+    @Published var claudeDoneNotice: Bool { didSet { d.set(claudeDoneNotice, forKey: "claudeDoneNotice") } }
+    @Published var claudeSound: Bool { didSet { d.set(claudeSound, forKey: "claudeSound") } }
+
+    /// The app's own language: "system", "en" or "ru". Applied on the next launch through AppleLanguages.
+    @Published var appLanguage: String {
+        didSet {
+            d.set(appLanguage, forKey: "appLanguage")
+            if appLanguage == "system" { d.removeObject(forKey: "AppleLanguages") } else { d.set([appLanguage], forKey: "AppleLanguages") }
+        }
+    }
 
     // Keep Awake
     /// Seconds; 0 is stored for "until turned off".
@@ -79,11 +92,14 @@ final class Settings: ObservableObject {
             "keepAwakeAllowDisplaySleep": false,
             "keepAwakeIndicator": true,
             "batteryNotices": true,
+            "claudeInNotch": true,
+            "claudeDoneNotice": true,
+            "claudeSound": true,
+            "appLanguage": "system",
         ])
         savePasswordsToHistory = d.bool(forKey: "savePasswordsToHistory")
         historyLimit = d.integer(forKey: "historyLimit")
         excludedApps = d.stringArray(forKey: "excludedApps") ?? []
-        claudeInstructions = d.string(forKey: "claudeInstructions") ?? ""
         let downloads = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads").path
         watchedFolders = d.stringArray(forKey: "watchedFolders") ?? [downloads]
         screenshotToast = d.bool(forKey: "screenshotToast")
@@ -99,5 +115,13 @@ final class Settings: ObservableObject {
         keepAwakeAllowDisplaySleep = d.bool(forKey: "keepAwakeAllowDisplaySleep")
         keepAwakeIndicator = d.bool(forKey: "keepAwakeIndicator")
         batteryNotices = d.bool(forKey: "batteryNotices")
+        // Earlier versions only had the API, so a saved key keeps working as before
+        let storedBackend = d.persistentDomain(forName: AppPaths.bundleId)?["claudeBackend"] as? String
+        claudeBackend = ClaudeBackend(rawValue: storedBackend ?? "")
+            ?? (ClaudeAPI.shared.hasAPIKey ? .apiKey : .claudeCode)
+        claudeInNotch = d.bool(forKey: "claudeInNotch")
+        claudeDoneNotice = d.bool(forKey: "claudeDoneNotice")
+        claudeSound = d.bool(forKey: "claudeSound")
+        appLanguage = d.string(forKey: "appLanguage") ?? "system"
     }
 }

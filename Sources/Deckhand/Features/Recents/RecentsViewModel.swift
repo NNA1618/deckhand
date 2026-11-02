@@ -62,11 +62,7 @@ final class RecentsViewModel: ObservableObject {
         let input = prompt
         Task { @MainActor in
             do {
-                prompt = try await ClaudeAPI.shared.complete(
-                    system: preset.system,
-                    messages: [.init(role: .user, content: input)],
-                    model: preset.preferredModel
-                )
+                prompt = try await ClaudeEngine.complete(system: preset.system, input: input, model: preset.preferredModel)
             } catch {
                 self.error = error.localizedDescription
             }

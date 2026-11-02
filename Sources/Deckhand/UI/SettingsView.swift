@@ -45,7 +45,7 @@ struct SettingsView: View {
                         VStack(spacing: 4) {
                             Image(systemName: symbol(tab)).font(.system(size: 17, weight: .regular))
                                 .frame(height: 20)
-                            Text(title(tab)).font(.system(size: 11))
+                            Text(title(tab)).font(.system(size: 11)).lineLimit(1).minimumScaleFactor(0.7)
                         }
                         .frame(width: 92, height: 50)
                         .foregroundStyle(active ? Color.primary : Color.secondary)
@@ -124,16 +124,24 @@ struct GeneralSettings: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
-                LabeledContent("Language") {
-                    Text("Follows the system language")
-                        .foregroundStyle(.secondary)
+                Picker("Language", selection: Binding(
+                    get: { settings.appLanguage },
+                    set: { lang in
+                        guard lang != settings.appLanguage else { return }
+                        settings.appLanguage = lang
+                        AppRelauncher.relaunch(openSettings: true)
+                    }
+                )) {
+                    Text("Same as macOS").tag("system")
+                    Text(verbatim: "English").tag("en")
+                    Text(verbatim: "Русский").tag("ru")
                 }
                 LabeledContent("Version") {
                     Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev")
                         .foregroundStyle(.secondary)
                 }
             } footer: {
-                Text("Deckhand by NNA1618. Open source under the MIT license.")
+                Text("Deckhand restarts to switch the language. Deckhand by NNA1618, open source under the MIT license.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -360,13 +368,62 @@ struct ClipboardSettings: View {
 
 struct ClaudeSettings: View {
     @ObservedObject private var settings = Settings.shared
+    @ObservedObject private var monitor = ClaudeCodeMonitor.shared
     @State private var key = ""
     @State private var hasKey = ClaudeAPI.shared.hasAPIKey
+    @State private var hookError: String?
+    @State private var signedIn: Bool?
 
     var body: some View {
         Form {
             Section {
-                if hasKey {
+                LabeledContent("Status") {
+                    HStack {
+                        Text(monitor.hooksInstalled ? "Connected" : "Not connected").foregroundStyle(.secondary)
+                        Button(monitor.hooksInstalled ? "Disconnect" : "Connect") {
+                            do {
+                                if monitor.hooksInstalled { try monitor.removeHooks() } else { try monitor.installHooks() }
+                                hookError = nil
+                            } catch {
+                                hookError = error.localizedDescription
+                            }
+                        }
+                    }
+                }
+                if let hookError {
+                    Text(hookError).font(.caption).foregroundStyle(.orange)
+                }
+                Toggle("Show working sessions around the notch", isOn: $settings.claudeInNotch)
+                Toggle("Show a notice when a task is done", isOn: $settings.claudeDoneNotice)
+                Toggle("Play a sound when Claude needs you", isOn: $settings.claudeSound)
+            } header: {
+                Text("Claude Code in the notch")
+            } footer: {
+                Text("Connect adds a small hook to ~/.claude/settings.json and keeps a backup next to it. Events stay on this Mac; prompts and code are never saved. Works for Claude Code in Terminal, editors and the Claude app.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                Picker("Run with", selection: $settings.claudeBackend) {
+                    Text("Claude Code (your plan)").tag(ClaudeBackend.claudeCode)
+                    Text("API key").tag(ClaudeBackend.apiKey)
+                }
+                if settings.claudeBackend == .claudeCode {
+                    LabeledContent("Claude Code") {
+                        HStack {
+                            if let path = ClaudeCLI.path {
+                                Text(signedIn == false ? String(localized: "Not signed in") : (path as NSString).abbreviatingWithTildeInPath)
+                                    .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                                if signedIn == false {
+                                    Button("Sign In…") { ClaudeCLI.openSignIn() }
+                                }
+                            } else {
+                                Text("Not installed").foregroundStyle(.secondary)
+                                Link("Install", destination: URL(string: "https://docs.claude.com/en/docs/claude-code/setup")!)
+                            }
+                        }
+                    }
+                } else if hasKey {
                     LabeledContent("API key") {
                         HStack {
                             Text("Saved in Keychain").foregroundStyle(.secondary)
@@ -385,22 +442,23 @@ struct ClaudeSettings: View {
                     }
                     .disabled(key.isEmpty)
                 }
-            } footer: {
-                Link("Get a key at console.anthropic.com", destination: URL(string: "https://console.anthropic.com/settings/keys")!)
-                    .font(.caption)
-            }
-            Section {
-                TextEditor(text: $settings.claudeInstructions)
-                    .font(.body)
-                    .frame(minHeight: 110)
             } header: {
-                Text("Custom instructions for chat")
+                Text("Quick actions")
             } footer: {
-                Text("How Claude should talk to you, for example tone, language or style rules.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Group {
+                    if settings.claudeBackend == .claudeCode {
+                        Text("Rewrite, translate, Ask Claude in the editor and prompt help run through Claude Code with your Claude subscription. No API key needed.")
+                    } else {
+                        Link("Get a key at console.anthropic.com", destination: URL(string: "https://console.anthropic.com/settings/keys")!)
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+        .task(id: settings.claudeBackend) {
+            if settings.claudeBackend == .claudeCode, ClaudeCLI.isInstalled { signedIn = await ClaudeCLI.isSignedIn() }
+        }
     }
 }
 
@@ -443,6 +501,22 @@ struct RecentsSettings: View {
         for url in panel.urls where !settings.watchedFolders.contains(url.path) {
             settings.watchedFolders.append(url.path)
         }
+    }
+}
+
+// MARK: - Relaunch
+
+@MainActor
+enum AppRelauncher {
+    /// Starts a new copy once this one has quit, so a new language takes effect.
+    static func relaunch(openSettings: Bool) {
+        let path = Bundle.main.bundlePath
+        let args = openSettings ? " --args --settings" : ""
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
+        p.arguments = ["-c", "while /bin/kill -0 \(ProcessInfo.processInfo.processIdentifier) 2>/dev/null; do sleep 0.1; done; /usr/bin/open \"$0\"\(args)", path]
+        try? p.run()
+        NSApp.terminate(nil)
     }
 }
 

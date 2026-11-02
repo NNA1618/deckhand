@@ -9,6 +9,16 @@ enum Snapshot {
     static func run(dir: URL, notch: NotchController) async {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
+        let now = Date()
+        let working = ClaudeSession(id: "a", cwd: "/Users/me/deckhand", app: "com.apple.Terminal", state: .working,
+                                    detail: "Edit · NotchRootView.swift", workStarted: now.addingTimeInterval(-247), updated: now)
+        ClaudeCodeMonitor.shared.showForSnapshot([
+            ClaudeSession(id: "a", cwd: "/Users/me/deckhand", app: "com.apple.Terminal", state: .working,
+                          detail: "Edit · NotchRootView.swift", workStarted: now.addingTimeInterval(-247), updated: now),
+            ClaudeSession(id: "b", cwd: "/Users/me/site", app: "com.anthropic.claudefordesktop", state: .waiting,
+                          detail: "Claude needs your permission to use Bash", updated: now.addingTimeInterval(-30)),
+            ClaudeSession(id: "c", cwd: "/Users/me/notes", state: .idle, updated: now.addingTimeInterval(-600)),
+        ])
         for tab in NotchTab.allCases {
             if notch.viewModel.isOpen { notch.viewModel.tab = tab } else { notch.open(tab: tab) }
             try? await Task.sleep(for: .milliseconds(900))
@@ -17,6 +27,24 @@ enum Snapshot {
             }
         }
         notch.close()
+
+        try? await Task.sleep(for: .milliseconds(1200))
+        if let (window, cutout) = notch.snapshotTarget {
+            save(window, cutout: cutout, to: dir.appendingPathComponent("closed-claude-waiting.png"))
+        }
+        ClaudeCodeMonitor.shared.showForSnapshot([working])
+        try? await Task.sleep(for: .milliseconds(1200))
+        if let (window, cutout) = notch.snapshotTarget {
+            save(window, cutout: cutout, to: dir.appendingPathComponent("closed-claude.png"))
+        }
+        ClaudeCodeMonitor.shared.showForSnapshot([])
+
+        Countdown.shared.start(minutes: 25)
+        try? await Task.sleep(for: .milliseconds(1200))
+        if let (window, cutout) = notch.snapshotTarget {
+            save(window, cutout: cutout, to: dir.appendingPathComponent("closed-timer.png"))
+        }
+        Countdown.shared.stop()
 
         NowPlayingMonitor.shared.showForSnapshot(NowPlaying(title: "Midnight City", artist: "M83", isPlaying: true, source: "Apple Music"))
         try? await Task.sleep(for: .milliseconds(1200))

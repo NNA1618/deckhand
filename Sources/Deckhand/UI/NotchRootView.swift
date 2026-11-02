@@ -10,22 +10,29 @@ struct NotchRootView: View {
     @ObservedObject private var player = NowPlayingMonitor.shared
     @ObservedObject private var settings = Settings.shared
     @ObservedObject private var awake = KeepAwake.shared
+    @ObservedObject private var timer = Countdown.shared
+    @ObservedObject private var claude = ClaudeCodeMonitor.shared
 
     private let panelRadius: CGFloat = 26
     private var showToast: Bool { !vm.isOpen && vm.toast != nil }
+    // One badge at a time, most urgent first: toast, Claude Code, timer, music, Keep Awake
+    private var closedIdle: Bool { !vm.isOpen && vm.toast == nil }
+    private var showClaude: Bool { closedIdle && settings.claudeInNotch && !claude.active.isEmpty }
+    private var showTimer: Bool { closedIdle && !showClaude && timer.isActive }
     private var showPlaying: Bool {
-        !vm.isOpen && vm.toast == nil && settings.showPlayingInNotch && player.now.isPlaying && !player.now.title.isEmpty
+        closedIdle && !showClaude && !showTimer && settings.showPlayingInNotch && player.now.isPlaying && !player.now.title.isEmpty
     }
-
     private var showAwake: Bool {
-        !vm.isOpen && vm.toast == nil && !showPlaying && settings.keepAwakeIndicator && awake.isActive
+        closedIdle && !showClaude && !showTimer && !showPlaying && settings.keepAwakeIndicator && awake.isActive
     }
     /// Something is shown around the closed notch, so the shape grows past the cutout.
-    private var showBadge: Bool { showToast || showPlaying || showAwake }
+    private var showBadge: Bool { showToast || showClaude || showTimer || showPlaying || showAwake }
 
     private var size: CGSize {
         if vm.isOpen { return settings.panelSize.size }
         if showToast { return CGSize(width: vm.notchSize.width + 280, height: vm.notchSize.height) }
+        if showClaude { return CGSize(width: vm.notchSize.width + ClaudeBadge.sideWidth * 2, height: vm.notchSize.height) }
+        if showTimer { return CGSize(width: vm.notchSize.width + TimerBadge.sideWidth * 2, height: vm.notchSize.height) }
         if showPlaying { return CGSize(width: vm.notchSize.width + NowPlayingBadge.sideWidth * 2, height: vm.notchSize.height) }
         if showAwake { return CGSize(width: vm.notchSize.width + KeepAwakeBadge.sideWidth * 2, height: vm.notchSize.height) }
         return CGSize(width: max(vm.notchSize.width - 6, 10), height: max(vm.notchSize.height - 2, 10))
@@ -37,6 +44,16 @@ struct NotchRootView: View {
                 NotchShape(topRadius: showBadge ? 8 : 0, bottomRadius: showBadge ? 14 : 9)
                     .fill(Color.black)
                     .opacity(vm.isOpen ? 0 : 1)
+
+                if showClaude {
+                    ClaudeBadge(notchWidth: vm.notchSize.width, height: vm.notchSize.height)
+                        .transition(.opacity)
+                }
+
+                if showTimer {
+                    TimerBadge(notchWidth: vm.notchSize.width, height: vm.notchSize.height)
+                        .transition(.opacity)
+                }
 
                 if showPlaying {
                     NowPlayingBadge(now: player.now, notchWidth: vm.notchSize.width, height: vm.notchSize.height)
@@ -95,6 +112,8 @@ struct NotchRootView: View {
         .animation(.spring(response: 0.38, dampingFraction: 0.75), value: vm.toast)
         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showPlaying)
         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showAwake)
+        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showClaude)
+        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showTimer)
     }
 }
 
@@ -192,50 +211,202 @@ struct HomeView: View {
         }
     }
 
+    /// The shortcuts worth seeing at a glance; the rest are in Settings.
+    private let featured: [HotkeyAction] = [.toggle, .screenshot, .clipboard, .captureText, .keepAwake]
+
     var body: some View {
-        HStack(alignment: .top, spacing: 30) {
-            VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                BrandMark(size: 20)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 4 }
+                Text("Deckhand")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(Theme.fg)
                 Text("NNA1618")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundColor(Theme.fgMute)
-                HStack(spacing: 10) {
-                    BrandMark(size: 34)
-                    Text("Deckhand")
-                        .font(.system(size: 30, weight: .semibold))
-                        .foregroundColor(Theme.fg)
-                }
-                Text("Hover over the notch to open. Move away, press Esc or click outside to close. Drop a file on the notch to keep it on the shelf.")
+                Spacer()
+                Text("Hover to open · Esc to close · Drop files on the notch")
                     .font(Theme.caption)
-                    .foregroundColor(Theme.fgDim)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 260, alignment: .leading)
-                Spacer(minLength: 12)
-                KeepAwakeCard()
-                    .frame(maxWidth: 260)
+                    .foregroundColor(Theme.fgMute)
+                    .lineLimit(1)
             }
-            VStack(alignment: .leading, spacing: 7) {
-                Text("Shortcuts")
-                    .font(Theme.label).foregroundColor(Theme.fgMute)
-                ForEach(HotkeyAction.allCases) { action in
-                    Button {
-                        if action == .keepAwake { KeepAwake.shared.toggle() }
-                        if let t = tab(for: action) { vm.tab = t }
-                    } label: {
-                        HStack {
-                            Text(action.title).font(Theme.body).foregroundColor(Theme.fgDim)
-                            Spacer()
-                            Text(hotkeys.shortcuts[action]?.display ?? "—")
-                                .font(Theme.monoSmall).foregroundColor(Theme.fgMute)
-                                .padding(.horizontal, 7).padding(.vertical, 3)
-                                .background(Capsule().fill(Theme.surface))
-                        }
-                        .contentShape(Rectangle())
+            HStack(alignment: .top, spacing: 12) {
+                KeepAwakeCard()
+                TimerCard()
+                QuickTogglesCard()
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: 12) {
+                ClaudeSessionsCard(limit: 3)
+                    .frame(maxWidth: .infinity)
+                shortcuts
+                    .frame(width: 250)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var shortcuts: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Shortcuts").font(Theme.label).foregroundColor(Theme.fg)
+                Spacer()
+                Button {
+                    vm.requestClose()
+                    SettingsRouter.shared.tab = .shortcuts
+                    SettingsWindow.show()
+                } label: {
+                    Text("All").font(Theme.label).foregroundColor(Theme.fgDim)
+                }
+                .buttonStyle(.plain)
+            }
+            ForEach(featured) { action in
+                Button {
+                    if action == .keepAwake { KeepAwake.shared.toggle() }
+                    if let t = tab(for: action) { vm.tab = t }
+                } label: {
+                    HStack {
+                        Text(action.title).font(Theme.caption).foregroundColor(Theme.fgDim).lineLimit(1)
+                        Spacer()
+                        Text(hotkeys.shortcuts[action]?.display ?? "—")
+                            .font(Theme.monoSmall).foregroundColor(Theme.fgMute)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(12)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .glassChip(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+// MARK: - Timer
+
+struct TimerCard: View {
+    @ObservedObject private var timer = Countdown.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "timer")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(timer.isActive ? Theme.fg : Theme.fgDim)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Timer").font(Theme.label).foregroundColor(Theme.fg)
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text(timer.isActive ? timer.remainingText(now: context.date) : String(localized: "Off"))
+                            .font(timer.isActive ? Theme.caption.monospacedDigit() : Theme.caption)
+                            .foregroundColor(Theme.fgMute)
+                    }
+                }
+                Spacer()
+                if timer.isActive {
+                    roundButton(timer.isPaused ? "play.fill" : "pause.fill", timer.isPaused ? "Resume" : "Pause") {
+                        timer.isPaused ? timer.resume() : timer.pause()
+                    }
+                    roundButton("xmark", "Stop") { timer.stop() }
+                }
+            }
+            HStack(spacing: 6) {
+                ForEach(Countdown.presets, id: \.self) { m in
+                    Button { timer.start(minutes: m) } label: {
+                        Chip(text: KeepAwake.shortTitle(for: TimeInterval(m * 60)), active: timer.isActive && timer.minutes == m)
                     }
                     .buttonStyle(.plain)
                 }
+                if timer.isActive {
+                    Button { timer.addMinute() } label: { Chip(text: "+1") }
+                        .buttonStyle(.plain)
+                        .help(Text("Add a minute"))
+                }
             }
-            .frame(maxWidth: .infinity)
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .glassChip(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func roundButton(_ symbol: String, _ help: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(Theme.fg)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Theme.surface2))
+        }
+        .buttonStyle(.plain)
+        .help(Text(help))
+    }
+}
+
+/// Around the closed notch while the timer runs: a timer icon and the time left.
+struct TimerBadge: View {
+    let notchWidth: CGFloat
+    let height: CGFloat
+    static let sideWidth: CGFloat = 54
+    @ObservedObject private var timer = Countdown.shared
+
+    var body: some View {
+        Color.clear
+            .frame(width: notchWidth + Self.sideWidth * 2, height: height)
+            .overlay(alignment: .leading) {
+                Image(systemName: timer.isPaused ? "pause.fill" : "timer")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Theme.fg)
+                    .padding(.leading, 18)
+            }
+            .overlay(alignment: .trailing) {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(timer.remainingText(now: context.date))
+                        .font(.system(size: 11, weight: .medium).monospacedDigit())
+                        .foregroundColor(Theme.fg)
+                }
+                .padding(.trailing, 14)
+            }
+    }
+}
+
+// MARK: - Quick toggles
+
+struct QuickTogglesCard: View {
+    @ObservedObject private var toggles = QuickToggles.shared
+    private let columns = [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LazyVGrid(columns: columns, spacing: 6) {
+                ForEach(QuickToggles.Toggle.allCases) { t in
+                    let on = toggles.isOn(t)
+                    Button { toggles.flip(t) } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: t.symbol(on: on))
+                                .font(.system(size: 11, weight: .medium))
+                                .frame(width: 14)
+                            Text(t.title).font(Theme.label).lineLimit(1).minimumScaleFactor(0.85)
+                            Spacer(minLength: 0)
+                        }
+                        .foregroundColor(on ? .black : Theme.fgDim)
+                        .padding(.horizontal, 8).padding(.vertical, 7)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Theme.accent : Theme.surface2))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(Text(t.help))
+                }
+            }
+            if let error = toggles.error {
+                Text(error).font(Theme.caption).foregroundColor(Theme.warn)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .glassChip(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .onAppear { toggles.refresh() }
     }
 }
 
@@ -274,6 +445,7 @@ struct KeepAwakeCard: View {
             }
         }
         .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .glassChip(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 

@@ -46,6 +46,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         BatteryMonitor.shared.start()
 
+        Countdown.shared.onFinish = { [weak self] in
+            self?.notch.showToast(symbol: "timer", text: String(localized: "Time is up"))
+        }
+        let claude = ClaudeCodeMonitor.shared
+        claude.onSignal = { [weak self] _, signal in
+            let settings = Settings.shared
+            switch signal {
+            case .finished(let project, _):
+                guard settings.claudeDoneNotice else { return }
+                self?.notch.showToast(symbol: "checkmark.circle", text: String(localized: "Done · \(project)"))
+            case .needsYou(let project):
+                if settings.claudeSound { NSSound(named: "Ping")?.play() }
+                self?.notch.showToast(symbol: "hand.raised.fill", text: String(localized: "Needs you · \(project)"))
+            }
+        }
+        claude.start()
+        // Finding the claude binary may ask the login shell; do it before the first quick action
+        Task.detached(priority: .utility) { _ = ClaudeCLI.path }
+
         // For testing: `Deckhand --open clipboard` opens a tab on launch
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--open") {
