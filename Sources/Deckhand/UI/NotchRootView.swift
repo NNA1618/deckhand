@@ -17,7 +17,7 @@ struct NotchRootView: View {
     }
 
     private var size: CGSize {
-        if vm.isOpen { return NotchWindow.panelSize }
+        if vm.isOpen { return settings.panelSize.size }
         if showToast { return CGSize(width: vm.notchSize.width + 280, height: vm.notchSize.height) }
         if showPlaying { return CGSize(width: vm.notchSize.width + NowPlayingBadge.sideWidth * 2, height: vm.notchSize.height) }
         return CGSize(width: max(vm.notchSize.width - 6, 10), height: max(vm.notchSize.height - 2, 10))
@@ -54,6 +54,7 @@ struct NotchRootView: View {
 
                 if vm.isOpen {
                     PanelContent()
+                        .id(settings.panelStyle == .solid)   // glass chips are chosen when views are built
                         .padding(.horizontal, 20)
                         .padding(.top, vm.notchSize.height + 8)
                         .padding(.bottom, 18)
@@ -64,7 +65,8 @@ struct NotchRootView: View {
             // Glass is taller than the panel by its radius so the top rounding falls off screen.
             // It sits in a background so its extra height never affects the content layout.
             .background(alignment: .top) {
-                GlassBackground(cornerRadius: panelRadius)
+                GlassBackground(cornerRadius: panelRadius, style: settings.panelStyle, tint: settings.glassTint)
+                    .id(settings.panelStyle == .solid)   // solid and glass are different views
                     .frame(width: size.width, height: size.height + panelRadius)
                     .offset(y: -panelRadius)
                     .opacity(vm.isOpen ? 1 : 0)

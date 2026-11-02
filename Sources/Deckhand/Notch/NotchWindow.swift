@@ -5,8 +5,10 @@ import SwiftUI
 ///
 /// The window never resizes: macOS clips windows that grow over the menu bar.
 /// SwiftUI draws opening and closing inside it, growing the shape out of the notch.
+@MainActor
 final class NotchWindow: NSPanel {
-    static let panelSize = CGSize(width: 800, height: 480)
+    /// The open panel size, from Settings > Appearance.
+    static var panelSize: CGSize { Settings.shared.panelSize.size }
     static let margin: CGFloat = 24   // room for the shadow
 
     init<Content: View>(rootView: Content) {

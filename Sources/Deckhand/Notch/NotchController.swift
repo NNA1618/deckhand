@@ -44,6 +44,11 @@ final class NotchViewModel: ObservableObject {
     var requestClose: () -> Void = {}
 }
 
+extension Notification.Name {
+    /// Opens the panel without closing it on the next click elsewhere, e.g. to preview appearance changes.
+    static let previewNotchPanel = Notification.Name("previewNotchPanel")
+}
+
 struct Toast: Equatable {
     let id = UUID()
     let symbol: String
@@ -58,6 +63,7 @@ final class NotchController {
     private var clickMonitor: Any?
     private var keyMonitor: Any?
     private var dragChangeCount = NSPasteboard(name: .drag).changeCount
+    private var subscriptions = Set<AnyCancellable>()
 
     /// Opened by a shortcut or the menu: stay open until the cursor has been inside at least once.
     private var openedManually = false
@@ -86,6 +92,22 @@ final class NotchController {
 
         setupHover()
         setupMonitors()
+
+        // @Published fires before the value is stored, so apply on the next turn
+        let settings = Settings.shared
+        settings.$panelSize.dropFirst().sink { [weak self] _ in
+            DispatchQueue.main.async { self?.repin() }
+        }.store(in: &subscriptions)
+        settings.$hoverDelay.sink { [weak self] delay in
+            self?.hover?.enterDelay = delay
+        }.store(in: &subscriptions)
+
+        NotificationCenter.default.addObserver(forName: .previewNotchPanel, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.viewModel.isOpen else { return }
+                self.open(tab: self.viewModel.tab, manual: true)
+            }
+        }
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -144,10 +166,12 @@ final class NotchController {
         // A file is being dragged to the notch: open straight on the shelf
         let dragPB = NSPasteboard(name: .drag)
         let dragging = NSEvent.pressedMouseButtons != 0 && dragPB.changeCount != dragChangeCount
+        let settings = Settings.shared
         if dragging {
             dragChangeCount = dragPB.changeCount
             open(tab: .shelf, manual: false)
-        } else {
+        } else if settings.openOnHover,
+                  !(settings.hideInFullScreen && FullScreen.isFrontmostFullScreen(on: NotchGeometry.current().screen)) {
             open(tab: viewModel.tab, manual: false)
         }
     }

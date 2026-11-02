@@ -3,7 +3,7 @@ import AppKit
 import ServiceManagement
 
 /// Settings window in the style of System Settings: tabs with grouped forms.
-enum SettingsTab: String, CaseIterable { case general, shortcuts, clipboard, claude, recents }
+enum SettingsTab: String, CaseIterable { case general, appearance, shortcuts, clipboard, claude, recents }
 
 @MainActor
 final class SettingsRouter: ObservableObject {
@@ -17,6 +17,7 @@ struct SettingsView: View {
     private func title(_ tab: SettingsTab) -> LocalizedStringKey {
         switch tab {
         case .general: return "General"
+        case .appearance: return "Appearance"
         case .shortcuts: return "Shortcuts"
         case .clipboard: return "Clipboard"
         case .claude: return "Claude"
@@ -27,6 +28,7 @@ struct SettingsView: View {
     private func symbol(_ tab: SettingsTab) -> String {
         switch tab {
         case .general: return "gearshape"
+        case .appearance: return "paintbrush"
         case .shortcuts: return "command"
         case .clipboard: return "doc.on.clipboard"
         case .claude: return "sparkle"
@@ -45,7 +47,7 @@ struct SettingsView: View {
                                 .frame(height: 20)
                             Text(title(tab)).font(.system(size: 11))
                         }
-                        .frame(width: 110, height: 50)
+                        .frame(width: 92, height: 50)
                         .foregroundStyle(active ? Color.primary : Color.secondary)
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -62,6 +64,7 @@ struct SettingsView: View {
             Group {
                 switch router.tab {
                 case .general: GeneralSettings()
+                case .appearance: AppearanceSettings()
                 case .shortcuts: ShortcutSettings()
                 case .clipboard: ClipboardSettings()
                 case .claude: ClaudeSettings()
@@ -116,6 +119,75 @@ struct GeneralSettings: View {
                 }
             } footer: {
                 Text("Deckhand by NNA1618. Open source under the MIT license.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+// MARK: - Appearance
+
+struct AppearanceSettings: View {
+    @ObservedObject private var settings = Settings.shared
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Style", selection: $settings.panelStyle) {
+                    Text("Transparent").tag(PanelStyle.clear)
+                    Text("Tinted").tag(PanelStyle.tinted)
+                    Text("Solid").tag(PanelStyle.solid)
+                }
+                .pickerStyle(.segmented)
+                LabeledContent("Tint") {
+                    HStack(spacing: 8) {
+                        Image(systemName: "circle").foregroundStyle(.secondary)
+                        Slider(value: $settings.glassTint, in: 0...0.8)
+                            .frame(width: 220)
+                        Image(systemName: "circle.fill").foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(settings.panelStyle == .solid)
+                Picker("Panel size", selection: $settings.panelSize) {
+                    Text("Compact").tag(PanelSize.compact)
+                    Text("Standard").tag(PanelSize.standard)
+                    Text("Large").tag(PanelSize.large)
+                }
+                .pickerStyle(.segmented)
+            } header: {
+                Text("Panel")
+            } footer: {
+                HStack {
+                    Text("Transparent shows more of what is behind the panel. Solid turns glass off.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Show Panel") {
+                        NotificationCenter.default.post(name: .previewNotchPanel, object: nil)
+                    }
+                }
+            }
+            Section {
+                Toggle("Open when the pointer rests on the notch", isOn: $settings.openOnHover)
+                Picker("Delay", selection: $settings.hoverDelay) {
+                    Text("Instant").tag(0.08)
+                    Text("Short").tag(0.25)
+                    Text("Long").tag(0.5)
+                }
+                .disabled(!settings.openOnHover)
+                Toggle("Stay hidden while an app is in full screen", isOn: $settings.hideInFullScreen)
+                Button("Restore Defaults") {
+                    settings.panelStyle = .tinted
+                    settings.glassTint = 0.38
+                    settings.panelSize = .standard
+                    settings.openOnHover = true
+                    settings.hoverDelay = 0.08
+                    settings.hideInFullScreen = true
+                }
+            } header: {
+                Text("Behavior")
+            } footer: {
+                Text("Shortcuts and files dragged to the notch open the panel either way.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

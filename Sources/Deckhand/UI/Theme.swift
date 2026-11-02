@@ -18,6 +18,8 @@ enum Theme {
 
     /// `--snapshot` cannot capture glass, so it swaps glass for flat dark fills.
     nonisolated(unsafe) static var flatForSnapshot = false
+    /// Flat fills instead of glass: for snapshots and the Solid panel style.
+    @MainActor static var flat: Bool { flatForSnapshot || Settings.shared.panelStyle == .solid }
 
     static let title: Font = .system(size: 15, weight: .semibold)
     static let body: Font = .system(size: 13)
@@ -32,22 +34,30 @@ enum Theme {
 /// Liquid Glass on macOS 26, a regular blur on older systems.
 struct GlassBackground: NSViewRepresentable {
     var cornerRadius: CGFloat
-    var tint: NSColor = NSColor.black.withAlphaComponent(0.38)
+    var style: PanelStyle = .tinted
+    /// Darkness of the tint, 0...1.
+    var tint: Double = 0.38
+
+    private var tintColor: NSColor {
+        // Clear glass keeps only part of the tint so the background shows through
+        NSColor.black.withAlphaComponent(style == .clear ? tint * 0.5 : tint)
+    }
 
     func makeNSView(context: Context) -> NSView {
-        if Theme.flatForSnapshot {
+        if Theme.flatForSnapshot || style == .solid {
             let flat = NSView()
             flat.wantsLayer = true
-            flat.layer?.backgroundColor = NSColor(white: 0.08, alpha: 0.92).cgColor
+            flat.layer?.backgroundColor = NSColor(white: 0.08, alpha: Theme.flatForSnapshot ? 0.92 : 0.97).cgColor
             flat.layer?.cornerRadius = cornerRadius
+            flat.layer?.cornerCurve = .continuous
             return flat
         }
         #if compiler(>=6.2)   // Liquid Glass needs the macOS 26 SDK (Xcode 26)
         if #available(macOS 26.0, *) {
             let glass = NSGlassEffectView()
             glass.cornerRadius = cornerRadius
-            glass.tintColor = tint
-            glass.style = .regular
+            glass.tintColor = tintColor
+            glass.style = style == .clear ? .clear : .regular
             return glass
         }
         #endif
@@ -67,7 +77,8 @@ struct GlassBackground: NSViewRepresentable {
         #if compiler(>=6.2)
         if #available(macOS 26.0, *), let glass = view as? NSGlassEffectView {
             glass.cornerRadius = cornerRadius
-            glass.tintColor = tint
+            glass.tintColor = tintColor
+            glass.style = style == .clear ? .clear : .regular
             return
         }
         #endif
@@ -79,7 +90,7 @@ extension View {
     /// Glass backing for controls inside the panel (buttons, tabs, fields).
     @ViewBuilder
     func glassChip<S: Shape>(in shape: S, interactive: Bool = false) -> some View {
-        if Theme.flatForSnapshot {
+        if Theme.flat {
             self.background(Theme.surface2, in: shape)
         } else {
             #if compiler(>=6.2)
