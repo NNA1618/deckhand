@@ -46,7 +46,7 @@ final class ClipboardStore {
 
         if let existing = try? db.pluck(t.filter(cHash == hash)) {
             let id = existing[cId]
-            try? db.run(t.filter(cId == id).update(cLastUsedAt <- now))
+            _ = try? db.run(t.filter(cId == id).update(cLastUsedAt <- now))
             return false
         }
 
@@ -99,7 +99,7 @@ final class ClipboardStore {
     func togglePin(id: Int64) {
         guard let row = try? db.pluck(t.filter(cId == id)) else { return }
         let newPinned: Int64 = row[cPinned] == 1 ? 0 : 1
-        try? db.run(t.filter(cId == id).update(cPinned <- newPinned))
+        _ = try? db.run(t.filter(cId == id).update(cPinned <- newPinned))
     }
 
     func delete(id: Int64) {
@@ -108,11 +108,11 @@ final class ClipboardStore {
                 try? FileManager.default.removeItem(atPath: path)
             }
         }
-        try? db.run(t.filter(cId == id).delete())
+        _ = try? db.run(t.filter(cId == id).delete())
     }
 
     func markUsed(id: Int64) {
-        try? db.run(t.filter(cId == id).update(cLastUsedAt <- Date().timeIntervalSince1970))
+        _ = try? db.run(t.filter(cId == id).update(cLastUsedAt <- Date().timeIntervalSince1970))
     }
 
     func imageData(for item: ClipboardItem) -> Data? {

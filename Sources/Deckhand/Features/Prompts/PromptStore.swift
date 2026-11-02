@@ -85,7 +85,7 @@ final class PromptStore {
 
     func update(_ p: Prompt) {
         let now = Date().timeIntervalSince1970
-        try? db.run(t.filter(cId == p.id).update(
+        _ = try? db.run(t.filter(cId == p.id).update(
             cTitle <- p.title,
             cBody <- p.body,
             cCategory <- p.category,
@@ -96,11 +96,11 @@ final class PromptStore {
     }
 
     func delete(_ id: Int64) {
-        try? db.run(t.filter(cId == id).delete())
+        _ = try? db.run(t.filter(cId == id).delete())
     }
 
     func incrementUsage(_ id: Int64) {
-        try? db.run(t.filter(cId == id).update(cUsageCount++))
+        _ = try? db.run(t.filter(cId == id).update(cUsageCount++))
     }
 
     private func map(_ row: Row) -> Prompt {
