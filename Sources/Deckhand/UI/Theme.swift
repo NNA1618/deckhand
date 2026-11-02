@@ -189,11 +189,16 @@ struct GlassButton: View {
 struct SearchField: View {
     let placeholder: LocalizedStringKey
     @Binding var text: String
+    /// Focus the field as soon as it appears, so typing searches right away.
+    var focusOnAppear = false
+    @FocusState private var focused: Bool
     var body: some View {
         HStack(spacing: 7) {
             Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundColor(Theme.fgMute)
             TextField(placeholder, text: $text)
                 .textFieldStyle(.plain).font(Theme.body).foregroundColor(Theme.fg)
+                .focused($focused)
+                .onAppear { if focusOnAppear { focused = true } }
             if !text.isEmpty {
                 Button { text = "" } label: {
                     Image(systemName: "xmark.circle.fill").font(.system(size: 12)).foregroundColor(Theme.fgMute)

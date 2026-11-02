@@ -148,7 +148,6 @@
 "What is on this screenshot? Point out anything important." = "Что на этом скриншоте? Отметь всё важное.";
 "Show the playing track around the notch" = "Показывать играющий трек вокруг чёлки";
 "Paste into the app you were using" = "Вставить в приложение, где вы работали";
-"Click to copy, double-click to paste" = "Клик копирует, двойной клик вставляет";
 "Appearance" = "Оформление";
 "Panel" = "Панель";
 "Style" = "Стиль";
@@ -170,3 +169,4 @@
 "Long" = "Длинная";
 "Stay hidden while an app is in full screen" = "Не открывать, пока приложение во весь экран";
 "Shortcuts and files dragged to the notch open the panel either way." = "Хоткеи и файлы, перетащенные на чёлку, открывают панель в любом случае.";
+"↑↓ to pick, Return to paste, ⌘1–9 for the first nine" = "↑↓ выбрать, Return вставить, ⌘1–9 первые девять";

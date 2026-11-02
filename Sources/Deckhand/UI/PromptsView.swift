@@ -6,7 +6,7 @@ struct PromptsView: View {
     var body: some View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
-                SearchField(placeholder: "Search", text: $vm.search)
+                SearchField(placeholder: "Search", text: $vm.search, focusOnAppear: true)
                 Button { vm.create() } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 12, weight: .semibold))
