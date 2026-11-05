@@ -56,6 +56,8 @@ final class DesktopCover {
         w.hasShadow = false
         w.isOpaque = true
         w.hidesOnDeactivate = false
+        // ⌘H in Settings or the editor must not bring the desktop icons back
+        w.canHide = false
         // Clicks stop here, so a hidden icon can't be opened by accident
         w.ignoresMouseEvents = false
         w.setFrame(screen.frame, display: false)
