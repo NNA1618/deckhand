@@ -51,12 +51,21 @@ enum SelectionReader {
     // MARK: - ⌘C
 
     private static func copySelection() async -> String? {
+        // The ⌘C and the restore are Deckhand's, not the user's copies: keep them out of the history
+        let watcher = ClipboardWatcher.shared
+        watcher.suspendCapture()
+        defer { watcher.resumeCapture() }
         let pb = NSPasteboard.general
-        let saved = PasteboardContents(pb)
+        let name = pb.name
+        // Reading every type can make the app that copied render it now (a large image, say),
+        // so it happens off the main thread
+        let saved = await Task.detached(priority: .userInitiated) {
+            PasteboardContents.save(NSPasteboard(name: name))
+        }.value
         let before = pb.changeCount
         // The shortcut's own keys are usually still down; ⌘C with ⌃⌥⇧ held means something else
         await waitForModifierKeysUp()
-        postCommandKey(keyCode(for: "c") ?? CGKeyCode(kVK_ANSI_C))
+        PasteService.postCommandShortcut("c", fallback: kVK_ANSI_C)
         for _ in 0..<30 where pb.changeCount == before {
             try? await Task.sleep(for: .milliseconds(20))
         }
@@ -74,57 +83,52 @@ enum SelectionReader {
             try? await Task.sleep(for: .milliseconds(20))
         }
     }
-
-    private static func postCommandKey(_ key: CGKeyCode) {
-        let source = CGEventSource(stateID: .combinedSessionState)
-        let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true)
-        let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
-        down?.flags = .maskCommand
-        up?.flags = .maskCommand
-        down?.post(tap: .cgAnnotatedSessionEventTap)
-        up?.post(tap: .cgAnnotatedSessionEventTap)
-    }
-
-    /// The key that types `character` in the current Latin layout, so ⌘C is right in Dvorak or AZERTY.
-    /// Russian and other non-Latin layouts use their Latin companion for shortcuts, as macOS does.
-    private static func keyCode(for character: Character) -> CGKeyCode? {
-        guard let source = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue(),
-              let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return nil }
-        let data = Unmanaged<CFData>.fromOpaque(raw).takeUnretainedValue() as Data
-        return data.withUnsafeBytes { bytes -> CGKeyCode? in
-            guard let layout = bytes.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else { return nil }
-            for code in 0..<128 {
-                var deadKeys: UInt32 = 0
-                var length = 0
-                var chars = [UniChar](repeating: 0, count: 4)
-                let status = UCKeyTranslate(layout, UInt16(code), UInt16(kUCKeyActionDisplay), 0, UInt32(LMGetKbdType()),
-                                            OptionBits(kUCKeyTranslateNoDeadKeysBit), &deadKeys, 4, &length, &chars)
-                if status == noErr, length == 1, String(utf16CodeUnits: chars, count: 1) == String(character) {
-                    return CGKeyCode(code)
-                }
-            }
-            return nil
-        }
-    }
 }
 
-/// A copy of everything on the clipboard, to put it back after reading the selection with ⌘C.
-@MainActor
-private struct PasteboardContents {
-    private let items: [[(NSPasteboard.PasteboardType, Data)]]
+/// A copy of the clipboard, to put it back after reading the selection with ⌘C.
+struct PasteboardContents: Sendable {
+    struct Entry: Sendable {
+        let type: String
+        let data: Data
+    }
 
-    init(_ pb: NSPasteboard) {
-        items = (pb.pasteboardItems ?? []).map { item in
-            item.types.compactMap { type in item.data(forType: type).map { (type, $0) } }
+    let items: [[Entry]]
+    /// False for a password or another copy meant to vanish: putting it back would change the
+    /// change count, and password managers then no longer clear it. The selection stays instead.
+    let restores: Bool
+
+    /// Promised files: reading these makes the app that copied write the file out.
+    nonisolated static let promiseTypes: Set<String> = [
+        "com.apple.NSFilePromiseItemMetaData",
+        "com.apple.pasteboard.promised-file-url",
+        "com.apple.pasteboard.promised-file-content-type",
+        "com.apple.pasteboard.promised-suggested-file-name",
+        "NSPromiseContentsPboardType",
+        "Apple files promise pasteboard type",
+    ]
+
+    /// Reads what can be put back. Safe off the main thread; a password is not read at all.
+    nonisolated static func save(_ pb: NSPasteboard) -> PasteboardContents {
+        let types = Set((pb.types ?? []).map(\.rawValue))
+        if ClipboardWatcher.isPassword(types: types, sourceApp: nil) {
+            return PasteboardContents(items: [], restores: false)
         }
+        let items = (pb.pasteboardItems ?? []).map { item in
+            item.types.compactMap { type -> Entry? in
+                guard !promiseTypes.contains(type.rawValue), let data = item.data(forType: type) else { return nil }
+                return Entry(type: type.rawValue, data: data)
+            }
+        }
+        return PasteboardContents(items: items.filter { !$0.isEmpty }, restores: true)
     }
 
     func restore(to pb: NSPasteboard) {
+        guard restores else { return }
         pb.clearContents()
         guard !items.isEmpty else { return }
-        let restored = items.map { pairs -> NSPasteboardItem in
+        let restored = items.map { entries -> NSPasteboardItem in
             let item = NSPasteboardItem()
-            for (type, data) in pairs { item.setData(data, forType: type) }
+            for entry in entries { item.setData(entry.data, forType: NSPasteboard.PasteboardType(entry.type)) }
             return item
         }
         pb.writeObjects(restored)

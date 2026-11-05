@@ -8,6 +8,7 @@ extension SelfTest {
         detection(check)
         languages(check)
         runs(check)
+        selectionClipboard(check)
     }
 
     private static func targets(_ check: Check) {
@@ -95,6 +96,12 @@ extension SelfTest {
         check(TranslatorRules.hostUpdate(current: ("en", "ru"), source: "en", target: "de") == .replace
               && TranslatorRules.hostUpdate(current: nil, source: "en", target: "ru") == .replace,
               "translate: other languages get a new configuration")
+        check(TranslatorRules.hostChoice(busy: [true, false, false], max: 3) == .use(1)
+              && TranslatorRules.hostChoice(busy: [true], max: 3) == .create
+              && TranslatorRules.hostChoice(busy: [], max: 3) == .create,
+              "translate: macOS 15 uses a free hidden window, or adds one")
+        check(TranslatorRules.hostChoice(busy: [true, true, true], max: 3) == .wait,
+              "translate: with every hidden window busy the run waits instead of failing at once")
 
         let a = TranslatorRules.Request(text: "Hello", source: "en", target: "ru")
         check(!TranslatorRules.needsRun(a, last: a, lastSucceededOrRunning: true), "translate: no second run of the same text")
@@ -121,6 +128,51 @@ extension SelfTest {
         if #available(macOS 26.0, *) {
             check(failure(TranslationError.notInstalled) as? TranslationFailure == .needsDownload,
                   "translate: missing languages offer a download")
+        }
+    }
+
+    /// Saving and restoring the clipboard around the ⌘C that reads a selection. Private pasteboard only.
+    private static func selectionClipboard(_ check: Check) {
+        let pb = NSPasteboard(name: NSPasteboard.Name("com.nna1618.deckhand.selftest.\(UUID().uuidString)"))
+        defer { pb.releaseGlobally() }
+        let custom = NSPasteboard.PasteboardType("com.example.deckhand.custom")
+        let promise = NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-url")
+
+        pb.clearContents()
+        let first = NSPasteboardItem()
+        first.setString("original", forType: .string)
+        first.setData(Data([1, 2, 3]), forType: custom)
+        first.setData(Data("file:///tmp/x".utf8), forType: promise)
+        let second = NSPasteboardItem()
+        second.setString("second", forType: .string)
+        pb.writeObjects([first, second])
+        let saved = PasteboardContents.save(pb)
+        check(saved.restores && saved.items.count == 2, "selection: the clipboard is saved item by item")
+        check(!saved.items.joined().contains { $0.type == promise.rawValue },
+              "selection: promised files are not read, so the copying app writes nothing out")
+
+        pb.clearContents()
+        pb.setString("selected text", forType: .string)
+        saved.restore(to: pb)
+        let items = pb.pasteboardItems ?? []
+        check(items.count == 2 && items.first?.string(forType: .string) == "original"
+              && items.first?.data(forType: custom) == Data([1, 2, 3])
+              && items.last?.string(forType: .string) == "second",
+              "selection: the clipboard comes back with every item and type")
+
+        for marker in ["org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType"] {
+            pb.clearContents()
+            pb.declareTypes([.string, NSPasteboard.PasteboardType(marker)], owner: nil)
+            pb.setString("hunter2", forType: .string)
+            pb.setData(Data(), forType: NSPasteboard.PasteboardType(marker))
+            let secret = PasteboardContents.save(pb)
+            pb.clearContents()
+            pb.setString("selected text", forType: .string)
+            let count = pb.changeCount
+            secret.restore(to: pb)
+            check(!secret.restores && secret.items.isEmpty && pb.changeCount == count
+                  && pb.string(forType: .string) == "selected text",
+                  "selection: a \(marker) copy is neither read nor put back")
         }
     }
 }

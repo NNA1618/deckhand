@@ -26,7 +26,8 @@ enum TranslationFailure: Error, Equatable {
 ///   (`TranslationHost`), re-run with `invalidate()`;
 /// - downloads go through `TranslationDownloader`, a normal window with Apple's prompt.
 ///
-/// Every run has a timeout, runs one at a time, and stops waiting as soon as its task is cancelled.
+/// Every run, and every availability check, has a timeout; runs go one at a time and stop waiting as
+/// soon as their task is cancelled.
 @MainActor
 final class TranslationEngine {
     static let shared = TranslationEngine()
@@ -41,11 +42,14 @@ final class TranslationEngine {
     private init() {}
 
     /// Whether the pair can be translated now, needs a download, or isn't available.
-    func status(from source: String, to target: String) async -> LanguageAvailability.Status {
+    /// Throws `timedOut` when Translation doesn't answer in time, or `CancellationError`.
+    func status(from source: String, to target: String) async throws -> LanguageAvailability.Status {
         let pair = "\(source)>\(target)"
         if installedPairs.contains(pair) { return .installed }
-        let status = await LanguageAvailability().status(from: Locale.Language(identifier: source),
-                                                         to: Locale.Language(identifier: target))
+        let status = try await Self.race(seconds: TranslatorRules.timeout, onAbandon: { _ in }) {
+            await LanguageAvailability().status(from: Locale.Language(identifier: source),
+                                                to: Locale.Language(identifier: target))
+        }
         if status == .installed { installedPairs.insert(pair) }
         return status
     }
@@ -58,7 +62,7 @@ final class TranslationEngine {
 
     func translate(_ text: String, from source: String, to target: String) async throws -> String {
         guard source != target else { throw TranslationFailure.sameLanguage }
-        switch await status(from: source, to: target) {
+        switch try await status(from: source, to: target) {
         case .installed: break
         case .supported: throw TranslationFailure.needsDownload
         default: throw TranslationFailure.unsupported
@@ -89,8 +93,11 @@ final class TranslationEngine {
                                          target: Locale.Language(identifier: target))
             direct = (pair, session)
         }
-        return try await Self.race(seconds: TranslatorRules.timeout, onAbandon: { [weak self] in
-            // A cancelled session can't be used again
+        return try await Self.race(seconds: TranslatorRules.timeout, onAbandon: { [weak self] reason in
+            // Newer typing replaced the run: keep the session warm for the next one, which usually
+            // has the same languages. Its unfinished call just returns into nothing.
+            if reason is CancellationError { return }
+            // Timed out: the session looks stuck. A cancelled session can't be used again
             session.cancel()
             if self?.direct?.pair == pair { self?.direct = nil }
         }) {
@@ -101,18 +108,29 @@ final class TranslationEngine {
     // MARK: - macOS 15: sessions from hidden windows
 
     private func translateInHost(_ text: String, from source: String, to target: String) async throws -> String {
-        let host: TranslationHost
-        if let idle = hosts.first(where: { !$0.isBusy }) {
-            host = idle
-        } else if hosts.count < Self.maxHosts {
-            host = TranslationHost()
-            hosts.append(host)
-        } else {
-            // Every host is still waiting for an earlier run that never answered
-            throw TranslationFailure.timedOut
-        }
-        return try await Self.race(seconds: TranslatorRules.timeout, onAbandon: { host.abandon() }) {
+        // Waiting for a free host counts toward the same limit as the translation itself
+        let deadline = Date().addingTimeInterval(TranslatorRules.timeout)
+        let host = try await freeHost(before: deadline)
+        return try await Self.race(seconds: max(deadline.timeIntervalSinceNow, 0), onAbandon: { _ in host.abandon() }) {
             try await host.translate(text, from: source, to: target)
+        }
+    }
+
+    /// A host that can take a run now. Runs cancelled by typing keep their host busy until Apple's
+    /// call returns, so with all of them busy this waits for one to free up.
+    private func freeHost(before deadline: Date) async throws -> TranslationHost {
+        while true {
+            switch TranslatorRules.hostChoice(busy: hosts.map(\.isBusy), max: Self.maxHosts) {
+            case .use(let index):
+                return hosts[index]
+            case .create:
+                let host = TranslationHost()
+                hosts.append(host)
+                return host
+            case .wait:
+                guard Date() < deadline else { throw TranslationFailure.timedOut }
+                try await Task.sleep(for: .milliseconds(100))
+            }
         }
     }
 
@@ -135,10 +153,10 @@ final class TranslationEngine {
     }
 
     /// Returns the body's result, or throws `timedOut` or `CancellationError`, whichever comes first.
-    /// `onAbandon` runs when the body is left running after a timeout or a cancel.
-    private static func race(seconds: Double, onAbandon: @escaping @MainActor () -> Void,
-                             _ body: @escaping @MainActor () async throws -> String) async throws -> String {
-        let race = Race(onAbandon: onAbandon)
+    /// `onAbandon` runs with that error when the body is left running after a timeout or a cancel.
+    private static func race<Value: Sendable>(seconds: Double, onAbandon: @escaping @MainActor (Error) -> Void,
+                                              _ body: @escaping @MainActor () async throws -> Value) async throws -> Value {
+        let race = Race<Value>(onAbandon: onAbandon)
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 race.start(continuation, seconds: seconds, body)
@@ -151,16 +169,16 @@ final class TranslationEngine {
 
 /// One answer for a continuation: from the work, a timer, or a cancel.
 @MainActor
-private final class Race {
-    private var continuation: CheckedContinuation<String, Error>?
+private final class Race<Value: Sendable> {
+    private var continuation: CheckedContinuation<Value, Error>?
     private var timer: Task<Void, Never>?
     private var abandoned = false
-    private let onAbandon: @MainActor () -> Void
+    private let onAbandon: @MainActor (Error) -> Void
 
-    init(onAbandon: @escaping @MainActor () -> Void) { self.onAbandon = onAbandon }
+    init(onAbandon: @escaping @MainActor (Error) -> Void) { self.onAbandon = onAbandon }
 
-    func start(_ continuation: CheckedContinuation<String, Error>, seconds: Double,
-               _ body: @escaping @MainActor () async throws -> String) {
+    func start(_ continuation: CheckedContinuation<Value, Error>, seconds: Double,
+               _ body: @escaping @MainActor () async throws -> Value) {
         guard !abandoned else {
             continuation.resume(throwing: CancellationError())
             return
@@ -182,10 +200,10 @@ private final class Race {
         // Not started yet (`start` answers then) or already answered
         guard continuation != nil else { return }
         finish(.failure(error))
-        onAbandon()
+        onAbandon(error)
     }
 
-    private func finish(_ result: Result<String, Error>) {
+    private func finish(_ result: Result<Value, Error>) {
         timer?.cancel()
         guard let continuation else { return }
         self.continuation = nil

@@ -90,6 +90,16 @@ enum TranslatorRules {
         return .invalidate
     }
 
+    enum HostChoice: Equatable { case use(Int), create, wait }
+
+    /// Which hidden window runs the next macOS 15 translation: the first free one, a new one while
+    /// there are fewer than `max`, or none yet, because each is finishing a run that was cancelled or
+    /// timed out (Apple's call can't be stopped).
+    static func hostChoice(busy: [Bool], max: Int) -> HostChoice {
+        if let free = busy.firstIndex(of: false) { return .use(free) }
+        return busy.count < max ? .create : .wait
+    }
+
     /// Copied text goes into the tab only when the field is empty, the setting is on, and the clipboard
     /// changed since the last time, so clearing the field doesn't bring the same text back.
     static func shouldPrefill(enabled: Bool, inputEmpty: Bool, changeCount: Int, lastUsedChangeCount: Int?) -> Bool {
