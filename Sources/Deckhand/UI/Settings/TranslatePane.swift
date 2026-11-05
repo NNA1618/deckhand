@@ -15,25 +15,23 @@ struct TranslatePane: View {
                     Text("Second language")
                     Text("Text already in the first language goes into this one.")
                 }
-                Toggle("Detect the language automatically", isOn: $settings.autoDetect)
+                SettingsToggleRow(String(localized: "Detect the language automatically"), isOn: $settings.autoDetect)
                 if !settings.autoDetect {
                     Picker("Source language", selection: $settings.source) { languageOptions }
                 }
-                LabeledContent("Languages on this Mac") {
+                SettingsRow(String(localized: "Languages on this Mac")) {
                     Button("Translation Languages…") { openTranslationLanguages() }
+                        .buttonStyle(.settings)
                 }
             } header: {
                 Text("Languages")
             } footer: {
-                Text("On-device translation with Apple Translation. Languages that aren't on this Mac yet download the first time you use them.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("On-device translation with Apple Translation. Languages that aren't on this Mac yet download the first time you use them.")
             }
 
             Section {
                 ForEach(settings.favorites, id: \.self) { code in
-                    HStack {
-                        Text(TranslationLanguages.name(of: code))
-                        Spacer()
+                    SettingsRow(TranslationLanguages.name(of: code)) {
                         Button {
                             settings.favorites.removeAll { $0 == code }
                         } label: {
@@ -54,24 +52,18 @@ struct TranslatePane: View {
             } header: {
                 Text("Favorite languages")
             } footer: {
-                Text("Favorites come first in the language lists and appear as one-click buttons in the Translate tab.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("Favorites come first in the language lists and appear as one-click buttons in the Translate tab.")
             }
 
             Section {
-                Toggle("Translate as you type", isOn: $settings.translateAsYouType)
-                LabeledContent("Translate selected text") {
-                    HStack(spacing: 8) {
-                        Text(hotkeys.shortcuts[.translateSelection]?.display ?? String(localized: "None"))
-                            .foregroundStyle(.secondary)
-                        Button("Change…") { SettingsRouter.shared.section = .shortcuts }
-                    }
-                }
+                SettingsToggleRow(String(localized: "Translate as you type"), isOn: $settings.translateAsYouType)
+                SettingsLinkRow(String(localized: "Translate selected text"),
+                                value: hotkeys.shortcuts[.translateSelection]?.display ?? String(localized: "None"),
+                                to: .section(.shortcuts))
             } header: {
                 Text("Typing and Shortcut")
             } footer: {
-                Text("Translates a moment after you stop typing. \("⌘↩") translates right away.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("Translates a moment after you stop typing. \("⌘↩") translates right away.")
             }
         }
         .onAppear { catalog.loadIfNeeded() }
