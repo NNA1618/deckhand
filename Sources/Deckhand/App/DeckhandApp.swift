@@ -154,6 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for (action, tab) in tabs {
             hk.setHandler(action) { [weak self] in self?.notch.open(tab: tab) }
         }
+        CaptureActions.installHotkeys(notch: notch)
         hk.registerAll()
     }
 
