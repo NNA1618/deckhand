@@ -149,16 +149,21 @@ final class ClipboardStore {
     @discardableResult
     func insert(_ entry: ClipboardEntry, limit: Int, maxAgeDays: Int, now: Date = Date()) -> InsertResult {
         let time = now.timeIntervalSince1970
-        if let existing = try? db.pluck(S.table.select(S.id, S.imagePath).filter(S.hash == entry.hash)) {
+        if let existing = try? db.pluck(S.table.select(S.id, S.imagePath, S.isSecret).filter(S.hash == entry.hash)) {
             let id = existing[S.id]
             // Rows from 0.4 name their image differently; drop the copy just written for this one
             if let name = entry.imageName, existing[S.imagePath].map({ URL(fileURLWithPath: $0).lastPathComponent }) != name {
                 try? FileManager.default.removeItem(at: imagesDir.appendingPathComponent(name))
             }
+            // The search covers the new source app. Once a password, always one: copying the same
+            // text again from another app doesn't reveal it
+            let secret = entry.isSecret || existing[S.isSecret] == 1
             _ = try? db.run(S.table.filter(S.id == id).update(
                 S.lastUsedAt <- time,
                 S.sourceApp <- entry.sourceApp,
-                S.sourceAppName <- entry.sourceAppName))
+                S.sourceAppName <- entry.sourceAppName,
+                S.searchText <- (secret ? "" : entry.searchText),
+                S.isSecret <- (secret ? 1 : 0)))
             NotificationCenter.default.post(name: .clipboardHistoryChanged, object: nil)
             return .movedToTop(id)
         }

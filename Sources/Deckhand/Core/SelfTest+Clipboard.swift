@@ -120,6 +120,19 @@ extension SelfTest {
         check(found("москве встреча") == ["Встреча в Москве"] && found("москве nothing").isEmpty, "every word must match")
         check(found("", .links) == ["https://example.com/docs"] && found("", .files).count == 1, "filters by kind")
 
+        // Copying the same content again updates what the search sees
+        store.insert(entry("https://example.com/docs", app: "com.google.Chrome", name: "Chrome"), limit: 0, maxAgeDays: 0)
+        check(found("chrome") == ["https://example.com/docs"] && found("safari").isEmpty, "a repeated copy is found by its new app")
+        var fromPasswords = entry("axb", app: "com.apple.Passwords", name: "Passwords")
+        fromPasswords.isSecret = true
+        fromPasswords.searchText = ""
+        store.insert(fromPasswords, limit: 0, maxAgeDays: 0)
+        store.insert(entry("axb"), limit: 0, maxAgeDays: 0)
+        let hidden = store.recentItems(filter: .text).first { $0.sourceApp == "com.apple.Notes" && $0.isSecret }
+        check(found("axb").isEmpty && hidden != nil && store.secretCount() == 1,
+              "text copied again from a password app becomes a password and stays one")
+        if let hidden { store.delete(id: hidden.id) }
+
         // Paging: no fixed cap
         for i in 0..<250 { store.insert(entry("item \(i)"), limit: 0, maxAgeDays: 0) }
         let total = store.count(pinned: false)
