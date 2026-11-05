@@ -11,16 +11,14 @@ struct RecentsPane: View {
         SettingsPane(.recents) {
             Section {
                 ForEach(settings.watchedFolders, id: \.self) { path in
-                    HStack(spacing: 8) {
-                        Image(nsImage: NSWorkspace.shared.icon(forFile: path))
-                            .resizable().frame(width: 18, height: 18)
-                        Text((path as NSString).abbreviatingWithTildeInPath)
-                            .lineLimit(1).truncationMode(.middle)
+                    SettingsRow(FileManager.default.displayName(atPath: path),
+                                detail: (path as NSString).abbreviatingWithTildeInPath,
+                                icon: .image(NSWorkspace.shared.icon(forFile: path)),
+                                detailIsPath: true) {
                         if let problem = vm.problems.first(where: { $0.path == path }) {
-                            Text(problem.kind == .noAccess ? "No access" : "Not found")
-                                .font(.caption).foregroundStyle(.orange)
+                            StatusChip(problem.kind == .noAccess ? String(localized: "No access") : String(localized: "Not found"),
+                                       kind: .attention)
                         }
-                        Spacer()
                         Button(role: .destructive) {
                             settings.watchedFolders.removeAll { $0 == path }
                         } label: { Image(systemName: "minus.circle") }
@@ -29,15 +27,18 @@ struct RecentsPane: View {
                         .accessibilityLabel(Text("Stop watching this folder"))
                     }
                 }
-                Button("Add Folder…") { pickFolder() }
+                HStack {
+                    Button("Add Folder…") { pickFolder() }
+                        .buttonStyle(.settings)
+                    Spacer()
+                }
             } header: {
                 Text("Folders")
             } footer: {
-                Text("For example the Downloads folder, where AI generations usually land.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("For example the Downloads folder, where AI generations usually land.")
             }
 
-            Section("Show") {
+            Section {
                 Picker("Period", selection: $recents.days) {
                     ForEach(RecentsSettings.dayChoices, id: \.self) { days in
                         Text(Self.periodLabel(days)).tag(days)
@@ -48,32 +49,33 @@ struct RecentsPane: View {
                     Text("Images only").tag(RecentsKinds.images)
                     Text("Videos only").tag(RecentsKinds.videos)
                 }
-                Toggle("Include subfolders", isOn: $recents.includeSubfolders)
+                SettingsToggleRow(String(localized: "Include subfolders"), isOn: $recents.includeSubfolders)
                 Picker("Maximum", selection: $recents.limit) {
                     ForEach(RecentsSettings.limitChoices, id: \.self) { n in
                         Text("\(n) files").tag(n)
                     }
                 }
+            } header: {
+                Text("Show")
             }
 
             Section {
-                Toggle("Show the prompt field", isOn: $recents.showPrompt)
-                LabeledContent("Link button") {
+                SettingsToggleRow(String(localized: "Show the prompt field"), isOn: $recents.showPrompt)
+                SettingsRow(String(localized: "Link button")) {
                     VStack(alignment: .trailing, spacing: 2) {
                         TextField("Link button", text: $recents.linkURL, prompt: Text(verbatim: RecentsSettings.defaultLinkURL))
                             .labelsHidden()
                             .frame(width: 240)
                         if !recents.linkURL.trimmingCharacters(in: .whitespaces).isEmpty, recents.link == nil {
-                            Text("Not a web address").font(.caption).foregroundStyle(.orange)
+                            Text("Not a web address").font(Theme.caption).foregroundStyle(Theme.warn)
                         }
                     }
                 }
-                LabeledContent("Shortcut") { ShortcutRecorder(action: .recents) }
+                ShortcutRow(action: .recents, title: String(localized: "Shortcut"))
             } header: {
                 Text("Prompt helper")
             } footer: {
-                Text("The link button opens a site next to the prompt field, for example where you make generations. Leave it empty to hide it.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("The link button opens a site next to the prompt field, for example where you make generations. Leave it empty to hide it.")
             }
         }
     }

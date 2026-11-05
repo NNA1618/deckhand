@@ -6,7 +6,6 @@ import UniformTypeIdentifiers
 struct PromptsPane: View {
     @ObservedObject private var settings = PromptSettings.shared
     @State private var message: String?
-    @State private var confirmDeleteAll = false
 
     var body: some View {
         SettingsPane(.prompts) {
@@ -15,60 +14,60 @@ struct PromptsPane: View {
                     Text("Copies it").tag(PromptClickAction.copy)
                     Text("Pastes it into the app").tag(PromptClickAction.paste)
                 }
-                VStack(alignment: .leading, spacing: 2) {
-                    Toggle("Fill in {{variables}} first", isOn: $settings.fillVariables)
-                    Text("Asks for {{product}} and similar before copying.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+                SettingsToggleRow(String(localized: "Fill in {{variables}} first"),
+                                  detail: String(localized: "Asks for {{product}} and similar before copying."),
+                                  isOn: $settings.fillVariables)
                 Picker("Sort", selection: $settings.sort) {
                     Text("Favorites and most used").tag(PromptSort.favoritesAndUsage)
                     Text("By name").tag(PromptSort.name)
                     Text("Recently edited").tag(PromptSort.recentlyEdited)
                 }
             } footer: {
-                Text("Hold ⌥ when pressing Return to do the other action.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("Hold ⌥ when pressing Return to do the other action.")
             }
 
             Section {
-                LabeledContent("Prompts file") {
-                    HStack {
-                        Button("Import…") { importPrompts() }
-                        Button("Export…") { exportPrompts() }
-                    }
+                SettingsRow(String(localized: "Prompts file")) {
+                    Button("Import…") { importPrompts() }
+                        .buttonStyle(.settings)
+                    Button("Export…") { exportPrompts() }
+                        .buttonStyle(.settings)
                 }
-                LabeledContent("Starter prompts") {
+                SettingsRow(String(localized: "Starter prompts")) {
                     Button("Restore Starter Prompts") {
                         let added = PromptStore.shared.addStarters()
                         PromptsViewModel.shared.refresh(resort: true)
                         message = added == 0 ? String(localized: "All starter prompts are already in the library.")
                                              : String(localized: "Starter prompts added: \(added)")
                     }
+                    .buttonStyle(.settings)
                 }
-                LabeledContent("All prompts") {
-                    Button("Delete All Prompts…", role: .destructive) { confirmDeleteAll = true }
-                        .disabled(PromptStore.shared.count == 0)
+                SettingsRow(String(localized: "All prompts")) {
+                    ConfirmedButton(
+                        title: String(localized: "Delete All Prompts…"),
+                        alertTitle: String(localized: "Delete all prompts?"),
+                        message: String(localized: "This can't be undone. Export the library first if you may need it again."),
+                        confirmTitle: String(localized: "Delete All Prompts"),
+                        action: {
+                            PromptStore.shared.deleteAll()
+                            PromptsViewModel.shared.refresh(resort: true)
+                            message = String(localized: "All prompts deleted.")
+                        }
+                    )
+                    .disabled(PromptStore.shared.count == 0)
                 }
             } header: {
                 Text("Library")
             } footer: {
                 Text(message ?? String(localized: "Export saves a JSON file you can import on another Mac."))
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(Theme.caption)
+                    .foregroundStyle(Theme.fgMute)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Section {
-                LabeledContent("Shortcut") { ShortcutRecorder(action: .prompts) }
+                ShortcutRow(action: .prompts, title: String(localized: "Shortcut"))
             }
-        }
-        .confirmationDialog("Delete all prompts?", isPresented: $confirmDeleteAll) {
-            Button("Delete All Prompts", role: .destructive) {
-                PromptStore.shared.deleteAll()
-                PromptsViewModel.shared.refresh(resort: true)
-                message = String(localized: "All prompts deleted.")
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This can't be undone. Export the library first if you may need it again.")
         }
     }
 
