@@ -45,9 +45,6 @@ final class Settings: ObservableObject {
     /// Darkness of the glass tint, 0...0.8.
     @Published var glassTint: Double { didSet { d.set(glassTint, forKey: "glassTint") } }
     @Published var panelSize: PanelSize { didSet { d.set(panelSize.rawValue, forKey: "panelSize") } }
-    @Published var openOnHover: Bool { didSet { d.set(openOnHover, forKey: "openOnHover") } }
-    /// Seconds the pointer must rest on the notch before the panel opens.
-    @Published var hoverDelay: Double { didSet { d.set(hoverDelay, forKey: "hoverDelay") } }
     @Published var hideInFullScreen: Bool { didSet { d.set(hideInFullScreen, forKey: "hideInFullScreen") } }
 
     /// Panel tabs the user turned off. Home always stays.
@@ -108,8 +105,6 @@ final class Settings: ObservableObject {
             "panelStyle": PanelStyle.tinted.rawValue,
             "glassTint": 0.38,
             "panelSize": PanelSize.standard.rawValue,
-            "openOnHover": true,
-            "hoverDelay": 0.08,
             "hideInFullScreen": true,
             "keepAwakeDefaultDuration": 0.0,
             "keepAwakeAllowDisplaySleep": false,
@@ -141,8 +136,6 @@ final class Settings: ObservableObject {
         panelStyle = PanelStyle(rawValue: d.string(forKey: "panelStyle") ?? "") ?? .tinted
         glassTint = d.double(forKey: "glassTint")
         panelSize = PanelSize(rawValue: d.string(forKey: "panelSize") ?? "") ?? .standard
-        openOnHover = d.bool(forKey: "openOnHover")
-        hoverDelay = d.double(forKey: "hoverDelay")
         hideInFullScreen = d.bool(forKey: "hideInFullScreen")
         let awake = d.double(forKey: "keepAwakeDefaultDuration")
         keepAwakeDefaultDuration = awake > 0 ? awake : nil

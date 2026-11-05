@@ -7,7 +7,6 @@ enum NotchTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// The tabs shown in the panel, in order.
     /// The tabs shown in the panel, in the user's order.
     @MainActor static var visible: [NotchTab] { PanelSettings.shared.visibleTabs }
 
@@ -58,8 +57,11 @@ final class NotchViewModel: ObservableObject {
     /// Lets tabs close the panel, e.g. before opening the editor window.
     var requestClose: () -> Void = {}
     /// Reasons the panel stays open when the pointer leaves or the user clicks elsewhere, e.g. a prompt
-    /// being edited or Quick Look showing a file. Esc, the shortcut and the menu still close it.
+    /// being edited, Quick Look showing a file or a context menu. Esc, the shortcut and the menu still close it.
     var holds: Set<String> = []
+    /// Esc goes to the open tab first, e.g. to close a preview, clear a search or stop a request; the panel
+    /// closes only when the tab doesn't use it. One path, because AppKit runs local key monitors in no set order.
+    var escapeHandlers: [NotchTab: @MainActor () -> Bool] = [:]
 }
 
 extension Notification.Name {
@@ -97,8 +99,13 @@ final class NotchController {
     private var keyMonitor: Any?
     private var dragChangeCount = 0
     private var fileDragCache: (count: Int, isFiles: Bool)?
+    /// The current mouse press started inside the open panel, so a drag from it is the panel's own.
+    private var dragFromPanel = false
     private var suspended = false
+    private var suspensions = 0
     private var suspendSafety: DispatchWorkItem?
+    /// When "Pause Hover" ends, on the wall clock: the pause in `intent` counts uptime, which stops during sleep.
+    private var hoverPauseEnds: Date?
     private var previewMove: (window: NSWindow, original: CGRect, moved: CGRect)?
     private var subscriptions = Set<AnyCancellable>()
 
@@ -118,6 +125,11 @@ final class NotchController {
             let readBy = toastShownAt.addingTimeInterval(1.0)
             scheduleToastDismiss(after: max(0.2, readBy.timeIntervalSinceNow))
         }
+    }
+
+    /// Takes back a notice that no longer applies, e.g. "Time is up" once the timer was dismissed elsewhere.
+    func withdrawToast(symbol: String, text: String) {
+        if toasts.withdraw(Toast(symbol: symbol, text: text)) { dismissToast() }
     }
 
     private func present(_ toast: Toast) {
@@ -179,6 +191,7 @@ final class NotchController {
         let panel = NotchWindow(rootView: NotchPanelView().environmentObject(viewModel), level: .mainMenu + 3, takesFocus: true)
         badge.onMouseDown = { [weak self] p in self?.badgeClicked(at: p) }
         panel.onMouseDown = { [weak self] p in self?.panelClicked(at: p) }
+        panel.onPerformClose = { [weak self] in self?.close() }
         badgeWindow = badge
         panelWindow = panel
         refreshGeometry()
@@ -186,6 +199,14 @@ final class NotchController {
 
         setupKeyMonitor()
         observeSettings()
+
+        // A context menu may reach past the panel; moving onto its items must not close the panel under it
+        NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { _ = self?.viewModel.holds.insert("menu") }
+        }
+        NotificationCenter.default.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { _ = self?.viewModel.holds.remove("menu") }
+        }
 
         NotificationCenter.default.addObserver(forName: .previewNotchPanel, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.togglePreview() }
@@ -233,6 +254,7 @@ final class NotchController {
             let windowNumber = event.windowNumber
             let handled = MainActor.assumeIsolated { () -> Bool in
                 guard let self, self.viewModel.isOpen, windowNumber == self.panelWindow?.windowNumber else { return false }
+                if let tabUsesIt = self.viewModel.escapeHandlers[self.viewModel.tab], tabUsesIt() { return true }
                 self.close()
                 return true
             }
@@ -296,8 +318,10 @@ final class NotchController {
         let ns = NotchSettings.shared
         let trigger = ActivationZones.contains(triggerRect(notch), p)
         if viewModel.peek != trigger { viewModel.peek = trigger }
-        // Click mode: catch the click on the notch itself, let every other click through to the menu bar
-        setIgnoresMouse(badgeWindow, !(ns.activation.opensOnClick && trigger))
+        // Click mode: catch the click on the notch itself, let every other click through to the menu bar,
+        // and to a full-screen app when the panel shouldn't open over it (cached state, no window server call)
+        let fullScreenBlocks = Settings.shared.hideInFullScreen && closedModel.fullScreen
+        setIgnoresMouse(badgeWindow, !(ns.activation.opensOnClick && trigger) || fullScreenBlocks)
 
         if let toast = viewModel.toast, toast.style == .alert, toastTimer == nil,
            ActivationZones.contains(toastRect(toast, notch: notch), p) {
@@ -316,13 +340,19 @@ final class NotchController {
         let overPanel = ActivationZones.contains(panelRect, p)
         // Only the panel itself takes clicks; the shadow margins pass them to the app below
         setIgnoresMouse(panelWindow, !overPanel)
-        if buttons, overPanel, NotchSettings.shared.dragOpensShelf, viewModel.tab != .shelf, isFileDrag() {
+        // Files dragged in from another app switch to the Shelf; a drag out of the panel (a Recents tile) doesn't
+        if buttons, overPanel, !dragFromPanel, NotchSettings.shared.dragOpensShelf, viewModel.tab != .shelf, isFileDrag() {
             viewModel.tab = .shelf
         }
         let verdict = intent.pointerMovedWhileOpen(
             to: p, at: now, inOpenZone: ActivationZones.contains(ActivationZones.open(panel: panelRect), p),
-            buttonsHeld: buttons, closeOnExit: NotchSettings.shared.closeOnPointerExit)
+            buttonsHeld: buttons, closeOnExit: closesOnExit)
         handleCloseVerdict(verdict)
+    }
+
+    /// Leaving closes the panel unless something holds it open: an editor, Quick Look or a context menu.
+    private var closesOnExit: Bool {
+        NotchSettings.shared.closeOnPointerExit && viewModel.holds.isEmpty
     }
 
     private func handleOpenVerdict(_ verdict: HoverIntent.Verdict, fileDrag: Bool) {
@@ -355,12 +385,12 @@ final class NotchController {
 
     private func hoverOpen(fileDrag: Bool) {
         guard let notch else { return }
+        // Checked only now, at the moment of opening, so moving the pointer never asks the window server
+        if Settings.shared.hideInFullScreen && FullScreen.shared.isFullScreen { return }
         if fileDrag {
             open(tab: .shelf, reason: .drag)
             return
         }
-        // Checked only now, at the moment of opening, so moving the pointer never asks the window server
-        if Settings.shared.hideInFullScreen && FullScreen.shared.isFullScreen { return }
         if FullScreen.shared.menuOpenNear(notch.rect, on: notch.screen) { return }
         open(tab: openingTab(), reason: .hover)
     }
@@ -380,12 +410,12 @@ final class NotchController {
 
     private func reevaluateClose() {
         closeTimer = nil
-        guard viewModel.isOpen, viewModel.holds.isEmpty, let notch else { return }
+        guard viewModel.isOpen, let notch else { return }
         let p = NSEvent.mouseLocation
         let zone = ActivationZones.open(panel: NotchWindow.panelRect(notch: notch))
         let verdict = intent.evaluateOpen(at: now, inOpenZone: ActivationZones.contains(zone, p),
                                           buttonsHeld: NSEvent.pressedMouseButtons != 0,
-                                          closeOnExit: NotchSettings.shared.closeOnPointerExit)
+                                          closeOnExit: closesOnExit)
         handleCloseVerdict(verdict)
     }
 
@@ -393,6 +423,7 @@ final class NotchController {
         dragChangeCount = NSPasteboard(name: .drag).changeCount
         fileDragCache = nil
         guard let notch else { return }
+        dragFromPanel = viewModel.isOpen && ActivationZones.contains(NotchWindow.panelRect(notch: notch), p)
         let inMenuBar = ActivationZones.contains(notch.screenFrame, p) && p.y >= notch.screenFrame.maxY - notch.menuBarHeight
         if inMenuBar && !inTrigger(p) { intent.menuBarClicked(at: now) }
         openTimer?.invalidate()
@@ -410,6 +441,7 @@ final class NotchController {
 
     private func badgeClicked(at p: CGPoint) {
         guard !viewModel.isOpen, NotchSettings.shared.activation.opensOnClick, inTrigger(p) else { return }
+        if Settings.shared.hideInFullScreen && FullScreen.shared.isFullScreen { return }
         open(tab: openingTab(), reason: .click)
     }
 
@@ -423,6 +455,12 @@ final class NotchController {
     private func trackingResumed() {
         refreshGeometry()
         intent.closedDeliberately(pointerInTrigger: inTrigger(NSEvent.mouseLocation))
+        // A hover pause counts uptime, which stops while the Mac sleeps; line it up with the clock again
+        if let end = hoverPauseEnds {
+            let left = end.timeIntervalSinceNow
+            intent.pause(for: max(0, left), at: now)
+            if left <= 0 { hoverPauseEnds = nil }
+        }
     }
 
     /// Files are being dragged from Finder or another app (not a window resize or a text selection).
@@ -439,9 +477,15 @@ final class NotchController {
 
     // MARK: - Public
 
-    /// Stops hover from opening the panel, e.g. while an area capture or the color picker runs.
-    /// When it ends, the pointer has to leave the notch first and hover waits half a second more.
-    func suspendHover(_ suspended: Bool) {
+    /// Stops hover from opening the panel, e.g. while an area capture or the color picker runs. Calls nest:
+    /// hover comes back when the last one ends, then the pointer has to leave the notch first and hover waits
+    /// half a second more.
+    func suspendHover(_ suspend: Bool) {
+        suspensions = max(0, suspensions + (suspend ? 1 : -1))
+        setHoverSuspended(suspensions > 0)
+    }
+
+    private func setHoverSuspended(_ suspended: Bool) {
         guard suspended != self.suspended else { return }
         self.suspended = suspended
         intent.setSuspended(suspended, at: now, pointerInTrigger: inTrigger(NSEvent.mouseLocation))
@@ -450,7 +494,12 @@ final class NotchController {
         suspendSafety?.cancel()
         if suspended {
             // A caller that never says it finished must not switch hover off for good
-            let work = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.suspendHover(false) } }
+            let work = DispatchWorkItem { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.suspensions = 0
+                    self?.setHoverSuspended(false)
+                }
+            }
             suspendSafety = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 600, execute: work)
         }
@@ -458,6 +507,7 @@ final class NotchController {
 
     /// Stops hover from opening the panel for a while, e.g. "Pause hover for 1 hour" in the menu bar. 0 resumes.
     func pauseHover(for duration: TimeInterval) {
+        hoverPauseEnds = duration > 0 ? Date(timeIntervalSinceNow: duration) : nil
         intent.pause(for: duration, at: now)
         openTimer?.invalidate()
         openTimer = nil
@@ -465,9 +515,8 @@ final class NotchController {
 
     /// When a hover pause ends, or nil when hover isn't paused (for the menu bar).
     var hoverPausedUntil: Date? {
-        let t = now
-        guard intent.isPaused(at: t) else { return nil }
-        return Date(timeIntervalSinceNow: intent.pausedUntil - t)
+        guard let end = hoverPauseEnds, end > Date() else { return nil }
+        return end
     }
 
     /// For `--snapshot`: the window showing the notch now, and the cutout in window coordinates.
@@ -548,8 +597,13 @@ final class NotchController {
 
         withAnimation(Self.morph) { viewModel.isOpen = false }
         panelWindow?.ignoresMouseEvents = true
-        // Ordering the window out hands keyboard focus back to the app the user was in;
-        // done once the shape has shrunk back into the notch, so nothing flashes
+        // Hand keyboard focus back to the app the user was in right away, since a paste may follow at once;
+        // ordering out and straight back in keeps the window on screen for the close animation
+        if let panel = panelWindow, panel.isKeyWindow {
+            panel.orderOut(nil)
+            panel.orderFrontRegardless()
+        }
+        // Take the window off screen once the shape has shrunk back into the notch, so nothing flashes
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
                 guard let self, !self.viewModel.isOpen else { return }

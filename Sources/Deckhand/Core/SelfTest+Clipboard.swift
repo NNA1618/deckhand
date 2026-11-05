@@ -232,6 +232,17 @@ extension SelfTest {
         let works = (try? recovered.db.scalar("SELECT count(*) FROM clipboard_items") as? Int64) == 0
         check(recovered.movedAside != nil && works && FileManager.default.fileExists(atPath: recovered.movedAside?.path ?? ""),
               "a damaged database is moved aside and replaced")
+
+        // Its images go with it, so the fresh history can't delete them as left over
+        let images = temp.appendingPathComponent("images-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: images, withIntermediateDirectories: true)
+        try? Data([1]).write(to: images.appendingPathComponent("old.png"))
+        if let damaged = recovered.movedAside {
+            ClipboardStore.keepImages(images, of: damaged)
+            let kept = ClipboardStore.keptImagesDir(of: damaged).appendingPathComponent("old.png")
+            check(FileManager.default.fileExists(atPath: kept.path) && !FileManager.default.fileExists(atPath: images.path),
+                  "a replaced database keeps its images next to it")
+        }
     }
 
     /// Reading and restoring, on private named pasteboards only.

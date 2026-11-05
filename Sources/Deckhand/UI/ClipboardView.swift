@@ -211,6 +211,12 @@ struct ClipboardView: View {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             MainActor.assumeIsolated { handle(event) } ? nil : event
         }
+        // Esc: the preview, then the search, then the panel
+        notch.escapeHandlers[.clipboard] = { [vm] in
+            if vm.previewItem != nil { vm.previewItem = nil; return true }
+            if !vm.search.isEmpty { vm.search = ""; return true }
+            return false
+        }
     }
 
     private func removeKeys() {
@@ -218,6 +224,7 @@ struct ClipboardView: View {
         keyMonitor = nil
         if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
         keyObserver = nil
+        notch.escapeHandlers[.clipboard] = nil
     }
 
     /// Returns true when the key was used.
@@ -266,10 +273,6 @@ struct ClipboardView: View {
         case 49 where mods.isEmpty && (vm.search.isEmpty || vm.previewItem != nil):   // Space
             vm.togglePreview()
             return true
-        case 53:                                                        // Esc: preview, then search, then the panel
-            if vm.previewItem != nil { vm.previewItem = nil; return true }
-            if !vm.search.isEmpty { vm.search = ""; return true }
-            return false
         default:
             return false
         }

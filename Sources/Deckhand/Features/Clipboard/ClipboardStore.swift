@@ -91,14 +91,31 @@ enum ClipboardSchema {
 @MainActor
 final class ClipboardStore {
     static let shared: ClipboardStore = {
-        let store = ClipboardStore(db: Database.shared.db, imagesDir: AppPaths.clipboardImagesDir)
+        let database = Database.shared
+        if let damaged = database.movedAside { keepImages(AppPaths.clipboardImagesDir, of: damaged) }
+        let store = ClipboardStore(db: database.db, imagesDir: AppPaths.clipboardImagesDir)
+        // Without its file this session knows no items, so every saved image would look left over
+        store.removesOrphans = !database.inMemory
         if AppPaths.isSnapshot { store.addSnapshotSamples() }
         return store
     }()
 
+    /// A damaged database was replaced: its images move next to it, so the fresh history starts empty
+    /// and nothing the old file refers to is deleted as left over.
+    static func keepImages(_ images: URL, of damaged: URL) {
+        try? FileManager.default.moveItem(at: images, to: keptImagesDir(of: damaged))
+    }
+
+    static func keptImagesDir(of damaged: URL) -> URL {
+        damaged.deletingLastPathComponent()
+            .appendingPathComponent(damaged.deletingPathExtension().lastPathComponent + "-images", isDirectory: true)
+    }
+
     private typealias S = ClipboardSchema
     private let db: Connection
     let imagesDir: URL
+    /// False while the session has no database file: then no image may be treated as left over.
+    var removesOrphans = true
 
     init(db: Connection, imagesDir: URL) {
         self.db = db
@@ -310,7 +327,8 @@ final class ClipboardStore {
     /// Deletes image files no item refers to, e.g. left by a crash between saving and inserting.
     /// Files younger than a minute are skipped: a capture may be on its way in.
     func removeOrphanImages() {
-        guard let rows = try? db.prepare(S.table.select(S.imagePath).filter(S.imagePath != nil)) else { return }
+        guard removesOrphans,
+              let rows = try? db.prepare(S.table.select(S.imagePath).filter(S.imagePath != nil)) else { return }
         let known = Set(rows.compactMap { $0[S.imagePath].map { URL(fileURLWithPath: $0).lastPathComponent } })
         let dir = imagesDir
         DispatchQueue.global(qos: .utility).async {

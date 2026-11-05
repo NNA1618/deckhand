@@ -145,12 +145,13 @@ final class PromptStore {
     // MARK: - Starter prompts
 
     /// Offers the starter prompts exactly once per database. Deleted starters stay deleted.
-    /// A library that already has prompts, or a database with clipboard history (an existing user
-    /// who deleted every starter), only records that seeding happened.
+    /// A library that has prompts, or had some (0.4 added the starters on first use, and a user may have
+    /// deleted every one since), only records that seeding happened. Clipboard history says nothing here:
+    /// it fills up from launch, long before Prompts is first opened.
     private func seedOnce() {
         guard metaValue(Self.seededKey) == nil else { return }
-        let existingUser = count > 0 || ((try? db.scalar("SELECT COUNT(*) FROM clipboard_items") as? Int64) ?? 0) > 0
-        if !existingUser { _ = addStarters() }
+        let lastId = (try? db.scalar("SELECT seq FROM sqlite_sequence WHERE name = 'prompts'") as? Int64) ?? 0
+        if count == 0 && lastId == 0 { _ = addStarters() }
         setMeta(Self.seededKey, "1")
     }
 

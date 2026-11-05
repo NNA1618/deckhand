@@ -55,6 +55,13 @@ struct ToastQueue {
     /// The shown notice is done; nothing shows until `next()`, which leaves a short gap for the animation.
     mutating func dismissCurrent() { current = nil }
 
+    /// Takes back a notice that no longer applies. Returns true when it is the one shown, which the caller
+    /// then dismisses; waiting copies are simply dropped.
+    mutating func withdraw(_ toast: Toast) -> Bool {
+        waiting.removeAll { $0.sameMessage(as: toast) }
+        return current?.sameMessage(as: toast) == true
+    }
+
     /// Shows the next waiting notice, if any.
     mutating func next() -> Toast? {
         guard current == nil, !waiting.isEmpty else { return current }
@@ -72,15 +79,17 @@ enum BadgeKind: String, Equatable, CaseIterable {
 
     struct Inputs: Equatable {
         var claudeActive = false, claudeEnabled = true
-        var timerActive = false, timerEnabled = true
+        var timerActive = false, timerRinging = false, timerEnabled = true
         var musicPlaying = false, musicEnabled = true
         var keepAwakeActive = false, keepAwakeEnabled = true
         var fullScreen = false, hideInFullScreen = true
     }
 
-    /// Claude Code, then the timer, music and Keep Awake. Alerts are notices and come before all of these.
+    /// A ringing timer, then Claude Code, the timer, music and Keep Awake. Alerts are notices and come before
+    /// all of these.
     static func pick(_ i: Inputs) -> BadgeKind? {
         if i.fullScreen && i.hideInFullScreen { return nil }
+        if i.timerRinging && i.timerEnabled { return .timer }
         if i.claudeActive && i.claudeEnabled { return .claude }
         if i.timerActive && i.timerEnabled { return .timer }
         if i.musicPlaying && i.musicEnabled { return .music }

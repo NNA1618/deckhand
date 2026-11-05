@@ -45,7 +45,8 @@ struct HomeView: View {
                 .foregroundColor(Theme.fg)
                 .fixedSize()
             Spacer(minLength: 12)
-            Text(Self.hint(hover: notchSettings.activation.opensOnHover, shortcut: hotkeys.shortcuts[.toggle]?.display))
+            Text(Self.hint(hover: notchSettings.activation.opensOnHover, click: notchSettings.activation.opensOnClick,
+                           shortcut: hotkeys.shortcuts[.toggle]?.display))
                 .font(Theme.caption)
                 .foregroundColor(Theme.fgMute)
                 .lineLimit(1)
@@ -54,8 +55,9 @@ struct HomeView: View {
     }
 
     /// How to open and close the panel, following the current settings rather than always saying "Hover".
-    static func hint(hover: Bool, shortcut: String?) -> String {
+    static func hint(hover: Bool, click: Bool = false, shortcut: String?) -> String {
         if hover { return String(localized: "Hover over the notch to open · Esc closes") }
+        if click { return String(localized: "Click the notch to open · Esc closes") }
         if let shortcut { return String(localized: "Open with \(shortcut) · Esc closes") }
         return String(localized: "Open from the menu bar · Esc closes")
     }

@@ -23,8 +23,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private let notch = NotchController()
     private var subscriptions = Set<AnyCancellable>()
-    /// Until when "Pause Hover for 1 Hour" holds.
-    private var hoverPausedUntil: Date?
     /// A menu item's action, run once its menu has closed so the click can't count as a click outside the panel.
     private var pendingMenuAction: (@MainActor () -> Void)?
     private var menuIsOpen = false
@@ -45,6 +43,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 ClipboardStore.shared.deleteItems(fromApps: ClipboardWatcher.passwordApps)
             }
             ClipboardWatcher.shared.start()
+            if Database.shared.movedAside != nil {
+                // The damaged file and its images are kept in Deckhand's folder
+                notch.showToast(symbol: "exclamationmark.triangle",
+                                text: String(localized: "Clipboard history was damaged and has been started over"),
+                                style: .alert)
+            }
             if Settings.shared.showPlayingInNotch { NowPlayingMonitor.shared.start() }
             UtilityNotices.install(notch: notch)
             TranslatorCoordinator.install(notch: notch)
@@ -135,7 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(mi)
         }
         menu.addItem(.separator())
-        if Settings.shared.openOnHover { menu.addItem(hoverMenuItem()) }
+        if NotchSettings.shared.activation.opensOnHover { menu.addItem(hoverMenuItem()) }
         menu.addItem(item(String(localized: "Settings…"), #selector(openSettings), key: ","))
         menu.addItem(item(String(localized: "About Deckhand"), #selector(openAbout)))
         menu.addItem(.separator())
@@ -196,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func hoverMenuItem() -> NSMenuItem {
-        if let until = hoverPausedUntil, until > Date() {
+        if let until = notch.hoverPausedUntil {
             let mi = item(String(localized: "Resume Hover"), #selector(resumeHover))
             mi.subtitle = String(localized: "Paused until \(until.formatted(date: .omitted, time: .shortened))")
             return mi
@@ -300,15 +304,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func timerAddMinute() { Countdown.shared.addMinute() }
     @objc private func timerStop() { Countdown.shared.stop() }
 
-    @objc private func pauseHover() {
-        hoverPausedUntil = Date().addingTimeInterval(3600)
-        notch.pauseHover(for: 3600)
-    }
-
-    @objc private func resumeHover() {
-        hoverPausedUntil = nil
-        notch.pauseHover(for: 0)
-    }
+    @objc private func pauseHover() { notch.pauseHover(for: 3600) }
+    @objc private func resumeHover() { notch.pauseHover(for: 0) }
 
     @objc private func openSettings() {
         SettingsWindow.show()

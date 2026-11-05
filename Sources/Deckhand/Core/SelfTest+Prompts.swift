@@ -40,17 +40,25 @@ extension SelfTest {
         check(reopened.addStarters() == starters && reopened.addStarters() == 0, "restore starters adds only missing ones")
 
         // A 0.4 library (prompts, no seeding mark) gets no extra starters
+        let schema04 = "CREATE TABLE prompts (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'General', tags TEXT NOT NULL DEFAULT '', favorite INTEGER NOT NULL DEFAULT 0, usage_count INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL, updated_at REAL NOT NULL);"
         guard let old = try? Connection(.inMemory) else { return }
-        _ = try? old.execute("CREATE TABLE prompts (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'General', tags TEXT NOT NULL DEFAULT '', favorite INTEGER NOT NULL DEFAULT 0, usage_count INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL, updated_at REAL NOT NULL);")
+        _ = try? old.execute(schema04)
         _ = try? old.execute("INSERT INTO prompts (title, body, created_at, updated_at) VALUES ('Mine', 'x', 0, 0);")
         let upgraded = PromptStore(db: old)
         check(upgraded.count == 1 && upgraded.metaValue(PromptStore.seededKey) != nil, "existing library is not re-seeded")
 
-        // An existing user who deleted every starter: clipboard history shows it's not a new install
+        // A 0.4 user who deleted every starter: the table's id sequence shows there were prompts
         guard let emptied = try? Connection(.inMemory) else { return }
-        _ = try? emptied.execute("CREATE TABLE clipboard_items (id INTEGER PRIMARY KEY);")
-        _ = try? emptied.execute("INSERT INTO clipboard_items (id) VALUES (1);")
-        check(PromptStore(db: emptied).count == 0, "user with history and no prompts gets no starters back")
+        _ = try? emptied.execute(schema04)
+        _ = try? emptied.execute("INSERT INTO prompts (title, body, created_at, updated_at) VALUES ('Starter', 'x', 0, 0);")
+        _ = try? emptied.execute("DELETE FROM prompts;")
+        check(PromptStore(db: emptied).count == 0, "user who deleted every prompt gets no starters back")
+
+        // Clipboard history fills up from launch, long before Prompts is opened: still a new library
+        guard let newUser = try? Connection(.inMemory) else { return }
+        _ = try? newUser.execute("CREATE TABLE clipboard_items (id INTEGER PRIMARY KEY);")
+        _ = try? newUser.execute("INSERT INTO clipboard_items (id) VALUES (1);")
+        check(PromptStore(db: newUser).count == starters, "new user with clipboard history gets the starters")
     }
 
     private static func prompt(_ id: Int64, _ title: String, category: String = "Code", favorite: Bool = false,
