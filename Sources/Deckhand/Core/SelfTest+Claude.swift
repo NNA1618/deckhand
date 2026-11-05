@@ -10,6 +10,7 @@ extension SelfTest {
         claudeQuickActions(check)
         claudeHookPaths(check)
         claudeOwnerUpgrade(check)
+        claudeLeftovers(check)
         claudeProcessRunner(check)
     }
 
@@ -248,6 +249,21 @@ extension SelfTest {
               && event?.summary == "Bash · git" && event?.cwd == "/Users/me/app" && event?.app == "com.apple.Terminal",
               "claude: the hook saves the event's few fields \(names)")
         check(!text.contains(secret) && !text.contains("prompt") && !text.contains("transcript"), "claude: no prompt, command, output or path in the file")
+        check(event?.project == "/Users/me/app" || event?.project == ProcessInfo.processInfo.environment["CLAUDE_PROJECT_DIR"],
+              "claude: the project folder is saved")
+        clear()
+        _ = run(payload, env: ["CLAUDE_PROJECT_DIR": "/Users/me"])
+        let projectEvent = inbox().first.flatMap { name in
+            (try? Data(contentsOf: files.inbox.appendingPathComponent(name))).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                .flatMap { ClaudeHookEvent(json: $0, time: Date(), fileName: name) }
+        }
+        check(projectEvent?.project == "/Users/me" && projectEvent?.cwd == "/Users/me/app", "claude: CLAUDE_PROJECT_DIR names the project, cwd stays the shell's folder")
+        clear()
+        _ = run(payload, env: ["CLAUDE_PROJECT_DIR": ""])
+        let fallback = inbox().first.flatMap { name in
+            (try? Data(contentsOf: files.inbox.appendingPathComponent(name))).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        }
+        check(fallback?["project"] as? String == "/Users/me/app", "claude: without CLAUDE_PROJECT_DIR the project is the cwd")
         clear()
         check(run(payload, env: ["DECKHAND_INTERNAL": "1"])?.status == 0 && inbox().isEmpty, "claude: Deckhand's own calls are ignored")
         try? "999999".write(to: files.pidFile, atomically: true, encoding: .utf8)
@@ -291,6 +307,27 @@ extension SelfTest {
         let unattended = run(request)
         check(unattended?.stdout.isEmpty == true && Date().timeIntervalSince(start) < 3 && !fm.fileExists(atPath: files.approvals.path),
               "claude: with approvals off the prompt is not held up")
+
+        // Turning approvals off mid-wait hands the question back at once
+        clear()
+        ClaudeCodeMonitor.writeApprovalFlag(files, on: true, wait: 30)
+        nonisolated(unsafe) var handedBack: ProcessRunner.Output?
+        nonisolated(unsafe) var waitedFor: TimeInterval = 0
+        group.enter()
+        DispatchQueue.global().async {
+            let begin = Date()
+            handedBack = runHook(request, [:])
+            waitedFor = Date().timeIntervalSince(begin)
+            group.leave()
+        }
+        waited = 0
+        while inbox().isEmpty && waited < 60 { usleep(50_000); waited += 1 }
+        usleep(300_000)
+        let switchedOff = Date()
+        ClaudeCodeMonitor.writeApprovalFlag(files, on: false, wait: 30)
+        _ = group.wait(timeout: .now() + 8)
+        check(handedBack?.stdout.isEmpty == true && waitedFor < 5 && Date().timeIntervalSince(switchedOff) < 2,
+              "claude: approvals turned off mid-wait end the wait")
 
         // Reading the inbox deletes what it read, in order
         clear()
@@ -395,6 +432,44 @@ extension SelfTest {
         let removedJSON = (try? JSONSerialization.jsonObject(with: Data(removed.utf8))) as? [String: Any]
         check(removedJSON?["hooks"] == nil && removedJSON?["agentPushNotifEnabled"] as? Bool == true && removedJSON?.count == 2,
               "claude upgrade: Disconnect afterwards leaves only the user's keys")
+    }
+
+    /// What a previous run or a crash leaves behind.
+    private static func claudeLeftovers(_ check: Check) {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("deckhand-claude-leftovers-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: dir) }
+        let files = ClaudeHookFiles(dir: dir)
+        let codex = CodexHookFiles(dir: dir)
+        for folder in [files.inbox, files.replies, codex.inbox, codex.replies] { try? fm.createDirectory(at: folder, withIntermediateDirectories: true) }
+
+        // Quitting releases only a pid file this instance owns, and then the approval switches too
+        ClaudeCodeMonitor.writeApprovalFlag(files, on: true, wait: 30)
+        CodexMonitor.writeApprovalFlag(codex, on: true, wait: 30)
+        try? "4242".write(to: files.pidFile, atomically: true, encoding: .utf8)
+        let foreign = ClaudeCodeMonitor.release(files, pid: getpid())
+        check(!foreign && fm.fileExists(atPath: files.pidFile.path) && fm.fileExists(atPath: files.approvals.path)
+              && fm.fileExists(atPath: codex.approvals.path), "claude: quitting leaves another instance's pid file and switches")
+        try? "\(getpid())\n".write(to: files.pidFile, atomically: true, encoding: .utf8)
+        let own = ClaudeCodeMonitor.release(files, pid: getpid())
+        check(own && !fm.fileExists(atPath: files.pidFile.path) && !fm.fileExists(atPath: files.approvals.path)
+              && !fm.fileExists(atPath: codex.approvals.path), "claude: quitting removes its own pid file and both approval switches")
+
+        // Launch cleanup: every .tmp goes however new; fresh events stay; old events and replies go
+        let now = Date()
+        for inbox in [files.inbox, codex.inbox] {
+            for name in ["fresh.tmp", "fresh.json", "old.json"] { fm.createFile(atPath: inbox.appendingPathComponent(name).path, contents: Data("{}".utf8)) }
+            try? fm.setAttributes([.creationDate: now.addingTimeInterval(-3600)], ofItemAtPath: inbox.appendingPathComponent("old.json").path)
+        }
+        fm.createFile(atPath: files.replies.appendingPathComponent("r").path, contents: Data("allow".utf8))
+        fm.createFile(atPath: codex.replies.appendingPathComponent("r").path, contents: Data("allow".utf8))
+        ClaudeCodeMonitor.cleanUp(files, now: now)
+        CodexMonitor.cleanUp(codex, now: now)
+        for (name, inbox, replies) in [("claude", files.inbox, files.replies), ("codex", codex.inbox, codex.replies)] {
+            let left = ((try? fm.contentsOfDirectory(atPath: inbox.path)) ?? []).sorted()
+            check(left == ["fresh.json"] && ((try? fm.contentsOfDirectory(atPath: replies.path)) ?? []).isEmpty,
+                  "\(name): launch cleanup removes every .tmp, old events and replies \(left)")
+        }
     }
 
     private static func claudeProcessRunner(_ check: Check) {

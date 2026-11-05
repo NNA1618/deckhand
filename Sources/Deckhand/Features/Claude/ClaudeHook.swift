@@ -110,6 +110,8 @@ enum ClaudeHook {
         [ -d "$inbox" ] || exit 0
         pid=$(cat "$dir/deckhand.pid" 2>/dev/null)
         { [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; } || exit 0
+        # After a crash the id may belong to another program by now
+        case "$(ps -p "$pid" -o comm= 2>/dev/null)" in *Deckhand) ;; *) exit 0 ;; esac
         set -- "$inbox"/*.json
         [ "$#" -lt \(inboxLimit) ] || exit 0
         [ -x /usr/bin/jq ] || exit 0
@@ -139,6 +141,8 @@ enum ClaudeHook {
                 exit 0
             fi
             kill -0 "$pid" 2>/dev/null || exit 0
+            # Turning "Approve from the notch" off mid-wait hands the question back to Claude Code at once
+            [ -f "$dir/claude-approvals" ] || exit 0
             sleep 0.25
             i=$((i + 1))
         done

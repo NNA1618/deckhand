@@ -235,6 +235,12 @@ extension SelfTest {
         }
         let bash: [String: Any] = ["tool_name": "Bash", "tool_use_id": "c1", "tool_input": ["command": "TOKEN=CANARY-env git push CANARY-arg"]]
         check(runHook(codexPayload("PreToolUse", bash))?.status == 0 && inbox().isEmpty, "codex: the hook writes nothing while Deckhand isn't running")
+        // After a crash the id may belong to another program: a live process that isn't Deckhand
+        if let other = try? Process.run(URL(fileURLWithPath: "/bin/sleep"), arguments: ["10"]) {
+            try? String(other.processIdentifier).write(to: files.pidFile, atomically: true, encoding: .utf8)
+            check(runHook(codexPayload("PreToolUse", bash))?.status == 0 && inbox().isEmpty, "codex: a reused pid of another program stops the hook")
+            other.terminate()
+        }
         try? String(getpid()).write(to: files.pidFile, atomically: true, encoding: .utf8)
 
         let payloads = [

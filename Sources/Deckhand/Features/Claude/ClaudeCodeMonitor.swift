@@ -55,7 +55,7 @@ final class ClaudeCodeMonitor: ObservableObject {
         try? String(ProcessInfo.processInfo.processIdentifier).write(to: files.pidFile, atomically: true, encoding: .utf8)
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [files] _ in
             // Without a live Deckhand the hook writes nothing, so nothing piles up
-            try? FileManager.default.removeItem(at: files.pidFile)
+            Self.release(files, pid: ProcessInfo.processInfo.processIdentifier)
         }
         reader.async { [files] in Self.cleanUp(files, now: Date()) }
 
@@ -178,13 +178,32 @@ final class ClaudeCodeMonitor: ObservableObject {
         }
     }
 
-    /// Removes leftovers from earlier runs: events too old to matter and unanswered replies.
-    nonisolated static func cleanUp(_ files: ClaudeHookFiles, now: Date) {
+    /// At quit: removes the pid file and the approval switches of both hooks, so no hook writes or
+    /// waits while Deckhand is gone. Only when the pid file is this instance's; another Deckhand
+    /// (a development build) that wrote it since keeps its own. Returns whether it was ours.
+    @discardableResult
+    nonisolated static func release(_ files: ClaudeHookFiles, pid: Int32) -> Bool {
         let fm = FileManager.default
-        for dir in [files.inbox, files.replies] {
+        let owner = (try? String(contentsOf: files.pidFile, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard owner == String(pid) else { return false }
+        try? fm.removeItem(at: files.pidFile)
+        try? fm.removeItem(at: files.approvals)
+        try? fm.removeItem(at: CodexHookFiles(dir: files.dir).approvals)
+        return true
+    }
+
+    /// Removes leftovers from earlier runs: events too old to matter, unanswered replies and every
+    /// half-written `.tmp` file (an older Deckhand's could hold a whole event payload).
+    nonisolated static func cleanUp(_ files: ClaudeHookFiles, now: Date) {
+        cleanUp(inbox: files.inbox, replies: files.replies, now: now)
+    }
+
+    nonisolated static func cleanUp(inbox: URL, replies: URL, now: Date) {
+        let fm = FileManager.default
+        for dir in [inbox, replies] {
             for url in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.creationDateKey])) ?? [] {
                 let created = (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
-                if dir == files.replies || now.timeIntervalSince(created) > discardAfter { try? fm.removeItem(at: url) }
+                if dir == replies || url.pathExtension == "tmp" || now.timeIntervalSince(created) > discardAfter { try? fm.removeItem(at: url) }
             }
         }
     }

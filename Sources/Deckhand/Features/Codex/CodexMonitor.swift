@@ -190,15 +190,10 @@ final class CodexMonitor: ObservableObject {
         }
     }
 
-    /// Removes leftovers from earlier runs: events too old to matter and unanswered replies.
+    /// Removes leftovers from earlier runs: events too old to matter, unanswered replies and every
+    /// half-written `.tmp` file. The same rules as Claude Code's inbox.
     nonisolated static func cleanUp(_ files: CodexHookFiles, now: Date) {
-        let fm = FileManager.default
-        for dir in [files.inbox, files.replies] {
-            for url in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.creationDateKey])) ?? [] {
-                let created = (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
-                if dir == files.replies || now.timeIntervalSince(created) > ClaudeCodeMonitor.discardAfter { try? fm.removeItem(at: url) }
-            }
-        }
+        ClaudeCodeMonitor.cleanUp(inbox: files.inbox, replies: files.replies, now: now)
     }
 
     // MARK: - Permission requests
