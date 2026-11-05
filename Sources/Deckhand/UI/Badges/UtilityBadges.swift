@@ -47,6 +47,9 @@ enum BadgeText {
 
     static var timeIsUp: String { String(localized: "Time is up") }
 
+    /// The notch shape's concave top corners take this much of each ear's outer edge.
+    static let earCurve: CGFloat = 8
+
     static func width(_ text: String) -> CGFloat {
         ceil((text as NSString).size(withAttributes: [.font: font]).width)
     }
@@ -54,7 +57,7 @@ enum BadgeText {
     /// Ear width for a badge with an icon on one side and `text` on the other: 40–76 pt,
     /// up to 100 pt for the finished timer's words.
     static func ear(for text: String, cap: CGFloat = 76) -> CGFloat {
-        min(cap, max(40, width(text) + 26))
+        min(cap, max(40, width(text) + 22 + earCurve))
     }
 
     private static func hoursMinutes(_ seconds: TimeInterval, locale: Locale) -> String {
@@ -84,7 +87,8 @@ struct TimerBadge: View {
                     Image(systemName: ringing ? "bell.fill" : (timer.isPaused ? "pause.fill" : "timer"))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(ringing ? Theme.warn : Theme.fg)
-                        .frame(width: ear, alignment: .center)
+                        .frame(width: ear - BadgeText.earCurve, alignment: .center)
+                        .padding(.leading, BadgeText.earCurve)
                 }
                 .overlay(alignment: .trailing) {
                     Text(ringing ? BadgeText.timeIsUp : BadgeText.timer(left: BadgeText.timerLeft(now: context.date)))
@@ -92,14 +96,14 @@ struct TimerBadge: View {
                         .foregroundColor(ringing ? Theme.warn : Theme.fg)
                         .lineLimit(1)
                         .fixedSize()
-                        .frame(width: ear, alignment: .center)
+                        .frame(width: ear - BadgeText.earCurve, alignment: .center)
+                        .padding(.trailing, BadgeText.earCurve)
                 }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Timer"))
     }
 }
-
 
 /// Shown around the closed notch while Keep Awake is on: a cup on the left, time left on the right.
 struct KeepAwakeBadge: View {
@@ -115,7 +119,8 @@ struct KeepAwakeBadge: View {
                 Image(systemName: "cup.and.saucer.fill")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Theme.fg)
-                    .frame(width: ear, alignment: .center)
+                    .frame(width: ear - BadgeText.earCurve, alignment: .center)
+                    .padding(.leading, BadgeText.earCurve)
             }
             .overlay(alignment: .trailing) {
                 TimelineView(.periodic(from: .now, by: 20)) { context in
@@ -124,7 +129,8 @@ struct KeepAwakeBadge: View {
                         .foregroundColor(Theme.fg)
                         .lineLimit(1)
                         .fixedSize()
-                        .frame(width: ear, alignment: .center)
+                        .frame(width: ear - BadgeText.earCurve, alignment: .center)
+                        .padding(.trailing, BadgeText.earCurve)
                 }
             }
             .accessibilityElement(children: .ignore)

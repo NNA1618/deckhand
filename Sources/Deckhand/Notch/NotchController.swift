@@ -149,6 +149,14 @@ final class NotchController {
         }
     }
 
+    /// For `--snapshot`: clears the shown and waiting notices.
+    func dismissNoticesForSnapshot() {
+        toasts = ToastQueue()
+        toastTimer?.invalidate()
+        toastTimer = nil
+        viewModel.toast = nil
+    }
+
     /// The notice's frame in global coordinates, to notice the pointer touching an alert.
     private func toastRect(_ toast: Toast, notch: NotchInfo) -> CGRect {
         let width = ToastLayout.width(toast, notchWidth: notch.rect.width, maxWidth: viewModel.toastMaxWidth)
@@ -285,7 +293,7 @@ final class NotchController {
         let trigger = ActivationZones.contains(triggerRect(notch), p)
         if viewModel.peek != trigger { viewModel.peek = trigger }
         // Click mode: catch the click on the notch itself, let every other click through to the menu bar
-        badgeWindow?.ignoresMouseEvents = !(ns.activation.opensOnClick && trigger)
+        setIgnoresMouse(badgeWindow, !(ns.activation.opensOnClick && trigger))
 
         if let toast = viewModel.toast, toast.style == .alert, toastTimer == nil,
            ActivationZones.contains(toastRect(toast, notch: notch), p) {
@@ -303,7 +311,7 @@ final class NotchController {
         let panelRect = NotchWindow.panelRect(notch: notch)
         let overPanel = ActivationZones.contains(panelRect, p)
         // Only the panel itself takes clicks; the shadow margins pass them to the app below
-        panelWindow?.ignoresMouseEvents = !overPanel
+        setIgnoresMouse(panelWindow, !overPanel)
         if buttons, overPanel, NotchSettings.shared.dragOpensShelf, viewModel.tab != .shelf, isFileDrag() {
             viewModel.tab = .shelf
         }
@@ -586,6 +594,11 @@ final class NotchController {
 
     /// One spring for every change of the notch shape, so a notice replacing a badge doesn't bounce.
     static let morph = Animation.spring(response: 0.4, dampingFraction: 0.86)
+
+    /// Mouse events arrive often; only touch the window when the value changes.
+    private func setIgnoresMouse(_ window: NSWindow?, _ ignore: Bool) {
+        if let window, window.ignoresMouseEvents != ignore { window.ignoresMouseEvents = ignore }
+    }
 
     private func oneShot(after seconds: TimeInterval, _ action: @escaping @MainActor () -> Void) -> Timer {
         let t = Timer(timeInterval: max(0, seconds), repeats: false) { _ in

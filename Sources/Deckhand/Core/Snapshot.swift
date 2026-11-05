@@ -86,6 +86,24 @@ enum Snapshot {
             save(window, cutout: cutout, to: dir.appendingPathComponent("closed-keep-awake.png"))
         }
         if !wasAwake { KeepAwake.shared.stop() }
+
+        // Notices: a short one, a long one that has to truncate, and an alert
+        let notices: [(String, Toast)] = [
+            ("closed-toast", Toast(symbol: "camera.viewfinder", text: String(localized: "Copied to clipboard"))),
+            ("closed-toast-long", Toast(symbol: "checkmark.circle",
+                                        text: String(localized: "Done · \("deckhand-website-redesign-with-a-very-long-name-for-the-2026-launch")"))),
+            ("closed-toast-alert", Toast(symbol: "hand.raised.fill", text: String(localized: "Needs you · \("deckhand-website")"),
+                                         style: .alert)),
+        ]
+        for (name, toast) in notices {
+            notch.showToast(symbol: toast.symbol, text: toast.text, style: toast.style)
+            try? await Task.sleep(for: .milliseconds(900))
+            if let (window, cutout) = notch.snapshotTarget {
+                save(window, cutout: cutout, to: dir.appendingPathComponent("\(name).png"))
+            }
+            notch.dismissNoticesForSnapshot()
+            try? await Task.sleep(for: .milliseconds(500))
+        }
     }
 
     /// Every Settings section. Owned by the Settings workstream.
