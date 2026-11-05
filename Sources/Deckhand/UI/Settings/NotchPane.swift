@@ -65,6 +65,7 @@ struct NotchPane: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             TabsSection()
+            ShelfSection()
         }
     }
 }
