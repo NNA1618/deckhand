@@ -137,10 +137,28 @@ final class ClaudeCodeMonitor: ObservableObject {
         publish()
     }
 
+    /// Applies events from another provider's adapter (Codex), then publishes and raises fresh signals.
+    func receive(_ batch: [(AgentEvent, ClaudeProcess?)], now: Date = Date()) {
+        for (event, process) in batch {
+            let signal = receive(event, process: process)
+            if let signal, now.timeIntervalSince(event.time) < Self.staleAfter,
+               let session = byKey[ClaudeSession.key(event.provider, event.session)] {
+                onSignal(session, signal)
+            }
+        }
+        publish()
+    }
+
+    /// Forgets one provider's sessions, e.g. after it is disconnected.
+    func removeSessions(of provider: AgentProvider) {
+        byKey = byKey.filter { $0.value.provider != provider }
+        publish()
+    }
+
     /// Applies one event from any provider adapter and returns the signal it raises.
     @discardableResult
     func receive(_ event: AgentEvent, process: ClaudeProcess? = nil) -> Signal? {
-        let signal = ClaudeStateMachine.apply(event, to: &byKey)
+        let signal = event.provider == .codex ? CodexStateMachine.apply(event, to: &byKey) : ClaudeStateMachine.apply(event, to: &byKey)
         if let process { byKey[ClaudeSession.key(event.provider, event.session)]?.process = process }
         return signal
     }
@@ -201,15 +219,19 @@ final class ClaudeCodeMonitor: ObservableObject {
 
     /// The request the notch can answer for this session, while the hook still waits for it.
     func pendingRequest(for session: ClaudeSession, now: Date = Date()) -> ClaudeRequest? {
-        guard ClaudeSettings.shared.approveFromNotch, session.state == .waiting, let request = session.request,
-              now.timeIntervalSince(request.time) < TimeInterval(ClaudeSettings.shared.approvalWait) - 1 else { return nil }
+        let (on, wait) = session.provider == .codex
+            ? (CodexSettings.shared.approveFromNotch, CodexSettings.shared.approvalWait)
+            : (ClaudeSettings.shared.approveFromNotch, ClaudeSettings.shared.approvalWait)
+        guard on, session.state == .waiting, let request = session.request,
+              now.timeIntervalSince(request.time) < TimeInterval(wait) - 1 else { return nil }
         return request
     }
 
     /// Sends the answer to the waiting hook. `nil` hands the question back to Claude Code's own prompt.
     func answer(_ session: ClaudeSession, allow: Bool?) {
         guard let request = session.request else { return }
-        let reply = files.replies.appendingPathComponent(request.id)
+        let replies = session.provider == .codex ? CodexMonitor.shared.files.replies : files.replies
+        let reply = replies.appendingPathComponent(request.id)
         let word = allow.map { $0 ? "allow" : "deny" } ?? "ask"
         try? word.write(to: reply, atomically: true, encoding: .utf8)
         byKey[session.key]?.request = nil
@@ -219,7 +241,7 @@ final class ClaudeCodeMonitor: ObservableObject {
             byKey[session.key]?.waitingTool = nil
         }
         publish()
-        Log.info("claude permission answered: \(word)")
+        Log.info("\(session.provider.rawValue) permission answered: \(word)")
     }
 
     nonisolated static func writeApprovalFlag(_ files: ClaudeHookFiles, on: Bool, wait: Int) {
