@@ -8,6 +8,7 @@ enum AppActivation {
     private static var windows = Set<ObjectIdentifier>()
     private static var observers: [ObjectIdentifier: NSObjectProtocol] = [:]
 
+    /// Call before showing the window. Brings Deckhand and the window to the front.
     static func windowOpened(_ window: NSWindow) {
         let id = ObjectIdentifier(window)
         if !windows.contains(id) {
@@ -18,8 +19,21 @@ enum AppActivation {
                 MainActor.assumeIsolated { windowClosed(id) }
             }
         }
-        if NSApp.activationPolicy() != .regular { NSApp.setActivationPolicy(.regular) }
+        // A snapshot run must stay out of the Dock and must not take focus from the user
+        guard !AppPaths.isSnapshot else { return }
+        let becameRegular = NSApp.activationPolicy() != .regular
+        if becameRegular { NSApp.setActivationPolicy(.regular) }
         NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
+        // Activation is cooperative: if another app keeps the focus, at least show the window on top.
+        // Right after the policy change the Dock needs a moment, so try once more on the next turn.
+        window.orderFrontRegardless()
+        if becameRegular {
+            DispatchQueue.main.async {
+                NSApp.activate()
+                window.makeKeyAndOrderFront(nil)
+            }
+        }
     }
 
     private static func windowClosed(_ id: ObjectIdentifier) {
@@ -28,7 +42,7 @@ enum AppActivation {
         guard windows.isEmpty else { return }
         // Let the window finish closing before the Dock icon goes away
         DispatchQueue.main.async {
-            if windows.isEmpty { NSApp.setActivationPolicy(.accessory) }
+            if windows.isEmpty, !AppPaths.isSnapshot { NSApp.setActivationPolicy(.accessory) }
         }
     }
 }
