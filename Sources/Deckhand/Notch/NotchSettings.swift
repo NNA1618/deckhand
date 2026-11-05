@@ -100,7 +100,7 @@ final class NotchSettings: ObservableObject {
         activation = .hover
         hoverDelay = 0.2
         hoverArea = .standard
-        badgeHoverOpens = false
+        // "Open the panel when pointing at a badge" is in Closed Notch, so it stays
         closeOnPointerExit = true
         closeDelay = 0.5
         hapticOnOpen = true
