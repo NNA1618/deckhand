@@ -1,7 +1,56 @@
 import SwiftUI
 import CoreImage
 import AppKit
-import UniformTypeIdentifiers
+import Carbon.HIToolbox
+
+/// Keyboard commands of the editor window. Mapped from physical key codes, so they work with any layout.
+enum EditorCommand: Equatable {
+    case tool(EditorTool)
+    case undo, redo, copy, save
+    case zoomIn, zoomOut, zoomFit, zoomActual
+    /// Return: apply the crop.
+    case confirm
+    /// Esc: cancel the crop or the selection.
+    case cancel
+    /// Delete: remove the selected annotation.
+    case delete
+
+    /// nil lets the key through: always while a text field has focus, so typing, ⌘C and ⌘Z
+    /// in the Ask field or a text annotation behave like in any text field.
+    static func from(keyCode: Int, modifiers: UInt32, textFocused: Bool) -> EditorCommand? {
+        guard !textFocused else { return nil }
+        let cmd = Shortcut.command, shift = Shortcut.shift
+        switch modifiers {
+        case 0:
+            if let tool = EditorTool.allCases.first(where: { $0.keyCode == keyCode }) { return .tool(tool) }
+            switch keyCode {
+            case kVK_Return, kVK_ANSI_KeypadEnter: return .confirm
+            case kVK_Escape: return .cancel
+            case kVK_Delete, kVK_ForwardDelete: return .delete
+            default: return nil
+            }
+        case cmd:
+            switch keyCode {
+            case kVK_ANSI_Z: return .undo
+            case kVK_ANSI_C: return .copy
+            case kVK_ANSI_S: return .save
+            case kVK_ANSI_Equal, kVK_ANSI_KeypadPlus: return .zoomIn
+            case kVK_ANSI_Minus, kVK_ANSI_KeypadMinus: return .zoomOut
+            case kVK_ANSI_0: return .zoomFit
+            case kVK_ANSI_1: return .zoomActual
+            default: return nil
+            }
+        case cmd | shift:
+            switch keyCode {
+            case kVK_ANSI_Z: return .redo
+            case kVK_ANSI_Equal: return .zoomIn
+            default: return nil
+            }
+        default:
+            return nil
+        }
+    }
+}
 
 @MainActor
 final class EditorModel: ObservableObject {
@@ -10,28 +59,50 @@ final class EditorModel: ObservableObject {
         let annotations: [Annotation]
     }
 
-    @Published private(set) var base: CGImage
-    @Published var annotations: [Annotation] = []
+    @Published private(set) var base: CGImage { didSet { version += 1 } }
+    @Published var annotations: [Annotation] = [] { didSet { version += 1 } }
     @Published var draft: Annotation?
     @Published var cropRect: CGRect?
-    @Published var tool: EditorTool = .arrow
+    @Published var tool: EditorTool {
+        didSet {
+            if tool != .crop { cropRect = nil }
+            if tool != .select { selection = nil }
+        }
+    }
     @Published var color: Color = Color(red: 1.0, green: 0.27, blue: 0.23)
     @Published var widthLevel: Int = 1
+    @Published var textSizeLevel: Int = 1
     @Published var pendingTextPoint: CGPoint?
     @Published var pendingText = ""
+    @Published var selection: UUID?
     @Published var status: String?
+    /// Points per image point: nil fits the window, 1 is actual size.
+    @Published var zoom: CGFloat?
 
     // Ask Claude about the image
     @Published var askVisible = false
     @Published var question = ""
     @Published var answer = ""
-    @Published var asking = false
+    @Published private(set) var asking = false
     @Published var askError: String?
 
     /// Pixels per point of the source image: 2 for Retina screenshots.
     let pixelScale: CGFloat
+    /// The editor window, for sheets.
+    weak var window: NSWindow?
+    /// The zoom that fits the window, reported by the view.
+    var fitZoom: CGFloat = 1
+
     private var undoStack: [Snapshot] = []
     private var redoStack: [Snapshot] = []
+    private static let undoLimit = 50
+    private var askTask: Task<Void, Never>?
+    private var move: (id: UUID, original: Annotation, start: CGPoint, moved: Bool)?
+    /// Bumped on every change, so the flattened export can be reused until something changes.
+    private var version = 0
+    private var exportCache: (version: Int, image: CGImage)?
+    private var obscureCache: [UUID: (rect: CGRect, source: ObjectIdentifier, image: CGImage)] = [:]
+    private static let ciContext = CIContext(options: [.cacheIntermediates: false])
 
     static let palette: [Color] = [
         Color(red: 1.0, green: 0.27, blue: 0.23),
@@ -44,32 +115,44 @@ final class EditorModel: ObservableObject {
         .black,
     ]
 
-    init?(image: NSImage) {
+    /// Text heights in points.
+    static let textSizes: [CGFloat] = [16, 28, 48]
+    /// Stroke widths in points.
+    static let strokeWidths: [CGFloat] = [3, 6, 10]
+    /// Long edge sent to Claude: current models read images up to this size without shrinking them.
+    nonisolated static let uploadLongEdge: CGFloat = 2576
+
+    init?(image: NSImage, tool: EditorTool = .arrow) {
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
         base = cg
-        pixelScale = image.size.width > 0 ? CGFloat(cg.width) / image.size.width : 1
+        pixelScale = image.size.width > 0 ? max(1, CGFloat(cg.width) / image.size.width) : 1
+        self.tool = tool
     }
 
     var imageSize: CGSize { CGSize(width: base.width, height: base.height) }
     var canUndo: Bool { !undoStack.isEmpty }
     var canRedo: Bool { !redoStack.isEmpty }
 
-    /// Stroke width in image pixels: 3, 6 or 10 points.
-    var strokeWidth: CGFloat { [3, 6, 10][widthLevel] * pixelScale }
+    /// Stroke width in image pixels.
+    var strokeWidth: CGFloat { Self.strokeWidths[widthLevel] * pixelScale }
+    /// Text height in image pixels.
+    var fontSize: CGFloat { Self.textSizes[textSizeLevel] * pixelScale }
 
     // MARK: - History
 
     private func pushUndo() {
         undoStack.append(Snapshot(base: base, annotations: annotations))
-        if undoStack.count > 100 { undoStack.removeFirst() }
+        if undoStack.count > Self.undoLimit { undoStack.removeFirst() }
         redoStack.removeAll()
     }
 
     func undo() {
+        commitText()
         guard let last = undoStack.popLast() else { return }
         redoStack.append(Snapshot(base: base, annotations: annotations))
         base = last.base
         annotations = last.annotations
+        selection = nil
     }
 
     func redo() {
@@ -77,6 +160,7 @@ final class EditorModel: ObservableObject {
         undoStack.append(Snapshot(base: base, annotations: annotations))
         base = next.base
         annotations = next.annotations
+        selection = nil
     }
 
     // MARK: - Gestures (coordinates are already in image pixels)
@@ -84,6 +168,8 @@ final class EditorModel: ObservableObject {
     func dragChanged(start: CGPoint, current: CGPoint) {
         let a = clamp(start), b = clamp(current)
         switch tool {
+        case .select:
+            dragSelection(start: a, current: b)
         case .pen, .marker:
             if case .pen(var pts)? = draft?.kind {
                 pts.append(b); draft?.kind = .pen(pts)
@@ -94,22 +180,38 @@ final class EditorModel: ObservableObject {
             }
         case .rect: draft = Annotation(kind: .rect(a, b), color: color, width: strokeWidth)
         case .blur: draft = Annotation(kind: .pixelate(a, b), color: color, width: strokeWidth)
+        case .redact: draft = Annotation(kind: .redact(a, b), color: .black, width: strokeWidth)
         case .ellipse: draft = Annotation(kind: .ellipse(a, b), color: color, width: strokeWidth)
         case .line: draft = Annotation(kind: .line(a, b), color: color, width: strokeWidth)
         case .arrow: draft = Annotation(kind: .arrow(a, b), color: color, width: strokeWidth)
         case .crop:
-            cropRect = CGRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(a.x - b.x), height: abs(a.y - b.y))
+            let rect = CGRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(a.x - b.x), height: abs(a.y - b.y))
+            // A click or a tiny drag doesn't start a crop (it used to dim the whole image)
+            cropRect = rect.width >= Self.minCrop && rect.height >= Self.minCrop ? rect : nil
         case .text:
             break
         }
     }
 
+    /// Smallest crop side in pixels.
+    static let minCrop: CGFloat = 8
+
     func dragEnded(start: CGPoint, end: CGPoint) {
-        if tool == .text {
+        switch tool {
+        case .text:
             commitText()
             pendingTextPoint = clamp(end)
             pendingText = ""
             return
+        case .select:
+            if let move, move.moved { Log.info("editor: moved annotation") }
+            move = nil
+            return
+        case .crop:
+            if let r = cropRect, r.width < Self.minCrop || r.height < Self.minCrop { cropRect = nil }
+            return
+        default:
+            break
         }
         guard let d = draft else { return }
         draft = nil
@@ -120,11 +222,49 @@ final class EditorModel: ObservableObject {
         annotations.append(d)
     }
 
+    private func dragSelection(start: CGPoint, current: CGPoint) {
+        if move == nil {
+            let tolerance = 6 * pixelScale
+            guard let hit = annotations.last(where: { $0.hitTest(start, tolerance: tolerance) }) else {
+                selection = nil
+                return
+            }
+            selection = hit.id
+            move = (hit.id, hit, start, false)
+        }
+        guard var m = move, let index = annotations.firstIndex(where: { $0.id == m.id }) else { return }
+        let delta = CGSize(width: current.x - m.start.x, height: current.y - m.start.y)
+        guard m.moved || hypot(delta.width, delta.height) > 2 else { return }
+        if !m.moved {
+            pushUndo()
+            m.moved = true
+            move = m
+        }
+        annotations[index] = m.original.offset(by: delta)
+    }
+
+    func deleteSelection() {
+        guard let id = selection, let index = annotations.firstIndex(where: { $0.id == id }) else { return }
+        pushUndo()
+        annotations.remove(at: index)
+        selection = nil
+    }
+
+    var selectedBounds: CGRect? {
+        guard let id = selection else { return nil }
+        return annotations.first { $0.id == id }?.bounds
+    }
+
     func commitText() {
         defer { pendingTextPoint = nil; pendingText = "" }
         guard let at = pendingTextPoint, !pendingText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         pushUndo()
-        annotations.append(Annotation(kind: .text(at, pendingText), color: color, width: strokeWidth))
+        annotations.append(Annotation(kind: .text(at, pendingText), color: color, width: strokeWidth, fontSize: fontSize))
+    }
+
+    func cancelText() {
+        pendingTextPoint = nil
+        pendingText = ""
     }
 
     private func clamp(_ p: CGPoint) -> CGPoint {
@@ -134,7 +274,7 @@ final class EditorModel: ObservableObject {
     // MARK: - Crop
 
     func applyCrop() {
-        guard let rect = cropRect?.integral, rect.width > 4, rect.height > 4,
+        guard let rect = cropRect?.integral, rect.width >= Self.minCrop, rect.height >= Self.minCrop,
               let flat = renderCGImage(),
               let cropped = flat.cropping(to: rect) else { return }
         pushUndo()
@@ -146,9 +286,46 @@ final class EditorModel: ObservableObject {
 
     func cancelCrop() { cropRect = nil }
 
-    // MARK: - Export
+    // MARK: - Keyboard
 
+    /// Runs a keyboard command. Returns false when there was nothing to do, so the key goes on.
+    @discardableResult
+    func perform(_ command: EditorCommand) -> Bool {
+        switch command {
+        case .tool(let t):
+            commitText()
+            tool = t
+        case .undo: undo()
+        case .redo: redo()
+        case .copy: copyToClipboard()
+        case .save: save()
+        case .zoomIn: setZoom((zoom ?? fitZoom) * 1.25)
+        case .zoomOut: setZoom((zoom ?? fitZoom) / 1.25)
+        case .zoomFit: zoom = nil
+        case .zoomActual: zoom = 1
+        case .confirm:
+            guard cropRect != nil else { return false }
+            applyCrop()
+        case .cancel:
+            if cropRect != nil { cancelCrop() } else if selection != nil { selection = nil } else { return false }
+        case .delete:
+            guard selection != nil else { return false }
+            deleteSelection()
+        }
+        return true
+    }
+
+    /// Between 10 % and 800 %; zooming back to the fitting size snaps to "fit".
+    func setZoom(_ value: CGFloat) {
+        let z = min(max(value, 0.1), 8)
+        zoom = abs(z - fitZoom) < 0.01 ? nil : z
+    }
+
+    // MARK: - Drawing and export
+
+    /// The flattened image at full size, in the source's color space. Reused until something changes.
     func renderCGImage() -> CGImage? {
+        if let cache = exportCache, cache.version == version { return cache.image }
         let size = imageSize
         let view = Canvas { [self] ctx, _ in
             drawContent(in: &ctx, scale: 1, includeDraft: false, outlines: false)
@@ -156,45 +333,61 @@ final class EditorModel: ObservableObject {
         .frame(width: size.width, height: size.height)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 1
-        return renderer.cgImage
+        let space = base.colorSpace.flatMap { $0.model == .rgb ? $0 : nil } ?? CGColorSpace(name: CGColorSpace.sRGB)!
+        var result: CGImage?
+        renderer.render { rendered, draw in
+            guard let ctx = CGContext(data: nil, width: Int(rendered.width), height: Int(rendered.height),
+                                      bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+            draw(ctx)
+            result = ctx.makeImage()
+        }
+        if let result { exportCache = (version, result) }
+        return result
     }
 
     /// Draws the base image and all annotations. `scale` maps image pixels to canvas points.
-    /// Pixelated regions are drawn from a pixelated copy of the base, clipped to each region.
     func drawContent(in ctx: inout GraphicsContext, scale: CGFloat, includeDraft: Bool, outlines: Bool) {
         let frame = CGRect(x: 0, y: 0, width: CGFloat(base.width) * scale, height: CGFloat(base.height) * scale)
         ctx.draw(Image(decorative: base, scale: 1), in: frame)
-        var items = annotations
-        if includeDraft, let draft { items.append(draft) }
-        for a in items {
+        for a in annotations {
             if let r = a.pixelateRect {
-                if let pix = pixelatedBase() {
-                    let clip = CGRect(x: r.minX * scale, y: r.minY * scale, width: r.width * scale, height: r.height * scale)
-                    ctx.drawLayer { layer in
-                        layer.clip(to: Path(clip))
-                        layer.draw(Image(decorative: pix, scale: 1), in: frame)
-                    }
+                if let image = obscured(a.id, rect: r) {
+                    let rect = CGRect(x: r.minX * scale, y: r.minY * scale, width: r.width * scale, height: r.height * scale)
+                    ctx.draw(Image(decorative: image, scale: 1), in: rect)
                 }
                 if outlines { a.draw(in: &ctx, scale: scale) }
             } else {
                 a.draw(in: &ctx, scale: scale)
             }
         }
+        // A blur being dragged shows only its outline; the pixels are made once, on release
+        if includeDraft, let draft { draft.draw(in: &ctx, scale: scale) }
     }
 
-    private var pixelCache: (source: CGImage, result: CGImage)?
+    /// Pixel block size for hiding a region: large enough that a line of text inside turns into
+    /// two or three blocks, which de-pixelation tools can't read back.
+    nonisolated static func blockSize(for rect: CGRect, pixelScale: CGFloat) -> CGFloat {
+        max(10 * pixelScale, min(rect.width, rect.height) / 6)
+    }
 
-    private func pixelatedBase() -> CGImage? {
-        if let cache = pixelCache, cache.source === base { return cache.result }
-        let input = CIImage(cgImage: base)
-        let filter = CIFilter(name: "CIPixellate")!
-        filter.setValue(input.clampedToExtent(), forKey: kCIInputImageKey)
-        filter.setValue(max(10, Double(min(base.width, base.height)) / 36), forKey: kCIInputScaleKey)
-        filter.setValue(CIVector(x: 0, y: 0), forKey: kCIInputCenterKey)
-        guard let output = filter.outputImage?.cropped(to: input.extent),
-              let cg = CIContext().createCGImage(output, from: input.extent) else { return nil }
-        pixelCache = (base, cg)
-        return cg
+    /// The region pixelated and then blurred, cached per annotation.
+    private func obscured(_ id: UUID, rect: CGRect) -> CGImage? {
+        let source = ObjectIdentifier(base)
+        let r = rect.integral.intersection(CGRect(origin: .zero, size: imageSize))
+        guard !r.isEmpty else { return nil }
+        if let cached = obscureCache[id], cached.rect == r, cached.source == source { return cached.image }
+        guard let crop = base.cropping(to: r) else { return nil }
+        let block = Self.blockSize(for: r, pixelScale: pixelScale)
+        let input = CIImage(cgImage: crop)
+        let pixelated = input.clampedToExtent().applyingFilter("CIPixellate", parameters: [
+            kCIInputScaleKey: block, kCIInputCenterKey: CIVector(x: 0, y: 0),
+        ])
+        let blurred = pixelated.applyingGaussianBlur(sigma: block * 0.45).cropped(to: input.extent)
+        guard let out = Self.ciContext.createCGImage(blurred, from: input.extent, format: .RGBA8,
+                                                     colorSpace: base.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)) else { return nil }
+        obscureCache[id] = (r, source, out)
+        return out
     }
 
     func renderNSImage() -> NSImage? {
@@ -203,12 +396,21 @@ final class EditorModel: ObservableObject {
                                                   height: CGFloat(cg.height) / pixelScale))
     }
 
-    func copyToClipboard() {
+    /// PNG on the clipboard, encoded off the main thread. `then` runs once it is there.
+    func copyToClipboard(then: (@MainActor () -> Void)? = nil) {
         commitText()
-        guard let image = renderNSImage() else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects([image])
-        flash(String(localized: "Copied"))
+        guard let cg = renderCGImage() else { return }
+        let scale = pixelScale
+        Task { @MainActor in
+            let png = await Task.detached(priority: .userInitiated) { try? ImageExport.encode(cg, as: .png, pixelScale: scale) }.value
+            if let png {
+                ImageExport.copyPNG(png)
+                flash(String(localized: "Copied"))
+            } else {
+                flash(String(localized: "Not copied"))
+            }
+            then?()
+        }
     }
 
     /// Copies the text in the image, read on device.
@@ -221,53 +423,96 @@ final class EditorModel: ObservableObject {
         }
     }
 
+    /// A Save sheet on the editor window, in the folder and format from Settings → Screenshots & Text.
     func save() {
         commitText()
-        guard let cg = renderCGImage() else { return }
+        guard let window, let cg = renderCGImage() else { return }
+        let settings = CaptureSettings.shared
+        let format = settings.format
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.png]
-        let stamp = DateFormatter()
-        stamp.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        panel.nameFieldStringValue = String(localized: "Screenshot") + " \(stamp.string(from: Date())).png"
-        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        let rep = NSBitmapImageRep(cgImage: cg)
-        if let data = rep.representation(using: .png, properties: [:]) {
-            try? data.write(to: url)
-            flash(String(localized: "Saved"))
+        panel.allowedContentTypes = [format.type]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = ImageExport.baseName() + "." + format.fileExtension
+        panel.directoryURL = settings.saveFolderURL
+        let scale = pixelScale
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            MainActor.assumeIsolated {
+                _ = Task { @MainActor in
+                    let result = await Task.detached(priority: .userInitiated) { () -> Error? in
+                        do {
+                            try ImageExport.encode(cg, as: format, pixelScale: scale).write(to: url, options: .atomic)
+                            return nil
+                        } catch {
+                            return error
+                        }
+                    }.value
+                    if let failure = result {
+                        self?.showSaveError(failure)
+                    } else {
+                        self?.flash(String(localized: "Saved"))
+                    }
+                }
+            }
         }
     }
 
+    private func showSaveError(_ error: Error) {
+        Log.info("editor save failed: \(error)")
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = String(localized: "The image couldn’t be saved")
+        alert.informativeText = error.localizedDescription
+        alert.beginSheetModal(for: window)
+    }
+
+    // MARK: - Ask Claude
+
     func askClaude() {
+        guard !asking else { return }
         commitText()
-        guard let cg = renderCGImage(), let png = Self.pngForUpload(cg) else { return }
+        guard let cg = renderCGImage() else { return }
         let q = question.trimmingCharacters(in: .whitespacesAndNewlines)
         let prompt = q.isEmpty ? String(localized: "What is on this screenshot? Point out anything important.") : q
         asking = true
         askError = nil
         answer = ""
-        Task { @MainActor in
+        askTask = Task { @MainActor [weak self] in
+            let png = await Task.detached(priority: .userInitiated) { Self.pngForUpload(cg) }.value
             do {
-                answer = try await ClaudeEngine.ask(about: png, question: prompt)
+                guard let png else { throw ImageExport.Failure.encode }
+                let reply = try await ClaudeEngine.ask(about: png, question: prompt)
+                guard !Task.isCancelled else { return }
+                self?.answer = reply
             } catch {
-                askError = error.localizedDescription
+                guard !Task.isCancelled else { return }
+                self?.askError = error.localizedDescription
             }
-            asking = false
+            self?.asking = false
         }
     }
 
-    /// Downscales to 1568 px on the long edge, the size Claude reads best, and encodes PNG.
-    static func pngForUpload(_ image: CGImage) -> Data? {
+    /// The window is closing: stop work that would land in a window nobody sees.
+    func close() {
+        askTask?.cancel()
+        askTask = nil
+        asking = false
+    }
+
+    /// Downscales to `uploadLongEdge` on the long edge and encodes PNG.
+    nonisolated static func pngForUpload(_ image: CGImage) -> Data? {
         let longEdge = CGFloat(max(image.width, image.height))
-        let k = min(1, 1568 / longEdge)
-        let w = Int(CGFloat(image.width) * k), h = Int(CGFloat(image.height) * k)
+        let k = min(1, uploadLongEdge / longEdge)
+        if k == 1 { return try? ImageExport.encode(image, as: .png, pixelScale: 1) }
+        let w = Int((CGFloat(image.width) * k).rounded()), h = Int((CGFloat(image.height) * k).rounded())
         guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
                                   space: CGColorSpace(name: CGColorSpace.sRGB)!,
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         ctx.interpolationQuality = .high
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
         guard let scaled = ctx.makeImage() else { return nil }
-        return NSBitmapImageRep(cgImage: scaled).representation(using: .png, properties: [:])
+        return try? ImageExport.encode(scaled, as: .png, pixelScale: 1)
     }
 
     private func flash(_ text: String) {
