@@ -16,7 +16,8 @@ Liquid Glass needs the macOS 26 SDK. On older SDKs the app falls back to a regul
 ## Check your change
 
 - `./scripts/check.sh` builds the app without installing it and runs the self-test (`Deckhand --selftest`).
-  It is safe next to an installed Deckhand: it never replaces or quits the running copy.
+  It is safe next to an installed Deckhand: it never replaces or quits the running copy, and it builds with its own
+  bundle id (`com.nna1618.deckhand.check`), so test runs start from default settings and never touch yours.
 - `./scripts/check.sh --snapshot DIR` also renders every panel tab, the closed notch, every Settings section and the
   editor to PNG files in English (`DIR/en`) and Russian (`DIR/ru`). Snapshot runs use a temporary data folder and sample
   content. Add `--only panels,closed,settings,editor` to render part of it.

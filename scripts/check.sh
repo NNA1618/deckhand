@@ -17,8 +17,11 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# Check builds get their own bundle id, so the self-test and snapshots read and write their own
+# settings (cleared before each run) and never the installed app's.
+CHECK_ID=com.nna1618.deckhand.check
 LOG=$(mktemp -t deckhand-check)
-if ! NO_INSTALL=1 ./scripts/bundle.sh debug >"$LOG" 2>&1; then
+if ! BUNDLE_ID=$CHECK_ID NO_INSTALL=1 ./scripts/bundle.sh debug >"$LOG" 2>&1; then
     grep -E "error|warning:" "$LOG" | head -40 || tail -40 "$LOG"
     echo "==> build failed (full log: $LOG)"
     exit 1
@@ -28,6 +31,7 @@ echo "==> build ok, $WARN warning lines"
 grep "warning:" "$LOG" | sort -u | head -20 || true
 
 APP=.build/debug/Deckhand.app/Contents/MacOS/Deckhand
+defaults delete $CHECK_ID >/dev/null 2>&1 || true
 OUT=$(mktemp -t deckhand-selftest)
 if "$APP" --selftest >"$OUT" 2>&1; then
     echo "==> selftest: $(grep -c '^ok' "$OUT") passed"
