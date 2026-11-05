@@ -171,8 +171,8 @@ final class NotchController {
         dragChangeCount = NSPasteboard(name: .drag).changeCount
 
         let badge = NotchWindow(rootView: NotchClosedView().environmentObject(viewModel).environmentObject(closedModel),
-                                level: .mainMenu + 2)
-        let panel = NotchWindow(rootView: NotchPanelView().environmentObject(viewModel), level: .mainMenu + 3)
+                                level: .mainMenu + 2, takesFocus: false)
+        let panel = NotchWindow(rootView: NotchPanelView().environmentObject(viewModel), level: .mainMenu + 3, takesFocus: true)
         badge.onMouseDown = { [weak self] p in self?.badgeClicked(at: p) }
         panel.onMouseDown = { [weak self] p in self?.panelClicked(at: p) }
         badgeWindow = badge

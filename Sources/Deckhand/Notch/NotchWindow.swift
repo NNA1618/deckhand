@@ -17,7 +17,11 @@ final class NotchWindow: NSPanel {
     /// A click inside: called before the click is handled, with the location in global coordinates.
     var onMouseDown: ((CGPoint) -> Void)?
 
-    init<Content: View>(rootView: Content, level: NSWindow.Level) {
+    /// The badge window only catches the click-to-open click and must never take keyboard focus.
+    private let takesFocus: Bool
+
+    init<Content: View>(rootView: Content, level: NSWindow.Level, takesFocus: Bool) {
+        self.takesFocus = takesFocus
         super.init(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -44,7 +48,7 @@ final class NotchWindow: NSPanel {
         contentView = hosting
     }
 
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool { takesFocus }
     override var canBecomeMain: Bool { false }
 
     /// The window sits over the menu bar on purpose; don't let AppKit push it below.
@@ -53,7 +57,7 @@ final class NotchWindow: NSPanel {
     override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown || event.type == .rightMouseDown {
             // Hover opens without focus; a click inside is the moment to take it
-            if !isKeyWindow { makeKey() }
+            if takesFocus && !isKeyWindow { makeKey() }
             onMouseDown?(NSEvent.mouseLocation)
         }
         super.sendEvent(event)
