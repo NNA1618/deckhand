@@ -170,9 +170,11 @@ final class ClipboardViewModel: ObservableObject {
         }
     }
 
-    /// Called when the tab shows: picks up reorders made by copying from the open list.
+    /// Called when the tab shows: picks up reorders made by copying from the open list and starts
+    /// again from the latest copy. Search and filter stay as they were.
     func appeared() {
-        if notice?.kind == .needsAccessibility && PasteService.isTrusted { notice = nil }
+        if notice?.kind != .needsAccessibility || PasteService.isTrusted { notice = nil }
+        previewItem = nil
         reload(resetSelection: true)
     }
 }
