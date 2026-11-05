@@ -156,10 +156,23 @@ extension SelfTest {
 
         let keep = copies.appendingPathComponent("keep", isDirectory: true)
         let drop = copies.appendingPathComponent("drop", isDirectory: true)
-        try? fm.createDirectory(at: keep, withIntermediateDirectories: true)
-        try? fm.createDirectory(at: drop, withIntermediateDirectories: true)
-        ShelfFiles.purgeCopies(keeping: [keep.appendingPathComponent("a.png").path], in: copies)
+        let fresh = copies.appendingPathComponent("fresh", isDirectory: true)
+        let pending = copies.appendingPathComponent("pending", isDirectory: true)
+        let hourAgo = Date().addingTimeInterval(-3600)
+        for folder in [keep, drop, fresh, pending] { try? fm.createDirectory(at: folder, withIntermediateDirectories: true) }
+        for folder in [keep, drop, pending] { try? fm.setAttributes([.creationDate: hourAgo], ofItemAtPath: folder.path) }
+        let oldEnough = (try? drop.resourceValues(forKeys: [.creationDateKey]))?.creationDate.map { $0 < Date().addingTimeInterval(-600) }
+        check(oldEnough == true, "test folders can be dated back")
+        // The purge runs while a drop is still being copied into "pending"; "fresh" was just made
+        // and its item isn't on the list yet. Neither may be deleted.
+        ShelfFiles.whileCopying(pending) {
+            ShelfFiles.purgeCopies(keeping: [keep.appendingPathComponent("a.png").path], in: copies)
+        }
         check(fm.fileExists(atPath: keep.path) && !fm.fileExists(atPath: drop.path), "unused shelf copies are purged")
+        check(fm.fileExists(atPath: pending.path), "a shelf copy in progress survives a purge")
+        check(fm.fileExists(atPath: fresh.path), "a new shelf copy not yet on the list survives a purge")
+        ShelfFiles.purgeCopies(keeping: [], in: copies, now: Date().addingTimeInterval(ShelfFiles.purgeGrace + 60))
+        check(!fm.fileExists(atPath: fresh.path) && !fm.fileExists(atPath: pending.path), "old unused shelf copies go eventually")
 
         let old = Data(#"[{"id":"5D6C7F7E-6C1B-4F77-9B39-1D0B7F1C2E11","path":"/tmp/a.png","addedAt":0}]"#.utf8)
         let decoded = try? JSONDecoder().decode([ShelfItem].self, from: old)

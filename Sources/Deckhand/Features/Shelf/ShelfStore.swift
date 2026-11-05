@@ -204,8 +204,10 @@ enum ShelfFiles {
             let folder = (dir ?? copiesDir).appendingPathComponent(UUID().uuidString, isDirectory: true)
             let target = folder.appendingPathComponent(source.lastPathComponent)
             do {
-                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                try FileManager.default.copyItem(at: source, to: target)
+                try whileCopying(folder) {
+                    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                    try FileManager.default.copyItem(at: source, to: target)
+                }
                 source = target
                 isCopy = true
             } catch {
@@ -239,13 +241,41 @@ enum ShelfFiles {
         return Resolution(path: item.path, bookmark: bookmark, reachable: exists)
     }
 
-    /// Deletes Deckhand's copies that no shelf item uses.
-    static func purgeCopies(keeping referenced: Set<String>, in dir: URL? = nil) {
+    /// How long a new copy is safe from the purge. A drop is copied off the main thread and joins
+    /// the list only afterwards, so a purge that runs meanwhile doesn't see it in the list yet.
+    static let purgeGrace: TimeInterval = 10 * 60
+
+    /// Deletes Deckhand's copies that no shelf item uses. Skips folders still being copied into
+    /// and folders made in the last `purgeGrace` seconds, whose item may not be on the list yet.
+    static func purgeCopies(keeping referenced: Set<String>, in dir: URL? = nil, now: Date = Date()) {
         let fm = FileManager.default
-        guard let folders = try? fm.contentsOfDirectory(at: dir ?? copiesDir, includingPropertiesForKeys: nil) else { return }
+        guard let folders = try? fm.contentsOfDirectory(at: dir ?? copiesDir, includingPropertiesForKeys: [.creationDateKey])
+        else { return }
         let keep = Set(referenced.map { URL(fileURLWithPath: $0).deletingLastPathComponent().standardizedFileURL.path })
-        for folder in folders where !keep.contains(folder.standardizedFileURL.path) {
+        for folder in folders {
+            let path = folder.standardizedFileURL.path
+            guard !keep.contains(path), !copying.contains(path) else { continue }
+            let created = (try? folder.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
+            guard created < now.addingTimeInterval(-purgeGrace) else { continue }
             try? fm.removeItem(at: folder)
         }
+    }
+
+    /// Marks `folder` as being copied into while `body` runs, so a purge on another thread leaves it alone.
+    static func whileCopying<T>(_ folder: URL, _ body: () throws -> T) rethrows -> T {
+        let path = folder.standardizedFileURL.path
+        copying.insert(path)
+        defer { copying.remove(path) }
+        return try body()
+    }
+
+    private static let copying = LockedPaths()
+
+    private final class LockedPaths: @unchecked Sendable {   // every access goes through the lock
+        private var paths: Set<String> = []
+        private let lock = NSLock()
+        func insert(_ path: String) { lock.withLock { _ = paths.insert(path) } }
+        func remove(_ path: String) { lock.withLock { _ = paths.remove(path) } }
+        func contains(_ path: String) -> Bool { lock.withLock { paths.contains(path) } }
     }
 }
