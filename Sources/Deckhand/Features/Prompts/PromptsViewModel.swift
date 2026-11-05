@@ -63,7 +63,7 @@ final class PromptsViewModel: ObservableObject {
         $search
             .removeDuplicates()
             .debounce(for: .milliseconds(120), scheduler: DispatchQueue.main)
-            .sink { [weak self] text in self?.refresh(resort: false, search: text) }
+            .sink { [weak self] text in self?.searchChanged(to: text) }
             .store(in: &cancellables)
         settings.$sort
             .dropFirst()
@@ -84,6 +84,12 @@ final class PromptsViewModel: ObservableObject {
         let ordered = PromptLibrary.sorted(matching, by: sort ?? settings.sort)
         prompts = resort ? ordered : PromptLibrary.keepingOrder(of: prompts, fresh: ordered)
         if let id = selectedId, !prompts.contains(where: { $0.id == id }) { selectedId = nil }
+    }
+
+    /// A new search applies the chosen order. Keeping the order on screen here would leave the
+    /// matches of a narrower search on top once it is cleared.
+    func searchChanged(to text: String) {
+        refresh(resort: true, search: text)
     }
 
     // MARK: - Using a prompt

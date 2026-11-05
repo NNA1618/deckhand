@@ -9,6 +9,7 @@ extension SelfTest {
         promptSeeding(check)
         promptCategoriesAndSort(check)
         promptArchive(check)
+        promptSearchOrder(check)
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("deckhand-selftest-prompts-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -83,6 +84,24 @@ extension SelfTest {
         let fresh = PromptLibrary.sorted(bumped, by: .favoritesAndUsage) + [prompt(4, "new")]
         check(PromptLibrary.keepingOrder(of: shown, fresh: fresh).map(\.id) == [2, 3, 1, 4], "click keeps the order on screen")
         check(PromptLibrary.title(fromBody: "  First line here\nsecond") == "First line here", "title from the first line")
+    }
+
+    /// Narrowing a search and clearing it again shows the library in the chosen order.
+    private static func promptSearchOrder(_ check: Check) {
+        guard let db = try? Connection(.inMemory) else { return }
+        let store = PromptStore(db: db)
+        store.deleteAll()
+        for (title, body) in [("Alpha", "first"), ("Bravo", "second"), ("Charlie", "third")] {
+            store.create(title: title, body: body, category: "Code", tags: [])
+        }
+        let vm = PromptsViewModel(store: store)
+        let sorted = vm.prompts.map(\.id)
+        guard sorted.count == 3, let last = vm.prompts.last else { check(false, "search order library: \(sorted)"); return }
+        vm.searchChanged(to: last.title)
+        let narrowed = vm.prompts.map(\.id)
+        vm.searchChanged(to: "")
+        check(narrowed == [last.id] && vm.prompts.map(\.id) == sorted,
+              "clearing a search restores the chosen order: \(vm.prompts.map(\.title))")
     }
 
     private static func promptArchive(_ check: Check) {
