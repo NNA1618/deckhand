@@ -44,7 +44,7 @@ private struct PromptHelperColumn: View {
 
             HStack(spacing: 8) {
                 if !ClaudeEngine.isAvailable {
-                    GlassButton(title: "Set Up Claude…", symbol: "sparkle") {
+                    GlassButton(title: "Set Up Claude…", agent: .claudeCode) {
                         notch.requestClose()
                         SettingsWindow.show(.claude)
                     }
@@ -107,7 +107,7 @@ private struct SuggestionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Label("Claude's version", systemImage: "sparkle")
+                Label { Text("Claude's version") } icon: { AgentIcon(provider: .claudeCode, size: 12) }
                     .font(Theme.label).foregroundColor(Theme.fgDim)
                 Spacer()
                 Button { helper.dismissSuggestion() } label: {

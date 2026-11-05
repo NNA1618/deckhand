@@ -204,11 +204,17 @@ struct PrimaryButton: View {
 struct GlassButton: View {
     let title: LocalizedStringKey
     var symbol: String? = nil
+    /// Shows the agent's own app icon instead of a symbol, for an action that runs Claude.
+    var agent: AgentProvider? = nil
     let action: () -> Void
     var body: some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                if let symbol { Image(systemName: symbol).font(.system(size: 11, weight: .medium)) }
+                if let agent {
+                    AgentIcon(provider: agent, size: 13)
+                } else if let symbol {
+                    Image(systemName: symbol).font(.system(size: 11, weight: .medium))
+                }
                 Text(title).font(Theme.label)
             }
             .foregroundColor(Theme.fg)

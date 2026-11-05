@@ -31,7 +31,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .home: return "house"
         case .clipboard: return "doc.on.clipboard"
         case .translator: return "character.bubble"
-        case .claude: return "sparkle"
+        case .claude: return AgentProvider.claudeCode.fallbackSymbol   // TabIcon draws Claude's own icon
         case .prompts: return "text.quote"
         case .media: return "music.note"
         case .shelf: return "tray.full"
