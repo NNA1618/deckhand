@@ -134,7 +134,7 @@ enum CaptureActions {
     }
 
     static func pickColor(notch: NotchController) {
-        guard sampler == nil else { return }
+        guard sampler == nil, !ScreenshotService.isRunning, !delayedPending else { return }
         notch.close()
         notch.suspendHover(true)
         let picker = NSColorSampler()
