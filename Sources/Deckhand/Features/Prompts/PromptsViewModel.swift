@@ -13,6 +13,11 @@ struct PromptDraft: Equatable {
     var favorite = false
 
     var canSave: Bool { !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    /// A new prompt with nothing typed yet (the category alone comes from the filter).
+    var isBlank: Bool {
+        id == nil && [title, body, tagsText].allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
 }
 
 /// Values for a prompt's `{{variables}}`, asked for before it is copied or pasted.
@@ -38,6 +43,9 @@ final class PromptsViewModel: ObservableObject {
     /// The row ↑/↓ picked; Return uses it.
     @Published var selectedId: Int64?
     @Published var draft: PromptDraft?
+    /// Text sent from another tab ("Save as Prompt") while a draft with content was open.
+    /// The draft is kept; the editor offers to replace it.
+    @Published private(set) var pendingDraftBody: String?
     @Published var fill: PromptFill?
     /// A short confirmation on one row, such as "Copied".
     @Published private(set) var flash: (id: Int64, text: String)?
@@ -173,10 +181,29 @@ final class PromptsViewModel: ObservableObject {
 
     // MARK: - Editing
 
-    func newDraft(body: String = "") {
+    /// Starts a new prompt. A draft with content is never replaced silently: it stays open and the
+    /// new text waits until the user chooses to replace it. Returns false when the draft was kept.
+    @discardableResult
+    func newDraft(body: String = "") -> Bool {
+        if let current = draft, !current.isBlank {
+            if !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, body != current.body { pendingDraftBody = body }
+            return false
+        }
+        fill = nil
+        pendingDraftBody = nil
+        draft = PromptDraft(body: body, category: selectedCategory ?? "")
+        return true
+    }
+
+    /// Replaces the open draft with the text that arrived while it was open.
+    func replaceDraftWithPending() {
+        guard let body = pendingDraftBody else { return }
+        pendingDraftBody = nil
         fill = nil
         draft = PromptDraft(body: body, category: selectedCategory ?? "")
     }
+
+    func keepDraft() { pendingDraftBody = nil }
 
     func edit(_ p: Prompt) {
         fill = nil
@@ -184,7 +211,10 @@ final class PromptsViewModel: ObservableObject {
                             tagsText: p.tags.joined(separator: ", "), favorite: p.favorite)
     }
 
-    func cancelDraft() { draft = nil }
+    func cancelDraft() {
+        draft = nil
+        pendingDraftBody = nil
+    }
 
     func saveDraft() {
         guard let d = draft, d.canSave else { return }
@@ -204,6 +234,7 @@ final class PromptsViewModel: ObservableObject {
             savedId = store.create(title: finalTitle, body: d.body, category: category, tags: tags, favorite: d.favorite)?.id
         }
         draft = nil
+        pendingDraftBody = nil
         // Show the saved prompt even if the filter would hide it
         if let selected = selectedCategory, !PromptLibrary.sameCategory(selected, category) { selectedCategory = nil }
         if !search.isEmpty { search = "" }

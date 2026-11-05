@@ -102,6 +102,16 @@ extension SelfTest {
         vm.searchChanged(to: "")
         check(narrowed == [last.id] && vm.prompts.map(\.id) == sorted,
               "clearing a search restores the chosen order: \(vm.prompts.map(\.title))")
+
+        // "Save as Prompt" from Recents never replaces a draft that has content
+        vm.newDraft()
+        check(vm.newDraft(body: "from recents") && vm.draft?.body == "from recents", "a blank draft takes the new text")
+        vm.draft?.title = "Half written"
+        check(!vm.newDraft(body: "another text") && vm.draft?.title == "Half written" && vm.draft?.body == "from recents"
+              && vm.pendingDraftBody == "another text", "a draft with content is kept and the new text waits")
+        vm.replaceDraftWithPending()
+        check(vm.draft?.body == "another text" && vm.draft?.title == "" && vm.pendingDraftBody == nil, "replacing the draft is a choice")
+        vm.cancelDraft()
     }
 
     private static func promptArchive(_ check: Check) {
