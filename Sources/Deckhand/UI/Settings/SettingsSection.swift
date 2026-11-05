@@ -20,22 +20,48 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         [.about],
     ]
 
-    var title: String {
+    /// The sidebar and toolbar title. Uses its own keys, because words like "General" and
+    /// "Translate" mean something else elsewhere in the app.
+    var title: String { titleTerm.localized }
+
+    /// The one-line description under the title at the top of the pane.
+    var subtitle: String { subtitleTerm.localized }
+
+    var titleTerm: LocalizedTerm {
         switch self {
-        case .general: return String(localized: "General")
-        case .notch: return String(localized: "Notch & Panel")
-        case .closedNotch: return String(localized: "Closed Notch")
-        case .clipboard: return String(localized: "Clipboard")
-        case .translate: return String(localized: "Translate")
-        case .claude: return String(localized: "Claude")
-        case .music: return String(localized: "Music")
-        case .prompts: return String(localized: "Prompts")
-        case .recents: return String(localized: "Recents")
-        case .capture: return String(localized: "Screenshots & Text")
-        case .keepAwake: return String(localized: "Keep Awake & Timer")
-        case .shortcuts: return String(localized: "Shortcuts")
-        case .permissions: return String(localized: "Privacy & Permissions")
-        case .about: return String(localized: "About")
+        case .general: return LocalizedTerm("section.general", "General")
+        case .notch: return LocalizedTerm("section.notch", "Notch & Panel")
+        case .closedNotch: return LocalizedTerm("section.closedNotch", "Closed Notch")
+        case .clipboard: return LocalizedTerm("section.clipboard", "Clipboard")
+        case .translate: return LocalizedTerm("section.translate", "Translate")
+        case .claude: return LocalizedTerm("section.claude", "Claude")
+        case .music: return LocalizedTerm("section.music", "Music")
+        case .prompts: return LocalizedTerm("section.prompts", "Prompts")
+        case .recents: return LocalizedTerm("section.recents", "Recents")
+        case .capture: return LocalizedTerm("section.capture", "Screenshots & Text")
+        case .keepAwake: return LocalizedTerm("section.keepAwake", "Keep Awake & Timer")
+        case .shortcuts: return LocalizedTerm("section.shortcuts", "Shortcuts")
+        case .permissions: return LocalizedTerm("section.permissions", "Privacy & Permissions")
+        case .about: return LocalizedTerm("section.about", "About")
+        }
+    }
+
+    private var subtitleTerm: LocalizedTerm {
+        switch self {
+        case .general: return LocalizedTerm("section.general.subtitle", "Startup, language and the menu bar.")
+        case .notch: return LocalizedTerm("section.notch.subtitle", "How the panel opens and closes, how it looks and which tabs it has.")
+        case .closedNotch: return LocalizedTerm("section.closedNotch.subtitle", "What shows around the notch while the panel is closed.")
+        case .clipboard: return LocalizedTerm("section.clipboard.subtitle", "History of what you copy. It never leaves this Mac.")
+        case .translate: return LocalizedTerm("section.translate.subtitle", "On-device translation with Apple Translation.")
+        case .claude: return LocalizedTerm("section.claude.subtitle", "Claude Code sessions in the notch and quick actions for text.")
+        case .music: return LocalizedTerm("section.music.subtitle", "What's playing, where it comes from and the track at the notch.")
+        case .prompts: return LocalizedTerm("section.prompts.subtitle", "Your prompt library in the panel.")
+        case .recents: return LocalizedTerm("section.recents.subtitle", "New images and videos from folders you choose.")
+        case .capture: return LocalizedTerm("section.capture.subtitle", "Capture an area, copy text from the screen and pick colors.")
+        case .keepAwake: return LocalizedTerm("section.keepAwake.subtitle", "Keep the Mac from sleeping and time short tasks.")
+        case .shortcuts: return LocalizedTerm("section.shortcuts.subtitle", "Global shortcuts work in any app.")
+        case .permissions: return LocalizedTerm("section.permissions.subtitle", "What Deckhand can use on this Mac and where your data lives.")
+        case .about: return LocalizedTerm("section.about.subtitle", "Version, license and links.")
         }
     }
 
@@ -62,7 +88,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     var color: Color {
         switch self {
         case .general, .shortcuts, .about: return .gray
-        case .notch: return Color(white: 0.15)
+        case .notch: return Color(white: 0.22)
         case .closedNotch: return .red
         case .clipboard: return .teal
         case .translate: return .indigo
@@ -77,46 +103,124 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
+/// A string looked up by key with an English default, so the same key can also be read
+/// in another language (the Settings search matches English and Russian whatever the app language is).
+struct LocalizedTerm: Hashable, Sendable {
+    let key: String
+    let english: String
+
+    init(_ key: String, _ english: String) {
+        self.key = key
+        self.english = english
+    }
+
+    /// In the app's language.
+    var localized: String { Bundle.main.localizedString(forKey: key, value: english, table: nil) }
+
+    /// In a specific `.lproj` bundle, or English when there is none.
+    func value(in bundle: Bundle?) -> String {
+        bundle?.localizedString(forKey: key, value: english, table: nil) ?? english
+    }
+}
+
 /// A white symbol in a colored rounded square, as in System Settings.
 struct SettingsIcon: View {
     let section: SettingsSection
     var size: CGFloat = 20
 
     var body: some View {
-        Image(systemName: section.symbol)
-            .font(.system(size: size * 0.55, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(width: size, height: size)
-            .background(section.color.gradient, in: RoundedRectangle(cornerRadius: size * 0.25, style: .continuous))
+        SettingsSymbolTile(symbol: section.symbol, color: section.color, size: size)
     }
 }
 
-/// One Settings pane: a grouped form with the section's title.
+/// The rounded colored square used for sections and permission rows.
+struct SettingsSymbolTile: View {
+    let symbol: String
+    let color: Color
+    var size: CGFloat = 20
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: size * 0.235, style: .continuous)
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.56, weight: .semibold))
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.18), radius: 0.5, y: 0.5)
+            .frame(width: size, height: size)
+            .background(color.gradient, in: shape)
+            // A hairline keeps dark tiles visible on a dark sidebar
+            .overlay(shape.strokeBorder(.white.opacity(0.12), lineWidth: 0.5))
+            .accessibilityHidden(true)
+    }
+}
+
+/// One Settings pane: a hero card with the section's icon, title and description, then a grouped
+/// form whose groups are translucent cards on the window's glass.
 /// Panes put their `Section`s inside: `SettingsPane(.clipboard) { Section { … } }`.
 struct SettingsPane<Content: View>: View {
     let section: SettingsSection
+    private let showsHeader: Bool
     private let content: Content
 
-    init(_ section: SettingsSection, @ViewBuilder content: () -> Content) {
+    init(_ section: SettingsSection, showsHeader: Bool = true, @ViewBuilder content: () -> Content) {
         self.section = section
+        self.showsHeader = showsHeader
         self.content = content()
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                SettingsIcon(section: section, size: 26)
-                Text(section.title)
-                    .font(.title2.weight(.semibold))
-                Spacer()
+        Form {
+            if showsHeader {
+                Section {
+                    SettingsHeroCard(section: section)
+                }
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 34)
-            .padding(.bottom, 2)
-            Form {
-                content
-            }
-            .formStyle(.grouped)
+            content
         }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .hidingScrollEdgeEffect()
+        .environment(\.colorScheme, .dark)
+    }
+}
+
+extension View {
+    /// The pane sits below the toolbar band, so macOS 26's blur under the toolbar isn't needed;
+    /// it also can't be captured by `--snapshot` and would cover the pane there.
+    @ViewBuilder
+    func hidingScrollEdgeEffect() -> some View {
+        #if compiler(>=6.2)
+        if #available(macOS 26.0, *) {
+            self.scrollEdgeEffectHidden(true, for: .all)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
+    }
+}
+
+/// The card at the top of a pane, as in System Settings on macOS 26: a large icon,
+/// the title in bold and one line about the section, centered.
+struct SettingsHeroCard: View {
+    let section: SettingsSection
+
+    var body: some View {
+        VStack(spacing: 8) {
+            SettingsIcon(section: section, size: 54)
+            Text(section.title)
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(Theme.fg)
+            Text(section.subtitle)
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.fgDim)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 420)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 }
