@@ -355,8 +355,8 @@
 "Recent" = "Недавние";
 "All Languages" = "Все языки";
 "No languages found" = "Языки не найдены";
-"Add to Favorites" = "Добавить в избранные";
-"Remove from Favorites" = "Убрать из избранных";
+"Add to Favorites" = "Добавить в избранное";
+"Remove from Favorites" = "Убрать из избранного";
 "Speak" = "Прочитать вслух";
 "No voice for this language" = "Нет голоса для этого языка";
 "Copy the translation" = "Скопировать перевод";
@@ -430,8 +430,6 @@
 "Space" = "Пробел";
 "Preview" = "Просмотр";
 "Clear Search" = "Очистить поиск";
-"Allow…" = "Разрешить…";
-"Dismiss" = "Скрыть";
 "Password" = "Пароль";
 "Link" = "Ссылка";
 "Open Link" = "Открыть ссылку";
@@ -440,7 +438,6 @@
 "clipboard.time.now" = "сейчас";
 "clipboard.sample.address" = "Тверская ул., 7, Москва, 125009";
 "clipboard.sample.note" = "Встречу перенесли на четверг, 15:00, переговорная 4.2. Возьмите распечатанные слайды.";
-"Shortcut" = "Сочетание клавиш";
 "Clear clipboard history?" = "Очистить историю буфера обмена?";
 "Clear History" = "Очистить историю";
 "Pinned items stay." = "Закреплённые записи останутся.";
@@ -501,10 +498,6 @@
 "Save prompts you use often and copy them in one click." = "Сохраняйте частые промпты и копируйте их одним щелчком.";
 "Add Starter Prompts" = "Добавить стартовые промпты";
 "Deleted “%@”" = "Промпт «%@» удалён";
-"Allow…" = "Разрешить…";
-"Dismiss" = "Закрыть";
-"Add to Favorites" = "Добавить в избранное";
-"Remove from Favorites" = "Убрать из избранного";
 "Click to copy" = "Щёлкните, чтобы скопировать";
 "Click to paste into the app you were using" = "Щёлкните, чтобы вставить в приложение, где вы работали";
 "The prompt is copied. To paste it for you, Deckhand needs Accessibility." = "Промпт скопирован. Чтобы вставлять за вас, Deckhand нужен Универсальный доступ.";
@@ -537,7 +530,6 @@
 "All prompts deleted." = "Все промпты удалены.";
 "Library" = "Библиотека";
 "Export saves a JSON file you can import on another Mac." = "Экспорт сохраняет файл JSON, который можно импортировать на другом Mac.";
-"Shortcut" = "Сочетание клавиш";
 "Deckhand Prompts" = "Промпты Deckhand";
 "Prompts exported: %lld" = "Экспортировано промптов: %lld";
 "Prompts imported: %lld" = "Импортировано промптов: %lld";
@@ -594,12 +586,10 @@
 "Watch" = "Отслеживать";
 "Show" = "Показывать";
 "Period" = "Период";
-"Files" = "Файлы";
 "Images and videos" = "Изображения и видео";
 "Images only" = "Только изображения";
 "Videos only" = "Только видео";
 "Include subfolders" = "Включая вложенные папки";
-"Maximum" = "Максимум";
 "%lld files" = "%lld файлов";
 "Prompt helper" = "Помощник промптов";
 "Show the prompt field" = "Показывать поле для промпта";
@@ -627,7 +617,6 @@
 "Capture the whole screen" = "Снять весь экран";
 "Captures show only the desktop until you allow it." = "Пока доступа нет, на снимках будет только рабочий стол.";
 "Choose" = "Выбрать";
-"Choose…" = "Выбрать…";
 "Click a shortcut and press the new keys. Use ⌘ or ⌃, with ⌥ and ⇧ if you like. Esc cancels, ⌫ removes the shortcut." = "Щёлкните сочетание и нажмите новые клавиши. Нужна клавиша ⌘ или ⌃, можно вместе с ⌥ и ⇧. Esc — отмена, ⌫ — удалить сочетание.";
 "Clipboard: paste" = "Буфер обмена: вставить";
 "Clipboard: pick" = "Буфер обмена: выбрать";
@@ -652,7 +641,6 @@
 "Hidden tab" = "Скрытая вкладка";
 "In the Panel" = "В панели";
 "Keep line breaks" = "Сохранять переносы строк";
-"Languages" = "Языки";
 "Large text" = "Крупный текст";
 "Many apps use this shortcut. Deckhand will take it from them." = "Это сочетание есть во многих приложениях. Deckhand перехватит его у них.";
 "Medium text" = "Средний текст";
@@ -661,7 +649,6 @@
 "Move up" = "Выше";
 "Not Now" = "Не сейчас";
 "Not copied" = "Не скопировано";
-"Open System Settings" = "Открыть Системные настройки";
 "Open a Tab" = "Открыть вкладку";
 "Pick a Color" = "Цвет с экрана";
 "Put the language you capture most first. QR codes and barcodes are copied as their content." = "Первым поставьте язык, который распознаёте чаще всего. Из QR-кодов и штрихкодов копируется их содержимое.";
@@ -679,11 +666,9 @@
 "Select and Move" = "Выбрать и переместить";
 "Select next input source" = "Следующий источник ввода";
 "Select the previous input source" = "Предыдущий источник ввода";
-"Shortcut" = "Сочетание клавиш";
 "Shortcuts stay as they are. Restore them in Shortcuts." = "Сочетания клавиш не изменятся. Их можно восстановить в разделе «Сочетания клавиш».";
 "Shutter sound" = "Звук затвора";
 "Small text" = "Мелкий текст";
-"Space" = "Пробел";
 "Spotlight" = "Spotlight";
 "Start with" = "Начальный инструмент";
 "SwiftUI Color" = "Color для SwiftUI";
