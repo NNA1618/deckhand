@@ -123,7 +123,7 @@ private struct DownloadView: View {
                 .foregroundStyle(.secondary)
             Text("Download languages for translation")
                 .font(.headline)
-            Text("To translate from \(TranslationLanguages.name(of: model.source)) into \(TranslationLanguages.name(of: model.target)), macOS needs to download them once. Translation then works offline.")
+            Text("To translate \(TranslationLanguages.name(of: model.source)) → \(TranslationLanguages.name(of: model.target)), macOS needs to download these languages once. Translation then works offline.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

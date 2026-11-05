@@ -144,7 +144,7 @@ struct TranslatorView: View {
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(vm.input.isEmpty)
                 .opacity(vm.input.isEmpty ? 0.5 : 1)
-                .help(Text("Translate now (⌘↩)"))
+                .help(Text("Translate now (\("⌘↩"))"))
             }
             .padding(8)
         }
@@ -198,7 +198,9 @@ struct TranslatorView: View {
                             .foregroundColor(Theme.fg)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
+                            // Lines up with the text in the input field
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 8)
                     }
                     .opacity(vm.phase == .translating ? 0.55 : 1)
                 } else if vm.phase == .translating {
@@ -391,7 +393,10 @@ private struct LanguageList: View {
                     .font(Theme.body)
                     .foregroundColor(Theme.fg)
                     .focused($searchFocused)
-                    .onSubmit { if let first = matches.first { pick(first) } }
+                    .onSubmit {
+                        // Return picks the first match of a search, never a language the user didn't look for
+                        if !query.isEmpty, let first = matches.first { pick(first) }
+                    }
             }
             .padding(.horizontal, 10).padding(.vertical, 6)
             .background(Theme.surface2, in: Capsule())

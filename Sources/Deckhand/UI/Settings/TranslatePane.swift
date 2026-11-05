@@ -19,10 +19,13 @@ struct TranslatePane: View {
                 if !settings.autoDetect {
                     Picker("Source language", selection: $settings.source) { languageOptions }
                 }
+                LabeledContent("Languages on this Mac") {
+                    Button("Translation Languages…") { openTranslationLanguages() }
+                }
             } header: {
                 Text("Languages")
             } footer: {
-                Text("On-device translation with Apple Translation.")
+                Text("On-device translation with Apple Translation. Languages that aren't on this Mac yet download the first time you use them.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -45,6 +48,8 @@ struct TranslatePane: View {
                         Button(TranslationLanguages.name(of: code)) { settings.favorites.append(code) }
                     }
                 }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .fixedSize()
             } header: {
                 Text("Favorite languages")
@@ -62,13 +67,10 @@ struct TranslatePane: View {
                         Button("Change…") { SettingsRouter.shared.section = .shortcuts }
                     }
                 }
-                LabeledContent("Languages on this Mac") {
-                    Button("Translation Languages…") { openTranslationLanguages() }
-                }
             } header: {
-                Text("Translating")
+                Text("Typing and Shortcut")
             } footer: {
-                Text("Languages that aren't on this Mac yet download the first time you use them.")
+                Text("Translates a moment after you stop typing. \("⌘↩") translates right away.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
