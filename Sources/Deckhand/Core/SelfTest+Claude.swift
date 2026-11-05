@@ -8,6 +8,8 @@ extension SelfTest {
         claudeSettingsFile(check)
         claudeHookScript(check)
         claudeQuickActions(check)
+        claudeHookPaths(check)
+        claudeOwnerUpgrade(check)
     }
 
     private static func claudeStateMachine(_ check: Check) {
@@ -132,15 +134,15 @@ extension SelfTest {
               "claude: an up-to-date install is recognized")
         let twice = (try? ClaudeSettingsFile.installing(into: installed, command: command)) ?? ""
         check(twice == installed, "claude: installing twice changes nothing")
-        check((try? ClaudeSettingsFile.removing(from: installed)) == user, "claude: removing restores the file byte for byte")
+        check((try? ClaudeSettingsFile.removing(from: installed, command: command)) == user, "claude: removing restores the file byte for byte")
         for original in ["", "{}", "{\"a\":1}", "{\n\t\"a\": true\n}\n"] {
-            let back = (try? ClaudeSettingsFile.installing(into: original, command: command)).flatMap { try? ClaudeSettingsFile.removing(from: $0) }
+            let back = (try? ClaudeSettingsFile.installing(into: original, command: command)).flatMap { try? ClaudeSettingsFile.removing(from: $0, command: command) }
             let ok = original.isEmpty ? back == "{}\n" : back == original
             check(ok, "claude: round trip of \(original.debugDescription)")
         }
         // Only Deckhand's own entries go; an old 0.4 entry inside the user's list is replaced
-        let mixed = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"\"/old/claude-hook.sh\"","timeout":5}]},{"hooks":[{"type":"command","command":"say"}]}]}}"#
-        let cleaned = (try? ClaudeSettingsFile.removing(from: mixed)) ?? ""
+        let mixed = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"\"/x/Deckhand/claude-hook.sh\"","timeout":5}]},{"hooks":[{"type":"command","command":"say"}]}]}}"#
+        let cleaned = (try? ClaudeSettingsFile.removing(from: mixed, command: command)) ?? ""
         check(cleaned == #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"say"}]}]}}"#, "claude: removes only Deckhand's entries")
         check((try? ClaudeSettingsFile.installing(into: "{ not json", command: command)) == nil
               && (try? ClaudeSettingsFile.installing(into: #"{"hooks": []}"#, command: command)) == nil, "claude: invalid files are refused")
@@ -158,7 +160,7 @@ extension SelfTest {
         try? fm.createSymbolicLink(at: link, withDestinationURL: real)
         let file = ClaudeSettingsFile(url: link)
         let wrote = (try? file.update { try ClaudeSettingsFile.installing(into: $0, command: command) }) ?? false
-        let removed = (try? file.update { try ClaudeSettingsFile.removing(from: $0) }) ?? false
+        let removed = (try? file.update { try ClaudeSettingsFile.removing(from: $0, command: command) }) ?? false
         let isLink = (try? fm.destinationOfSymbolicLink(atPath: link.path)) != nil
         let perms = (try? fm.attributesOfItem(atPath: real.path))?[.posixPermissions] as? Int
         check(wrote && removed && isLink && perms == 0o600 && (try? String(contentsOf: real, encoding: .utf8)) == user
@@ -253,6 +255,100 @@ extension SelfTest {
         }
         let read = ClaudeCodeMonitor.readInbox(files.inbox)
         check(read.map(\.name) == ["UserPromptSubmit", "Stop"] && inbox().isEmpty, "claude: events are read in order and removed")
+    }
+
+    /// Deckhand's entries are told apart by the script's full path, never by its file name.
+    private static func claudeHookPaths(_ check: Check) {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let script = "\(home)/Library/Application Support/Deckhand/claude-hook.sh"
+        let command = "\"\(script)\""
+        for written in [command, script, "'\(script)'", "  \(command) ", "~/Library/Application Support/Deckhand/claude-hook.sh",
+                        "\"~/Library/Application Support/Deckhand/claude-hook.sh\"", "~/Library/Application\\ Support/Deckhand/claude-hook.sh",
+                        "\"$HOME/Library/Application Support/Deckhand/claude-hook.sh\"", "\(home)/Library/Application Support/Deckhand/./claude-hook.sh"] {
+            check(HookCommand.runs(written, script: command), "claude: \(written.replacingOccurrences(of: home, with: "~home")) is Deckhand's")
+        }
+        for foreign in ["~/.other-app/claude-hook.sh", "\"\(home)/.other-notch-app/claude-hook.sh\"", "claude-hook.sh",
+                        "\(home)/Library/Application Support/Fringe/claude-hook.sh", "\(command) --other", "say claude-hook.sh"] {
+            check(!HookCommand.runs(foreign, script: command), "claude: \(foreign.replacingOccurrences(of: home, with: "~home")) is not Deckhand's")
+        }
+        // Another tool's claude-hook.sh stays on install, launch and Disconnect
+        let other = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"~/.other-app/claude-hook.sh"}]}]}}"#
+        let withOurs = (try? ClaudeSettingsFile.installing(into: other, command: command)) ?? ""
+        check(!ClaudeSettingsFile.hasOurs(other, command: command)
+              && (try? ClaudeSettingsFile.removing(from: other, command: command)) == other
+              && withOurs.contains("~/.other-app/claude-hook.sh") && ClaudeSettingsFile.isCurrent(withOurs, command: command)
+              && (try? ClaudeSettingsFile.removing(from: withOurs, command: command)) == other,
+              "claude: another tool's claude-hook.sh is never touched")
+        // Deckhand's handler inside a user's matcher group: only that handler goes
+        let shared = """
+        {"hooks":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"say hi"},{"type":"command","command":\(JSONValue.string(command).render(indent: "", unit: "", pretty: false)),"timeout":5}]}]}}
+        """
+        let sharedRemoved = (try? ClaudeSettingsFile.removing(from: shared, command: command)) ?? ""
+        check(sharedRemoved == #"{"hooks":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"say hi"}]}]}}"#,
+              "claude: removing keeps the user's handlers in a shared group \(sharedRemoved)")
+        let sharedInstalled = (try? ClaudeSettingsFile.installing(into: shared, command: command)) ?? ""
+        let sharedJSON = (try? JSONSerialization.jsonObject(with: Data(sharedInstalled.utf8))) as? [String: Any]
+        let pre = ((sharedJSON?["hooks"] as? [String: Any])?["PreToolUse"] as? [[String: Any]]) ?? []
+        check(!ClaudeSettingsFile.isCurrent(shared, command: command) && ClaudeSettingsFile.isCurrent(sharedInstalled, command: command)
+              && pre.count == 2 && (pre[0]["hooks"] as? [[String: Any]])?.count == 1,
+              "claude: an install moves Deckhand's handler out of the user's group")
+    }
+
+    /// The owner's 0.4.1 settings.json, shape only: two-space indent, " : " separators, no final
+    /// newline, other keys first, seven entries with timeout 5, one written with `~`.
+    private static func claudeOwnerUpgrade(_ check: Check) {
+        let fm = FileManager.default
+        let home = fm.homeDirectoryForCurrentUser.path
+        let files = ClaudeHookFiles(dir: URL(fileURLWithPath: "\(home)/Library/Application Support/Deckhand", isDirectory: true))
+        let command = ClaudeHook.command(for: files)
+        func old(_ written: String, matcher: Bool) -> String {
+            let quoted = JSONValue.string(written).render(indent: "", unit: "", pretty: false)
+            return """
+            [ {
+                  \(matcher ? "\"matcher\" : \"*\",\n          " : "")"hooks" : [ {
+                    "command" : \(quoted),
+                    "timeout" : 5,
+                    "type" : "command"
+                  } ]
+                } ]
+            """
+        }
+        let events: [(String, Bool)] = [("Notification", false), ("PostToolUse", true), ("PreToolUse", true), ("SessionEnd", false),
+                                        ("SessionStart", false), ("Stop", false), ("UserPromptSubmit", false)]
+        let entries = events.enumerated().map { i, item in
+            "    \"\(item.0)\" : " + old(i == 3 ? "\"~/Library/Application Support/Deckhand/claude-hook.sh\"" : command, matcher: item.1)
+        }
+        let original = "{\n  \"agentPushNotifEnabled\" : true,\n  \"env\" : {\n    \"EXAMPLE_FLAG\" : \"1\"\n  },\n  \"hooks\" : {\n"
+            + entries.joined(separator: ",\n") + "\n  }\n}"
+        let dir = fm.temporaryDirectory.appendingPathComponent("deckhand-claude-owner-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: dir) }
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = ClaudeSettingsFile(url: dir.appendingPathComponent("settings.json"))
+        try? Data(original.utf8).write(to: file.url)
+        let parsedOriginal = (try? JSONSerialization.jsonObject(with: Data(original.utf8))) as? [String: Any]
+        check(parsedOriginal != nil && ClaudeSettingsFile.hasOurs(original, command: command) && !ClaudeSettingsFile.isCurrent(original, command: command),
+              "claude upgrade: the 0.4.1 entries are recognized as Deckhand's and outdated")
+        let wrote = (try? file.update { try ClaudeSettingsFile.installing(into: $0, command: command) }) ?? false
+        let upgraded = ((try? file.read()) ?? nil) ?? ""
+        let json = (try? JSONSerialization.jsonObject(with: Data(upgraded.utf8))) as? [String: Any]
+        let hooks = json?["hooks"] as? [String: Any] ?? [:]
+        let exact = ClaudeHook.events.allSatisfy { event in
+            guard let list = hooks[event] as? [[String: Any]], list.count == 1 else { return false }
+            return (list[0] as NSDictionary).isEqual(ClaudeHook.entry(for: event, command: command).foundation)
+        }
+        check(wrote && exact && hooks.count == ClaudeHook.events.count && !upgraded.contains("\"timeout\" : 5") && !upgraded.contains("~/Library"),
+              "claude upgrade: exactly one current Deckhand entry per event")
+        check(json?["agentPushNotifEnabled"] as? Bool == true && (json?["env"] as? NSDictionary) == (parsedOriginal?["env"] as? NSDictionary)
+              && upgraded.hasPrefix("{\n  \"agentPushNotifEnabled\" : true,\n  \"env\" : {\n    \"EXAMPLE_FLAG\" : \"1\"\n  },\n"),
+              "claude upgrade: the other keys stay as written")
+        check(ClaudeSettingsFile.isCurrent(upgraded, command: command)
+              && (try? file.update { try ClaudeSettingsFile.installing(into: $0, command: command) }) == false,
+              "claude upgrade: a second launch writes nothing")
+        check((try? String(contentsOf: file.backup, encoding: .utf8)) == original, "claude upgrade: the backup holds the 0.4.1 file")
+        let removed = (try? ClaudeSettingsFile.removing(from: upgraded, command: command)) ?? ""
+        let removedJSON = (try? JSONSerialization.jsonObject(with: Data(removed.utf8))) as? [String: Any]
+        check(removedJSON?["hooks"] == nil && removedJSON?["agentPushNotifEnabled"] as? Bool == true && removedJSON?.count == 2,
+              "claude upgrade: Disconnect afterwards leaves only the user's keys")
     }
 
     private static func claudeQuickActions(_ check: Check) {

@@ -27,10 +27,14 @@ struct ClaudeSettingsFile {
 
     // MARK: - Pure edits
 
+    // Deckhand's handlers are recognized by the exact path of Deckhand's own script, compared as a
+    // path (`HookCommand`), never by the file name alone, so another tool's `claude-hook.sh` is never
+    // touched. A matcher group is Deckhand's when it holds only Deckhand's handler.
+
     /// The text with Deckhand's entry added to every event, after any hooks the user already has.
     /// Entries from an older Deckhand are replaced.
     static func installing(into text: String, command: String) throws -> String {
-        var doc = try document(removing(from: text))
+        var doc = try document(removing(from: text, command: command))
         guard doc.root.members != nil else { throw invalid }
         for event in ClaudeHook.events {
             let entry = ClaudeHook.entry(for: event, command: command)
@@ -49,15 +53,20 @@ struct ClaudeSettingsFile {
         return doc.text
     }
 
-    /// The text without any of Deckhand's entries. Event lists and the `hooks` object are removed
-    /// only when Deckhand's entries were all they held.
-    static func removing(from text: String) throws -> String {
+    /// The text without Deckhand's handlers. A matcher group goes only when Deckhand's handlers were
+    /// all it held; in a group the user shares, only Deckhand's handler is taken out. Event lists and
+    /// the `hooks` object are removed only when that leaves them empty.
+    static func removing(from text: String, command: String) throws -> String {
+        let script = HookCommand.scriptPath(command)
         var doc = try document(text)
-        while let hooks = doc.root.member("hooks")?.value, let events = hooks.members {
-            guard let (event, list, index) = firstOurs(in: events) else { break }
-            try doc.removeElement(index, of: list)
+        while let found = firstHandler(in: doc, script: script) {
+            if (found.handlers.elements?.count ?? 0) > 1 {
+                try doc.removeElement(found.handler, of: found.handlers)
+                continue
+            }
+            try doc.removeElement(found.group, of: found.list)
             guard let after = doc.root.member("hooks")?.value else { break }
-            if after.member(event)?.value.elements?.isEmpty == true { try doc.removeMember(event, of: after) }
+            if after.member(found.event)?.value.elements?.isEmpty == true { try doc.removeMember(found.event, of: after) }
             if let emptied = doc.root.member("hooks")?.value, emptied.members?.isEmpty == true {
                 try doc.removeMember("hooks", of: doc.root)
             }
@@ -65,20 +74,24 @@ struct ClaudeSettingsFile {
         return doc.text
     }
 
-    /// Whether Deckhand's entries are present at all.
-    static func hasOurs(_ text: String) -> Bool {
-        guard let doc = try? document(text), let events = doc.root.member("hooks")?.value.members else { return false }
-        return firstOurs(in: events) != nil
+    /// Whether any of Deckhand's handlers is present.
+    static func hasOurs(_ text: String, command: String) -> Bool {
+        guard let doc = try? document(text) else { return false }
+        return firstHandler(in: doc, script: HookCommand.scriptPath(command)) != nil
     }
 
     /// Whether the file holds exactly the entries this version of Deckhand would add,
     /// so an update can bring older entries up to date without rewriting a current file.
     static func isCurrent(_ text: String, command: String) -> Bool {
+        let script = HookCommand.scriptPath(command)
         guard let data = text.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let hooks = json["hooks"] as? [String: Any] else { return false }
         for (event, value) in hooks {
-            let ours = (value as? [[String: Any]] ?? []).filter(isOurs)
+            let groups = value as? [[String: Any]] ?? []
+            // Deckhand's handler inside a user's group: rewrite so it stands in its own group
+            if groups.contains(where: { holdsOurs($0, script: script) && !isOurs($0, script: script) }) { return false }
+            let ours = groups.filter { isOurs($0, script: script) }
             if ClaudeHook.events.contains(event) {
                 guard ours.count == 1,
                       (ours[0] as NSDictionary).isEqual(ClaudeHook.entry(for: event, command: command).foundation) else { return false }
@@ -100,21 +113,45 @@ struct ClaudeSettingsFile {
         }
     }
 
-    /// The first matcher group of Deckhand's, as (event name, the event's list, index in the list).
-    private static func firstOurs(in events: [JSONDocument.Member]) -> (String, JSONDocument.Node, Int)? {
+    private struct Found {
+        let event: String
+        /// The event's list of matcher groups and the group's index in it.
+        let list: JSONDocument.Node
+        let group: Int
+        /// The group's handler array and the handler's index in it.
+        let handlers: JSONDocument.Node
+        let handler: Int
+    }
+
+    /// The first handler that runs `script`.
+    private static func firstHandler(in doc: JSONDocument, script: String) -> Found? {
+        guard let events = doc.root.member("hooks")?.value.members else { return nil }
         for member in events {
-            guard let groups = member.value.elements else { continue }
-            if let index = groups.firstIndex(where: isOurs) { return (member.key, member.value, index) }
+            for (g, group) in (member.value.elements ?? []).enumerated() {
+                guard let handlers = group.member("hooks")?.value, let items = handlers.elements else { continue }
+                if let index = items.firstIndex(where: { $0.member("command")?.value.string.map { HookCommand.runs($0, script: script) } ?? false }) {
+                    return Found(event: member.key, list: member.value, group: g, handlers: handlers, handler: index)
+                }
+            }
         }
         return nil
     }
 
-    private static func isOurs(_ group: JSONDocument.Node) -> Bool {
-        group.member("hooks")?.value.elements?.contains { $0.member("command")?.value.string?.contains(ClaudeHook.marker) == true } == true
+    private static func handlers(_ group: [String: Any]) -> [[String: Any]] { group["hooks"] as? [[String: Any]] ?? [] }
+
+    private static func isHandler(_ handler: [String: Any], script: String) -> Bool {
+        (handler["command"] as? String).map { HookCommand.runs($0, script: script) } ?? false
     }
 
-    private static func isOurs(_ group: [String: Any]) -> Bool {
-        (group["hooks"] as? [[String: Any]])?.contains { ($0["command"] as? String)?.contains(ClaudeHook.marker) ?? false } ?? false
+    /// A group with at least one of Deckhand's handlers.
+    private static func holdsOurs(_ group: [String: Any], script: String) -> Bool {
+        handlers(group).contains { isHandler($0, script: script) }
+    }
+
+    /// A group that holds Deckhand's handler and nothing else.
+    private static func isOurs(_ group: [String: Any], script: String) -> Bool {
+        let list = handlers(group)
+        return !list.isEmpty && list.allSatisfy { isHandler($0, script: script) }
     }
 
     // MARK: - Reading and writing

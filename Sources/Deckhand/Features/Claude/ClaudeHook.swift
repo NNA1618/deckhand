@@ -23,7 +23,8 @@ struct ClaudeHookFiles: Sendable {
 /// of a command, the notification type, the error type, the permission mode, the app and the
 /// process id. Prompts, file contents, commands, tool output and Claude's messages never reach the disk.
 enum ClaudeHook {
-    /// Part of the command line, so Deckhand recognizes its own entries in settings.json.
+    /// The script's file name. Deckhand recognizes its entries by the script's full path
+    /// (`HookCommand`), never by this name alone.
     static let marker = "claude-hook.sh"
 
     /// The most event files waiting at once. Deckhand reads them within a second, so a full inbox

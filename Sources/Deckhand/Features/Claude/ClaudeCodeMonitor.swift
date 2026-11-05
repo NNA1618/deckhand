@@ -85,7 +85,8 @@ final class ClaudeCodeMonitor: ObservableObject {
         let file = settingsFile, files = files
         reader.async {
             let text = (try? file.read()) ?? nil
-            var present = text.map(ClaudeSettingsFile.hasOurs) ?? false
+            let command = ClaudeHook.command(for: files)
+            var present = text.map { ClaudeSettingsFile.hasOurs($0, command: command) } ?? false
             if present, upgrade, let text {
                 do {
                     try Self.writeScript(files)
@@ -96,7 +97,7 @@ final class ClaudeCodeMonitor: ObservableObject {
                 } catch {
                     Log.info("claude hooks update failed: \(error.localizedDescription)")
                 }
-                present = ((try? file.read()) ?? nil).map(ClaudeSettingsFile.hasOurs) ?? false
+                present = ((try? file.read()) ?? nil).map { ClaudeSettingsFile.hasOurs($0, command: command) } ?? false
             }
             let connected = present
             Task { @MainActor in ClaudeCodeMonitor.shared.hooksInstalled = connected }
@@ -264,19 +265,21 @@ final class ClaudeCodeMonitor: ObservableObject {
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: files.script.path)
     }
 
+    private func hasOurs(_ text: String) -> Bool { ClaudeSettingsFile.hasOurs(text, command: ClaudeHook.command(for: files)) }
+
     /// Adds Deckhand's hook next to any hooks the user already has.
     func installHooks() throws {
         try Self.writeScript(files)
         try settingsFile.update { try ClaudeSettingsFile.installing(into: $0, command: ClaudeHook.command(for: files)) }
-        hooksInstalled = ((try? settingsFile.read()) ?? nil).map(ClaudeSettingsFile.hasOurs) ?? false
+        hooksInstalled = ((try? settingsFile.read()) ?? nil).map(hasOurs) ?? false
         Log.info("claude hooks installed")
     }
 
     /// Removes Deckhand's entries and the script; the rest of the file stays as it was.
     func removeHooks() throws {
-        try settingsFile.update { try ClaudeSettingsFile.removing(from: $0) }
+        try settingsFile.update { try ClaudeSettingsFile.removing(from: $0, command: ClaudeHook.command(for: files)) }
         try? FileManager.default.removeItem(at: files.script)
-        hooksInstalled = ((try? settingsFile.read()) ?? nil).map(ClaudeSettingsFile.hasOurs) ?? false
+        hooksInstalled = ((try? settingsFile.read()) ?? nil).map(hasOurs) ?? false
         byKey.removeAll()
         publish()
         Log.info("claude hooks removed")
@@ -285,7 +288,7 @@ final class ClaudeCodeMonitor: ObservableObject {
     /// Fills in sample sessions for the snapshot run.
     func showForSnapshot(_ sample: [ClaudeSession]) {
         byKey = Dictionary(sample.map { ($0.key, $0) }) { a, _ in a }
-        hooksInstalled = !sample.isEmpty || (((try? settingsFile.read()) ?? nil).map(ClaudeSettingsFile.hasOurs) ?? false)
+        hooksInstalled = !sample.isEmpty || (((try? settingsFile.read()) ?? nil).map(hasOurs) ?? false)
         publish()
     }
 
