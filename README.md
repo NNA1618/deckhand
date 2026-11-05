@@ -40,7 +40,7 @@ It is a native macOS app written in Swift and SwiftUI. No Electron, no account, 
 **Claude Code in the notch**
 - See every Claude Code session at a glance: which project it works on, the tool it runs right now and for how long. Works for Claude Code in Terminal, editors and the Claude app.
 - While Claude works, a sparkle and the time spent show around the closed notch. When it needs a permission or an answer, the notch shows a raised hand and plays a sound. When a task is done, you get a short notice.
-- Click a session to bring its window to the front. Connect it in Settings → Claude with one click: Deckhand adds a small hook to `~/.claude/settings.json` and keeps a backup.
+- Click a session to bring its app forward: the exact tab in Terminal and iTerm, the project window in VS Code and Cursor. Connect it in Settings → Claude with one click: Deckhand adds its own entries to `~/.claude/settings.json` (or the folder in `CLAUDE_CONFIG_DIR`), changes nothing else in the file and keeps a copy of the original next to it. You can also turn on approving permission requests from the notch.
 
 <p align="center"><img src="docs/images/claude-code.png" width="500" alt="Claude Code working, shown around the notch"></p>
 
@@ -105,7 +105,7 @@ Every shortcut can be changed in Settings → Shortcuts: click it and press new 
 
 ## Privacy
 
-Everything stays on your Mac. The clipboard history lives in `~/Library/Application Support/Deckhand`. Deckhand itself never talks to the network. Claude actions go through your local Claude Code, or to the Anthropic API if you chose an API key. The Claude Code hook only writes event files to that folder; Deckhand reads the project folder name and the tool name and never stores prompts or code.
+Everything stays on your Mac. The clipboard history lives in `~/Library/Application Support/Deckhand`. Deckhand itself never talks to the network. Claude actions go through your local Claude Code, or to the Anthropic API if you chose an API key. The Claude Code hook writes small event files to that folder only while Deckhand is running, and Deckhand deletes each one as soon as it has read it. A file holds the session id, the event, the project folder, the tool with the file name or the first word of a command, and the app the session runs in. Prompts, code, full commands, tool output and Claude's replies are never written to disk.
 
 Permissions macOS may ask for:
 
