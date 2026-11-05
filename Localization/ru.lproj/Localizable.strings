@@ -282,6 +282,78 @@
 
 
 /* == clipboard == */
+"Images" = "Изображения";
+"Files" = "Файлы";
+"Links" = "Ссылки";
+"The image file is missing." = "Файл изображения не найден.";
+"The file no longer exists." = "Файла больше нет.";
+"This item can't be read." = "Не удалось прочитать запись.";
+"Copied. To paste automatically, allow Deckhand in Accessibility." = "Скопировано. Чтобы вставлять автоматически, разрешите Deckhand Универсальный доступ.";
+"Resume Recording" = "Возобновить запись";
+"Pause for 10 Minutes" = "Пауза на 10 минут";
+"Pause for 1 Hour" = "Пауза на 1 час";
+"Pause Until Resumed" = "Пауза до возобновления";
+"Pause Recording" = "Приостановить запись";
+"Recording is paused." = "Запись приостановлена.";
+"Recording is paused until %@." = "Запись приостановлена до %@.";
+"No clipboard history yet" = "История буфера обмена пуста";
+"What you copy shows up here." = "Здесь появится всё, что вы копируете.";
+"Recording is off in Settings." = "Запись истории выключена в настройках.";
+"Pinned" = "Закреплённые";
+"History" = "История";
+"Select" = "Выбрать";
+"Paste as Plain Text" = "Вставить без форматирования";
+"Quick Paste" = "Быстрая вставка";
+"Space" = "Пробел";
+"Preview" = "Просмотр";
+"Clear Search" = "Очистить поиск";
+"Allow…" = "Разрешить…";
+"Dismiss" = "Скрыть";
+"Password" = "Пароль";
+"Link" = "Ссылка";
+"Open Link" = "Открыть ссылку";
+"Unpin" = "Открепить";
+"Close Preview" = "Закрыть просмотр";
+"clipboard.time.now" = "сейчас";
+"clipboard.sample.address" = "Тверская ул., 7, Москва, 125009";
+"clipboard.sample.note" = "Встречу перенесли на четверг, 15:00, переговорная 4.2. Возьмите распечатанные слайды.";
+"Shortcut" = "Сочетание клавиш";
+"Clear clipboard history?" = "Очистить историю буфера обмена?";
+"Clear History" = "Очистить историю";
+"Pinned items stay." = "Закреплённые записи останутся.";
+"Record clipboard history" = "Записывать историю буфера обмена";
+"Keep for" = "Срок хранения";
+"1 day" = "1 день";
+"1 week" = "1 неделя";
+"1 month" = "1 месяц";
+"Forever" = "Без срока";
+"Maximum" = "Максимум";
+/* Only used with 100, 500, 1000 and 5000, which all take this form */
+"%lld items" = "%lld записей";
+"No limit" = "Без ограничений";
+"Save images" = "Сохранять изображения";
+"Largest image" = "Предельный размер изображения";
+"Save copied files" = "Сохранять скопированные файлы";
+"On disk" = "Занято на диске";
+"Clear History…" = "Очистить историю…";
+"Pinned items are never removed automatically." = "Закреплённые записи не удаляются автоматически.";
+"Return and double-click" = "Return и двойной щелчок";
+"Paste into the app" = "Вставляют в приложение";
+"Copy only" = "Только копируют";
+"Accessibility" = "Универсальный доступ";
+"Allowed" = "Разрешён";
+"Not allowed" = "Не разрешён";
+"Pasting" = "Вставка";
+"Pasting into another app needs Accessibility. To paste without formatting, press %@." = "Для вставки в другое приложение нужен Универсальный доступ. Чтобы вставить без форматирования, нажмите %@.";
+"Save copied passwords" = "Сохранять скопированные пароли";
+"Passwords saved earlier are still in the history." = "Пароли, сохранённые раньше, всё ещё в истории.";
+"Remove Saved Passwords" = "Удалить сохранённые пароли";
+"Always treated as passwords" = "Всегда считаются паролями";
+"Passwords" = "Пароли";
+"Keychain Access" = "Связка ключей";
+"Remove %@" = "Удалить %@";
+"Choose…" = "Выбрать…";
+"What you copy in these apps never enters the history." = "Скопированное в этих приложениях не попадает в историю.";
 
 
 /* == prompts == */
