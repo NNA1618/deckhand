@@ -23,7 +23,8 @@ final class ClaudeViewModel: ObservableObject {
     var canRun: Bool { !isRunning && !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && selectedPreset != nil }
 
     func loadFromClipboardIfEmpty() {
-        guard Settings.shared.prefillFromClipboard, inputText.isEmpty, !isRunning,
+        // A snapshot run must never show what the user has copied
+        guard !AppPaths.isSnapshot, Settings.shared.prefillFromClipboard, inputText.isEmpty, !isRunning,
               let s = NSPasteboard.general.prefillText else { return }
         inputText = s
     }
