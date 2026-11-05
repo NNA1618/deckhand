@@ -8,6 +8,9 @@ enum TranslatorCoordinator {
     /// The last app other than Deckhand that was active: where "Paste" sends the translation.
     private static var lastApp: NSRunningApplication?
     private static var observer: NSObjectProtocol?
+    /// A selection read is under way. It may send ⌘C and restore the clipboard, so a second press
+    /// meanwhile would read the first one's restore and leave its own ⌘C on the clipboard.
+    private(set) static var isReadingSelection = false
 
     /// Called once at launch, so the tab can reopen after a download and name the app it pastes into.
     static func install(notch: NotchController) {
@@ -36,7 +39,10 @@ enum TranslatorCoordinator {
             if vm.input.isEmpty { vm.prefillIfNeeded() } else { vm.translate() }
             return
         }
+        guard !isReadingSelection else { return }
+        isReadingSelection = true
         Task {
+            defer { isReadingSelection = false }
             // Read before opening: the panel takes the keyboard focus and the selection with it
             let result = await SelectionReader.read()
             vm.receive(result)
