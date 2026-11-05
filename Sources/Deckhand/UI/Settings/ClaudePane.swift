@@ -21,11 +21,13 @@ struct ClaudePane: View {
             quickActionsSection
             presetsSection
         }
-        .task(id: settings.claudeBackend) { await checkCLI(force: false) }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
-            monitor.refreshConnection()
+        .onChange(of: settings.claudeBackend) { Task { await checkCLI(force: false) } }
+        // Only the Settings window coming forward re-checks; the notch panel becoming key must not
+        // start `claude auth status` each time
+        .onSettingsActivation {
+            if !AppPaths.isSnapshot { monitor.refreshConnection() }
             hasKey = ClaudeAPI.shared.hasAPIKey
-            Task { await checkCLI(force: false) }
+            await checkCLI(force: false)
         }
         .confirmationDialog("Disconnect Claude Code?", isPresented: $confirmDisconnect) {
             Button("Disconnect", role: .destructive) {
@@ -291,7 +293,7 @@ struct ClaudePane: View {
         cliPath = await Task.detached { ClaudeCLI.resolve(force: force) }.value
         auth = cliPath == nil ? nil : await ClaudeCLI.authStatus()
         if let dir = auth?.configDirectory, !dir.isEmpty, !AppPaths.isSnapshot {
-            monitor.setConfigDirectory(URL(fileURLWithPath: dir, isDirectory: true))
+            monitor.setConfigDirectory(URL(fileURLWithPath: (dir as NSString).expandingTildeInPath, isDirectory: true))
         }
         checking = false
     }

@@ -165,10 +165,20 @@ enum ClaudeCLI {
         return result
     }
 
+    /// The environment additions for running `claude`: its PATH and, when the login shell sets it,
+    /// `CLAUDE_CONFIG_DIR`, so calls and the sign-in check use the same config folder whose
+    /// settings.json Deckhand edits.
+    nonisolated static func environment(for location: Location, _ extra: [String: String] = [:]) -> [String: String] {
+        var env = ["PATH": location.searchPath]
+        if let dir = location.configDirectory, !dir.isEmpty { env["CLAUDE_CONFIG_DIR"] = (dir as NSString).expandingTildeInPath }
+        env.merge(extra) { $1 }
+        return env
+    }
+
     /// The flags the installed version lists, read once per binary.
     nonisolated static func capabilities(for location: Location) -> Capabilities {
         if let known = cache.withLock({ $0.capabilities[location.path] }) { return known }
-        let help = (try? ProcessRunner.runSync(location.path, ["--help"], timeout: 10, env: ["PATH": location.searchPath]))?.stdout ?? ""
+        let help = (try? ProcessRunner.runSync(location.path, ["--help"], timeout: 10, env: environment(for: location)))?.stdout ?? ""
         let found = Capabilities.parse(help: help)
         if !help.isEmpty { cache.withLock { $0.capabilities[location.path] = found } }
         return found
@@ -186,7 +196,7 @@ enum ClaudeCLI {
     static func authStatus() async -> AuthStatus? {
         guard let location = await Task.detached(operation: { resolve().flatMap { _ in ClaudeCLI.location } }).value,
               let out = try? await ProcessRunner.run(location.path, ["auth", "status", "--json"], timeout: 15,
-                                                     env: ["PATH": location.searchPath, "DECKHAND_INTERNAL": "1"]),
+                                                     env: environment(for: location, ["DECKHAND_INTERNAL": "1"])),
               let data = out.stdout.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         return AuthStatus(loggedIn: json["loggedIn"] as? Bool ?? false,
@@ -202,7 +212,8 @@ enum ClaudeCLI {
         guard let location else { return }
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("deckhand-claude-login.command")
         func quote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
-        let script = "#!/bin/sh\nexport PATH=\(quote(location.searchPath))\n\(quote(location.path)) auth login\n"
+        let config = environment(for: location)["CLAUDE_CONFIG_DIR"].map { "export CLAUDE_CONFIG_DIR=\(quote($0))\n" } ?? ""
+        let script = "#!/bin/sh\nexport PATH=\(quote(location.searchPath))\n\(config)\(quote(location.path)) auth login\n"
         try? script.write(to: file, atomically: true, encoding: .utf8)
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
         NSWorkspace.shared.open(file)
@@ -261,7 +272,7 @@ enum ClaudeCLI {
         for (name, data) in files { try data.write(to: dir.appendingPathComponent(name)) }
 
         let out = try await ProcessRunner.run(location.path, args, input: input, timeout: 180, cwd: dir,
-                                              env: ["DECKHAND_INTERNAL": "1", "PATH": location.searchPath])
+                                              env: environment(for: location, ["DECKHAND_INTERNAL": "1"]))
         if out.stopped { throw Failure(message: String(localized: "Claude Code did not answer in time")) }
         let text = out.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         if out.status == 0, !text.isEmpty { return text }

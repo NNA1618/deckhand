@@ -499,6 +499,13 @@ extension SelfTest {
         check(stopped?.stopped == true && child > 0 && gone, "claude: stopping a tool ends its background children")
         if child > 0 && !gone { kill(child, SIGKILL) }
 
+        // CLAUDE_CONFIG_DIR from the login shell reaches every claude call
+        let location = ClaudeCLI.Location(path: "/usr/bin/true", searchPath: "/usr/bin", configDirectory: "~/cc")
+        let env = ClaudeCLI.environment(for: location, ["DECKHAND_INTERNAL": "1"])
+        let plain = ClaudeCLI.environment(for: ClaudeCLI.Location(path: "/usr/bin/true", searchPath: "/usr/bin", configDirectory: nil))
+        check(env["CLAUDE_CONFIG_DIR"] == FileManager.default.homeDirectoryForCurrentUser.path + "/cc" && env["PATH"] == "/usr/bin"
+              && env["DECKHAND_INTERNAL"] == "1" && plain["CLAUDE_CONFIG_DIR"] == nil,
+              "claude: the shell's CLAUDE_CONFIG_DIR is passed to claude")
     }
 
     private static func claudeQuickActions(_ check: Check) {
