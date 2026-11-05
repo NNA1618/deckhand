@@ -6,7 +6,6 @@ struct ClipboardPane: View {
     @ObservedObject private var settings = Settings.shared
     @ObservedObject private var clip = ClipboardSettings.shared
     @State private var diskUsage: Int64?
-    @State private var confirmClear = false
     @State private var accessibility = PasteService.isTrusted
     @State private var secretCount = 0
 
@@ -19,28 +18,19 @@ struct ClipboardPane: View {
             passwords
             ignoredApps
             Section {
-                LabeledContent("Shortcut") { ShortcutRecorder(action: .clipboard) }
+                ShortcutRow(action: .clipboard, title: String(localized: "Shortcut"))
             }
         }
-        .onAppear(perform: refresh)
+        .onSettingsActivation { refresh() }
         .onReceive(NotificationCenter.default.publisher(for: .clipboardHistoryChanged)) { _ in refresh() }
         .onReceive(accessibilityTimer) { _ in accessibility = PasteService.isTrusted }
-        .alert("Clear clipboard history?", isPresented: $confirmClear) {
-            Button("Clear History", role: .destructive) {
-                ClipboardStore.shared.clearHistory()
-                refresh()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Pinned items stay.")
-        }
     }
 
     // MARK: - Sections
 
     private var history: some View {
         Section {
-            Toggle("Record clipboard history", isOn: $clip.recordHistory)
+            SettingsToggleRow(String(localized: "Record clipboard history"), isOn: $clip.recordHistory)
             Picker("Keep for", selection: $clip.historyMaxAgeDays) {
                 Text("1 day").tag(1)
                 Text("1 week").tag(7)
@@ -53,33 +43,38 @@ struct ClipboardPane: View {
                 }
                 Text("No limit").tag(0)
             }
-            Toggle("Save images", isOn: $clip.saveImages)
+            SettingsToggleRow(String(localized: "Save images"), isOn: $clip.saveImages)
             Picker("Largest image", selection: $clip.maxImageMB) {
                 Text(megabytes(5)).tag(5)
                 Text(megabytes(20)).tag(20)
                 Text("No limit").tag(0)
             }
             .disabled(!clip.saveImages)
-            Toggle("Save copied files", isOn: $clip.saveFiles)
-            LabeledContent("On disk") {
-                HStack(spacing: 10) {
-                    Text(diskUsage.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "…")
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                    Button("Show in Finder") {
-                        NSWorkspace.shared.activateFileViewerSelecting([AppPaths.clipboardImagesDir])
-                    }
+            SettingsToggleRow(String(localized: "Save copied files"), isOn: $clip.saveFiles)
+            SettingsRow(String(localized: "On disk")) {
+                Text(diskUsage.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "…")
+                    .font(Theme.label)
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.fgDim)
+                Button("Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([AppPaths.clipboardImagesDir])
                 }
-            }
-            HStack {
-                Spacer()
-                Button("Clear History…", role: .destructive) { confirmClear = true }
+                .buttonStyle(.settings)
+                ConfirmedButton(
+                    title: String(localized: "Clear History…"),
+                    alertTitle: String(localized: "Clear clipboard history?"),
+                    message: String(localized: "Pinned items stay."),
+                    confirmTitle: String(localized: "Clear History"),
+                    action: {
+                        ClipboardStore.shared.clearHistory()
+                        refresh()
+                    }
+                )
             }
         } header: {
             Text("History")
         } footer: {
-            Text("Pinned items are never removed automatically.")
-                .font(.caption).foregroundStyle(.secondary)
+            SettingsFooter("Pinned items are never removed automatically.")
         }
     }
 
@@ -89,61 +84,45 @@ struct ClipboardPane: View {
                 Text("Paste into the app").tag(true)
                 Text("Copy only").tag(false)
             }
-            LabeledContent("Accessibility") {
-                HStack(spacing: 8) {
-                    Image(systemName: accessibility ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .foregroundStyle(accessibility ? .green : .orange)
-                    Text(accessibility ? "Allowed" : "Not allowed")
-                        .foregroundStyle(.secondary)
-                    if !accessibility {
-                        Button("Allow…") { PasteService.requestAccess() }
-                    }
+            SettingsRow(String(localized: "Accessibility"), icon: .symbol("accessibility", .blue)) {
+                PermissionsPane.chip(allowed: accessibility)
+                if !accessibility {
+                    Button("Allow…") { PasteService.requestAccess() }
+                        .buttonStyle(.settings(.prominent))
                 }
             }
         } header: {
             Text("Pasting")
         } footer: {
-            Text("Pasting into another app needs Accessibility. To paste without formatting, press \("⌥↩").")
-                .font(.caption).foregroundStyle(.secondary)
+            SettingsFooter("Pasting into another app needs Accessibility. To paste without formatting, press \("⌥↩").")
         }
     }
 
     private var passwords: some View {
         Section {
-            Toggle("Save copied passwords", isOn: $settings.savePasswordsToHistory)
+            SettingsToggleRow(String(localized: "Save copied passwords"), isOn: $settings.savePasswordsToHistory)
             if !settings.savePasswordsToHistory && secretCount > 0 {
-                HStack {
-                    Text("Passwords saved earlier are still in the history.")
-                        .foregroundStyle(.secondary)
-                    Spacer()
+                SettingsRow(String(localized: "Passwords saved earlier are still in the history."),
+                            icon: .symbol("key.fill", .gray)) {
                     Button("Remove Saved Passwords") {
                         ClipboardStore.shared.deleteSecrets()
                         refresh()
                     }
+                    .buttonStyle(.settings)
                 }
             }
-            LabeledContent("Always treated as passwords") {
-                Text(passwordAppNames)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.trailing)
-            }
+            SettingsRow(String(localized: "Always treated as passwords"), detail: passwordAppNames)
         } header: {
             Text("Passwords")
         } footer: {
-            Text("Passwords from password managers always paste normally. This only controls whether they stay in the history.")
-                .font(.caption).foregroundStyle(.secondary)
+            SettingsFooter("Passwords from password managers always paste normally. This only controls whether they stay in the history.")
         }
     }
 
     private var ignoredApps: some View {
         Section {
             ForEach(settings.excludedApps, id: \.self) { bundleId in
-                HStack(spacing: 8) {
-                    if let icon = AppIconCache.icon(bundleId: bundleId) {
-                        Image(nsImage: icon).resizable().frame(width: 18, height: 18)
-                    }
-                    Text(appName(bundleId))
-                    Spacer()
+                SettingsRow(appName(bundleId), icon: AppIconCache.icon(bundleId: bundleId).map(SettingsRowIcon.image)) {
                     Button {
                         settings.excludedApps.removeAll { $0 == bundleId }
                     } label: {
@@ -167,8 +146,7 @@ struct ClipboardPane: View {
         } header: {
             Text("Ignore apps")
         } footer: {
-            Text("What you copy in these apps never enters the history.")
-                .font(.caption).foregroundStyle(.secondary)
+            SettingsFooter("What you copy in these apps never enters the history.")
         }
     }
 
