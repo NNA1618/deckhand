@@ -24,7 +24,7 @@ enum TranslationDownloader {
         current = nil
         TranslationEngine.shared.forgetStatus()
         guard finished else { return false }
-        return await TranslationEngine.shared.status(from: source, to: target) == .installed
+        return (try? await TranslationEngine.shared.status(from: source, to: target)) == .installed
     }
 }
 
