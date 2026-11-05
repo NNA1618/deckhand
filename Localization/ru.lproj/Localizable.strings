@@ -270,6 +270,75 @@
 /* ===== Workstream sections for 0.5. Add new strings only under your own marker, keep the blank lines. ===== */
 
 /* == notch == */
+"Open the panel" = "Открывать панель";
+"When the pointer rests on the notch" = "При наведении на чёлку";
+"When I click the notch" = "По щелчку на чёлке";
+"On hover or click" = "При наведении или по щелчку";
+"Only with the shortcut" = "Только сочетанием клавиш";
+"Hover delay" = "Задержка наведения";
+"Hover area" = "Зона наведения";
+"hoverArea.narrow" = "Узкая";
+"hoverArea.standard" = "Обычная";
+"hoverArea.wide" = "Широкая";
+"Haptic feedback" = "Отклик трекпада";
+"Don't open over full-screen apps" = "Не открывать поверх полноэкранных приложений";
+"Open the Shelf when files are dragged to the notch" = "Открывать полку, когда на чёлку перетаскивают файлы";
+"Opening" = "Открытие";
+"The panel opens when the pointer stops on the notch, not when it passes by. The shortcut opens it in any mode." = "Панель открывается, когда указатель останавливается на чёлке, а не проходит мимо. Сочетание клавиш открывает её в любом режиме.";
+"Close the panel" = "Закрывать панель";
+"When the pointer leaves" = "Когда указатель уходит";
+"On click outside or Esc" = "По щелчку снаружи или Esc";
+"Close delay" = "Задержка закрытия";
+"Closing" = "Закрытие";
+"Esc, the shortcut and a click outside always close it." = "Esc, сочетание клавиш и щелчок снаружи закрывают её всегда.";
+"panelStyle.clear" = "Прозрачный";
+"panelStyle.solid" = "Непрозрачный";
+"Size" = "Размер";
+"Preview" = "Просмотр";
+"Preview on Screen" = "Показать на экране";
+"Look" = "Внешний вид";
+"Clear shows more of what is behind the panel. Solid turns glass off." = "Через прозрачную панель лучше видно, что под ней. Непрозрачная — без стекла.";
+"Liquid Glass needs macOS 26. On this Mac the panel uses a blur." = "Для Liquid Glass нужна macOS 26. На этом Mac панель размыта.";
+"Display" = "Дисплей";
+"Built-in" = "Встроенный";
+"Main (with the menu bar)" = "Основной (со строкой меню)";
+"The one with the pointer" = "Тот, где указатель";
+"Without a notch" = "Без чёлки";
+"Black pill" = "Чёрная плашка";
+"Nothing until hovered" = "Ничего, пока не наведёте";
+"Displays" = "Дисплеи";
+"Used when the lid is closed or a display has no notch." = "Когда крышка закрыта или у дисплея нет чёлки.";
+"Restore Defaults…" = "Восстановить настройки по умолчанию…";
+"Restore the default notch and panel settings?" = "Восстановить исходные настройки чёлки и панели?";
+"Restore" = "Восстановить";
+"Opening, closing, look and displays go back to the defaults. Tabs stay as they are." = "Открытие, закрытие, внешний вид и дисплеи вернутся к исходным. Вкладки останутся как есть.";
+"While a session works or waits for you" = "Пока сессия работает или ждёт вас";
+"Claude Code isn't connected." = "Claude Code не подключён.";
+"Connect in Claude" = "Подключить в разделе Claude";
+"Time left" = "Оставшееся время";
+"Track name while music plays" = "Название трека, пока играет музыка";
+"A cup and the time left" = "Чашка и оставшееся время";
+"Hide in full screen" = "Скрывать в полноэкранном режиме";
+"Open the panel when pointing at a badge" = "Открывать панель при наведении на значок";
+"Badges" = "Значки";
+"One badge shows at a time, in this order. Badges sit over menu-bar items, so pointing at them opens nothing unless you turn that on." = "Одновременно виден один значок, в этом порядке. Значки лежат поверх пунктов строки меню, поэтому наведение на них ничего не открывает, если не включить это.";
+"Screenshot copied" = "Снимок скопирован";
+"Text from screen" = "Текст с экрана";
+"Copied or not found" = "Скопирован или не найден";
+"Color copied" = "Цвет скопирован";
+"Keep Awake on or off" = "«Не спать» включён или выключен";
+"Timer finished" = "Таймер закончился";
+"Charger connected" = "Подключена зарядка";
+"Low battery" = "Низкий заряд";
+"At 20% and 10%" = "При 20% и 10%";
+"Claude finished a task" = "Claude закончил задачу";
+"Claude needs you" = "Claude ждёт вас";
+"Duration" = "Длительность";
+"Notices" = "Уведомления в чёлке";
+"Notices that need you — Claude is waiting, the timer is up — stay until you point at them or open the panel." = "Уведомления, которые ждут вас (Claude ждёт, время вышло), остаются, пока вы не наведёте на них указатель или не откроете панель.";
+"Sounds" = "Звуки";
+"None" = "Нет";
+"Play" = "Воспроизвести";
 
 
 /* == panel == */

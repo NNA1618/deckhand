@@ -31,16 +31,21 @@ enum Theme {
 
 // MARK: - Glass
 
-/// Liquid Glass on macOS 26, a regular blur on older systems.
+/// Liquid Glass on macOS 26, a blur with a tint layer on older systems.
 struct GlassBackground: NSViewRepresentable {
     var cornerRadius: CGFloat
     var style: PanelStyle = .tinted
     /// Darkness of the tint, 0...1.
     var tint: Double = 0.38
 
+    /// White text needs some darkness behind it whatever the wallpaper, so the tint never drops below a floor.
+    /// Clear keeps only part of the tint so more of the background shows through.
+    static func effectiveTint(style: PanelStyle, tint: Double) -> Double {
+        style == .clear ? max(tint * 0.5, 0.12) : max(tint, 0.2)
+    }
+
     private var tintColor: NSColor {
-        // Clear glass keeps only part of the tint so the background shows through
-        NSColor.black.withAlphaComponent(style == .clear ? tint * 0.5 : tint)
+        NSColor.black.withAlphaComponent(Self.effectiveTint(style: style, tint: tint))
     }
 
     func makeNSView(context: Context) -> NSView {
@@ -58,18 +63,12 @@ struct GlassBackground: NSViewRepresentable {
             glass.cornerRadius = cornerRadius
             glass.tintColor = tintColor
             glass.style = style == .clear ? .clear : .regular
+            glass.appearance = NSAppearance(named: .darkAqua)
             return glass
         }
         #endif
-        let blur = NSVisualEffectView()
-        blur.material = .hudWindow
-        blur.blendingMode = .behindWindow
-        blur.state = .active
-        blur.appearance = NSAppearance(named: .darkAqua)
-        blur.wantsLayer = true
-        blur.layer?.cornerRadius = cornerRadius
-        blur.layer?.cornerCurve = .continuous
-        blur.layer?.masksToBounds = true
+        let blur = TintedBlurView()
+        blur.update(cornerRadius: cornerRadius, style: style, tint: tintColor)
         return blur
     }
 
@@ -82,7 +81,42 @@ struct GlassBackground: NSViewRepresentable {
             return
         }
         #endif
+        if let blur = view as? TintedBlurView {
+            blur.update(cornerRadius: cornerRadius, style: style, tint: tintColor)
+            return
+        }
         view.layer?.cornerRadius = cornerRadius
+    }
+}
+
+/// The macOS 15 panel: a dark behind-window blur with a black layer on top, so Clear and Tinted
+/// and the Tint slider make a visible difference there too.
+final class TintedBlurView: NSView {
+    private let blur = NSVisualEffectView()
+    private let tintView = NSView()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        layer?.cornerCurve = .continuous
+        blur.blendingMode = .behindWindow
+        blur.state = .active
+        blur.appearance = NSAppearance(named: .darkAqua)
+        for view in [blur, tintView] {
+            view.frame = bounds
+            view.autoresizingMask = [.width, .height]
+            addSubview(view)
+        }
+        tintView.wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    func update(cornerRadius: CGFloat, style: PanelStyle, tint: NSColor) {
+        blur.material = style == .clear ? .underWindowBackground : .hudWindow
+        layer?.cornerRadius = cornerRadius
+        tintView.layer?.backgroundColor = tint.cgColor
     }
 }
 
