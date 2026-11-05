@@ -162,6 +162,8 @@ final class PromptHelper: ObservableObject {
 
     /// Starts with copied text when the field is empty and the clipboard changed since the last time.
     func prefillFromClipboard() {
+        // A snapshot run must never put the user's clipboard into a screenshot
+        guard !AppPaths.isSnapshot else { return }
         let pb = NSPasteboard.general
         guard Settings.shared.prefillFromClipboard, prompt.isEmpty, pb.changeCount != prefilledChangeCount else { return }
         prefilledChangeCount = pb.changeCount
