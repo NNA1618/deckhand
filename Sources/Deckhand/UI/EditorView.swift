@@ -163,7 +163,7 @@ struct EditorView: View {
 
             HStack(spacing: 0) {
                 iconButton("text.viewfinder", "Copy Text from Image", keys: nil, enabled: true) { model.copyRecognizedText() }
-                iconButton("sparkle", "Ask Claude", keys: nil, enabled: true, agent: .claudeCode) { model.askVisible.toggle() }
+                iconButton(AgentProvider.claudeCode.fallbackSymbol, "Ask Claude", keys: nil, enabled: true, agent: .claudeCode) { model.askVisible.toggle() }
                 iconButton("pin", "Pin on Screen", keys: nil, enabled: true) {
                     model.commitText()
                     if let image = model.renderNSImage() { PinnedImageWindow.show(image) }
