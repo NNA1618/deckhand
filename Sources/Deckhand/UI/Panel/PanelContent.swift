@@ -56,6 +56,8 @@ struct PanelContent: View {
             resetTabAfterClose()
         }
         .onChange(of: vm.tab, initial: true) { _, tab in
+            // A snapshot run of the installed app shares the user's defaults; it must not change them
+            guard !AppPaths.isSnapshot else { return }
             panelSettings.lastTab = tab.rawValue
         }
     }

@@ -530,6 +530,8 @@ final class ColorPanelBridge: NSObject {
         guard self.owner === owner || self.owner == nil else { return }
         onChange = nil
         self.owner = nil
+        // NSColorPanel.shared creates the panel, and with it a saved panel state; only touch one that exists
+        guard NSColorPanel.sharedColorPanelExists else { return }
         let panel = NSColorPanel.shared
         panel.setTarget(nil)
         panel.setAction(nil)
