@@ -161,16 +161,32 @@ enum Snapshot {
         }
     }
 
-    /// Every Settings section. Owned by the Settings workstream.
+    /// Every Settings section, the end of long panes, and the sidebar search with and without
+    /// results. Owned by the Settings workstream.
     static func settingsWindow(dir: URL) async {
-        SettingsWindow.show()
-        for tab in SettingsSection.allCases {
-            SettingsRouter.shared.section = tab
-            try? await Task.sleep(for: .milliseconds(700))
-            if let window = SettingsWindow.window {
-                save(window, cutout: nil, to: dir.appendingPathComponent("settings-\(tab.rawValue).png"))
+        let router = SettingsRouter.shared
+        router.searchText = ""
+        SettingsWindow.show(.general)
+        try? await Task.sleep(for: .milliseconds(600))
+        for section in SettingsSection.allCases {
+            router.section = section
+            try? await Task.sleep(for: .milliseconds(800))
+            guard let window = SettingsWindow.window else { continue }
+            save(window, cutout: nil, to: dir.appendingPathComponent("settings-\(section.rawValue).png"))
+            if SettingsWindow.scrollPaneToEnd() {
+                try? await Task.sleep(for: .milliseconds(300))
+                save(window, cutout: nil, to: dir.appendingPathComponent("settings-\(section.rawValue)-end.png"))
             }
         }
+        // "key" finds Claude's API key and Shortcuts in English and in Russian; "zzz" finds nothing
+        for (name, query) in [("search", "key"), ("search-empty", "zzz")] {
+            router.searchText = query
+            try? await Task.sleep(for: .milliseconds(500))
+            if let window = SettingsWindow.window {
+                save(window, cutout: nil, to: dir.appendingPathComponent("settings-\(name).png"))
+            }
+        }
+        router.searchText = ""
         SettingsWindow.window?.close()
     }
 
