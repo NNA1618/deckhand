@@ -1,17 +1,12 @@
 /* Russian translation of Deckhand. Keys are the English UI strings. */
 
 "%lld on the shelf" = "На полке: %lld";
-"100 items" = "100 элементов";
-"1000 items" = "1000 элементов";
-"500 items" = "500 элементов";
 "API key" = "Ключ API";
 "Add App…" = "Добавить приложение…";
 "Add Folder…" = "Добавить папку…";
 "Add to Shelf" = "Положить на полку";
-"Add watched folders in Settings" = "Добавьте папки в настройках";
 "Add your Claude API key" = "Добавьте ключ API Claude";
 "AirDrop" = "AirDrop";
-"AirDrop All" = "Всё по AirDrop";
 "All" = "Все";
 "Arrow" = "Стрелка";
 "Cancel" = "Отменить";
@@ -20,20 +15,15 @@
 "Category" = "Категория";
 "Claude" = "Claude";
 "Clear" = "Очистить";
-"Click a shortcut and press new keys. Use ⌘, ⌥ or ⌃. Esc cancels, ⌫ clears." = "Нажмите на сочетание и введите новое. Нужны ⌘, ⌥ или ⌃. Esc отменяет, ⌫ удаляет.";
-"Click an image to edit it" = "Нажмите на картинку, чтобы изменить её";
-"Clipboard" = "Буфер";
-"Clipboard is empty" = "Буфер пуст";
+"Clipboard" = "Буфер обмена";
 "Copied" = "Скопировано";
 "Copied to clipboard" = "Скопировано";
-"Copy" = "Копировать";
+"Copy" = "Скопировать";
 "Copy and close" = "Скопировать и закрыть";
-"Copy something or capture an area with ⌘⇧S" = "Скопируйте что-нибудь или сделайте снимок области ⌘⇧S";
 "Could not read the API response" = "Не удалось прочитать ответ API";
 "Crop" = "Обрезать";
 "Custom color" = "Свой цвет";
 "Deckhand" = "Deckhand";
-"Deckhand Settings" = "Настройки Deckhand";
 "Delete" = "Удалить";
 "Done" = "Готово";
 "Drop files on the notch or here" = "Перетащите файлы на чёлку или сюда";
@@ -54,9 +44,7 @@
 "Improve Prompt" = "Улучшить промпт";
 "Improve with Claude" = "Улучшить с Claude";
 "It is stored in your Mac's Keychain and only used to talk to the Anthropic API." = "Он хранится в связке ключей Mac и используется только для запросов к API Anthropic.";
-"Keep history" = "Хранить историю";
 "Language" = "Язык";
-"Last 14 days" = "За 14 дней";
 "Line" = "Линия";
 "Medium" = "Средне";
 "Music" = "Музыка";
@@ -67,7 +55,6 @@
 "No response from the API" = "API не ответил";
 "Not set" = "Не задано";
 "Nothing is playing" = "Ничего не играет";
-"Nothing new yet" = "Пока ничего нового";
 "Open" = "Открыть";
 "Open Deckhand" = "Открыть Deckhand";
 "Open Settings" = "Открыть настройки";
@@ -76,25 +63,20 @@
 "Passwords from password managers always paste normally. This only controls whether they stay in the history." = "Пароли из менеджеров паролей всегда вставляются как обычно. Этот параметр решает только, остаются ли они в истории.";
 "Pen" = "Карандаш";
 "Pin" = "Закрепить";
-"Play still works: it sends the system media key to whatever player you use" = "Кнопка воспроизведения всё равно работает: она отправляет системную медиаклавишу любому плееру";
 "Press keys…" = "Нажмите клавиши…";
 "Prompt" = "Промпт";
 "Prompts" = "Промпты";
 "Quit Deckhand" = "Завершить Deckhand";
 "Recent images and videos" = "Недавние изображения и видео";
 "Recents" = "Недавние";
-"Recents shows images and videos from these folders for the last 14 days, for example generations you downloaded from Higgsfield." = "Во вкладке «Свежее» видны картинки и видео из этих папок за 14 дней, например генерации, скачанные из Higgsfield.";
 "Rectangle" = "Прямоугольник";
-"Redo ⇧⌘Z" = "Повторить ⇧⌘Z";
 "Remove" = "Удалить";
 "Remove from Shelf" = "Убрать с полки";
-"Restore Defaults" = "Вернуть по умолчанию";
+"Restore Defaults" = "Восстановить настройки по умолчанию";
 "Review Code" = "Ревью кода";
 "Rewrite" = "Переписать";
 "Run" = "Запустить";
 "Save" = "Сохранить";
-"Save copied passwords to history" = "Сохранять скопированные пароли в историю";
-"Save to Keychain" = "Сохранить в связку ключей";
 "Saved" = "Сохранено";
 "Saved in Keychain" = "Сохранён в связке ключей";
 "Screenshot" = "Снимок";
@@ -104,9 +86,7 @@
 "Shelf" = "Полка";
 "Shortcuts" = "Сочетания клавиш";
 "Shorten" = "Сократить";
-"Show a notice in the notch after a screenshot" = "Показывать уведомление в чёлке после снимка";
 "Show in Finder" = "Показать в Finder";
-"Taken by another app. Pick a different shortcut." = "Занято другим приложением. Выберите другое сочетание.";
 "Text" = "Текст";
 "The translation appears here" = "Здесь появится перевод";
 "Then drag them anywhere you need" = "Потом перетаскивайте их куда нужно";
@@ -115,14 +95,8 @@
 "Title" = "Название";
 "To English" = "На английский";
 "Translate" = "Перевод";
-"Translation is not available on this Mac" = "Перевод недоступен на этом Mac";
-"Undo ⌘Z" = "Отменить ⌘Z";
-"Unlimited" = "Без ограничения";
 "Version" = "Версия";
 "Watched folders" = "Отслеживаемые папки";
-"Save ⌘S" = "Сохранить ⌘S";
-"Copy ⌘C" = "Копировать ⌘C";
-"Copy text from screen area" = "Текст с экрана в буфер";
 "Pick a color from screen" = "Цвет с экрана";
 "No text found" = "Текст не найден";
 "Text copied" = "Текст скопирован";
@@ -131,51 +105,34 @@
 "Blur" = "Размытие";
 "Ask Claude" = "Спросить Claude";
 "Pin on Screen" = "Закрепить поверх окон";
-"Ask Claude about this image" = "Спросите Claude про картинку";
-"What is on this screenshot?" = "Что на этом скриншоте?";
+"What is on this screenshot?" = "Что на этом снимке?";
 "Ask" = "Спросить";
 "Close" = "Закрыть";
-"What is on this screenshot? Point out anything important." = "Что на этом скриншоте? Отметь всё важное.";
-"Show the playing track around the notch" = "Показывать играющий трек вокруг чёлки";
+"What is on this screenshot? Point out anything important." = "Что на этом снимке? Отметь всё важное.";
 "Paste into the app you were using" = "Вставить в приложение, где вы работали";
 "Appearance" = "Оформление";
 "Panel" = "Панель";
 "Style" = "Стиль";
 "Transparent" = "Прозрачный";
 "Tinted" = "Тонированный";
-"Solid" = "Плотный";
+"Solid" = "Непрозрачный";
 "Tint" = "Тонировка";
-"Panel size" = "Размер панели";
 "Compact" = "Компактный";
 "Standard" = "Обычный";
 "Large" = "Большой";
-"Transparent shows more of what is behind the panel. Solid turns glass off." = "Прозрачный сильнее показывает то, что под панелью. Плотный выключает стекло.";
-"Show Panel" = "Показать панель";
 "Behavior" = "Поведение";
-"Open when the pointer rests on the notch" = "Открывать, когда курсор задерживается на чёлке";
 "Delay" = "Задержка";
-"Instant" = "Сразу";
 "Short" = "Короткая";
 "Long" = "Длинная";
-"Stay hidden while an app is in full screen" = "Не открывать, пока приложение во весь экран";
-"Shortcuts and files dragged to the notch open the panel either way." = "Хоткеи и файлы, перетащенные на чёлку, открывают панель в любом случае.";
-"↑↓ to pick, Return to paste, ⌘1–9 for the first nine" = "↑↓ выбрать, Return вставить, ⌘1–9 первые девять";
 "Keep Awake" = "Не спать";
-"Keep Mac awake" = "Не давать Mac уснуть";
 "Until turned off" = "Пока не выключите";
-"On until turned off" = "Включено, пока не выключите";
 "On, %@ left" = "Включено, осталось %@";
 "Off" = "Выключено";
-"Awake until turned off" = "Не сплю, пока не выключите";
-"Awake for %@" = "Не сплю: %@";
-"Sleep as usual" = "Сон как обычно";
+"Awake for %@" = "«Не спать»: %@";
 "Default length" = "Длительность по умолчанию";
-"Let the display sleep" = "Разрешить дисплею гаснуть";
-"Show a cup around the notch while awake" = "Показывать чашку у чёлки, пока включено";
 "Stops the Mac from sleeping when idle. With the lid closed it still sleeps unless an external display, keyboard and power are connected." = "Не даёт Mac уснуть от бездействия. С закрытой крышкой он всё равно уснёт, если не подключены внешний монитор, клавиатура и питание.";
 "Charging, %lld%%" = "Заряжается, %lld%%";
 "Battery %lld%%" = "Батарея %lld%%";
-"Show charging and low battery in the notch" = "Показывать зарядку и низкий заряд в чёлке";
 
 /* Claude Code in the notch */
 "Claude Code" = "Claude Code";
@@ -185,7 +142,7 @@
 "Disconnect" = "Отключить";
 "Connected" = "Подключено";
 "Not connected" = "Не подключено";
-"Status" = "Статус";
+"Status" = "Состояние";
 "No sessions right now. Start Claude Code in Terminal or the Claude app." = "Сейчас сессий нет. Запустите Claude Code в Терминале или в приложении Claude.";
 "Working" = "Работает";
 "Needs you" = "Ждёт вас";
@@ -193,11 +150,6 @@
 "Done · %@" = "Готово · %@";
 "Needs you · %@" = "Ждёт вас · %@";
 "Claude Code in the notch" = "Claude Code в чёлке";
-"Show working sessions around the notch" = "Показывать работающие сессии у чёлки";
-"Show a notice when a task is done" = "Сообщать, когда задача готова";
-"Play a sound when Claude needs you" = "Звук, когда Claude ждёт вас";
-"Connect adds a small hook to ~/.claude/settings.json and keeps a backup next to it. Events stay on this Mac; prompts and code are never saved. Works for Claude Code in Terminal, editors and the Claude app." = "«Подключить» добавляет небольшой хук в ~/.claude/settings.json и сохраняет рядом резервную копию. События остаются на этом Mac, промпты и код не сохраняются. Работает для Claude Code в Терминале, редакторах и приложении Claude.";
-"~/.claude/settings.json is not valid JSON, so it was left as is." = "~/.claude/settings.json — не корректный JSON, файл не тронут.";
 
 /* Quick actions through Claude Code */
 "Quick actions" = "Быстрые действия";
@@ -208,8 +160,6 @@
 "Not installed" = "Не установлен";
 "Install" = "Установить";
 "Rewrite, translate, Ask Claude in the editor and prompt help run through Claude Code with your Claude subscription. No API key needed." = "Переписать, перевести, «Спросить Claude» в редакторе и помощь с промптами работают через Claude Code по вашей подписке Claude. Ключ API не нужен.";
-"via Claude Code" = "через Claude Code";
-"via API key" = "через ключ API";
 "Open Claude" = "Открыть Claude";
 "Chat in the Claude app" = "Чат в приложении Claude";
 "Use as Input" = "Взять как текст";
@@ -221,7 +171,6 @@
 "Claude Code did not answer in time" = "Claude Code не ответил вовремя";
 
 /* Home, timer and toggles */
-"Hover to open · Esc to close · Drop files on the notch" = "Наведите, чтобы открыть · Esc закрывает · Файлы кидайте на чёлку";
 "Timer" = "Таймер";
 "Pause" = "Пауза";
 "Resume" = "Продолжить";
@@ -236,16 +185,13 @@
 "Mute or unmute the sound output" = "Выключить или включить звук";
 "Hide the icons on the desktop, e.g. before a screen share" = "Спрятать значки на рабочем столе, например перед показом экрана";
 "Show hidden files in Finder" = "Показывать скрытые файлы в Finder";
-"macOS did not allow this. Allow Deckhand in System Settings → Privacy & Security → Automation." = "macOS не разрешила это. Разрешите Deckhand в Системных настройках → Конфиденциальность и безопасность → Автоматизация.";
 
 /* Language */
 "Same as macOS" = "Как в macOS";
-"Deckhand restarts to switch the language. Deckhand by NNA1618, open source under the MIT license." = "При смене языка Deckhand перезапустится. Deckhand от NNA1618, открытый код под лицензией MIT.";
 
 /* Text from images, tabs */
-"Copy Text from Image" = "Скопировать текст с картинки";
+"Copy Text from Image" = "Скопировать текст с изображения";
 "Tabs" = "Вкладки";
-"Hidden tabs leave the panel and the menu bar. Their shortcuts still open them." = "Скрытые вкладки пропадают из панели и строки меню. Сочетания клавиш по-прежнему их открывают.";
 
 /* Foundation for 0.5 */
 "About Deckhand" = "О Deckhand";
@@ -264,7 +210,6 @@
 "Keep Awake & Timer" = "«Не спать» и таймер";
 "Privacy & Permissions" = "Конфиденциальность";
 "About" = "О программе";
-"Coming soon" = "Скоро";
 "Translate selected text" = "Перевести выделенный текст";
 
 /* ===== Workstream sections for 0.5. Add new strings only under your own marker, keep the blank lines. ===== */
