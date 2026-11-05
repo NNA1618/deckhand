@@ -13,12 +13,18 @@ struct Prompt: Identifiable, Hashable {
     var updatedAt: Date
 }
 
+/// The prompt library in the shared SQLite database.
+///
+/// The `prompts` table is created by `Database` as well; the store repeats the guarded
+/// `CREATE TABLE IF NOT EXISTS` so it also works on its own connection (the self-test uses an
+/// in-memory one). Its own bookkeeping lives in `prompt_meta`, never in the clipboard tables.
 @MainActor
 final class PromptStore {
-    static let shared = PromptStore()
+    static let shared = PromptStore(db: Database.shared.db)
 
     private let db: Connection
     private let t = Table("prompts")
+    private let meta = Table("prompt_meta")
     private let cId = SQLite.Expression<Int64>("id")
     private let cTitle = SQLite.Expression<String>("title")
     private let cBody = SQLite.Expression<String>("body")
@@ -28,42 +34,57 @@ final class PromptStore {
     private let cUsageCount = SQLite.Expression<Int64>("usage_count")
     private let cCreatedAt = SQLite.Expression<Double>("created_at")
     private let cUpdatedAt = SQLite.Expression<Double>("updated_at")
+    private let cKey = SQLite.Expression<String>("key")
+    private let cValue = SQLite.Expression<String>("value")
 
-    private init() {
-        self.db = Database.shared.db
-        seedIfEmpty()
+    /// Set once the starter prompts were offered, so deleting them is final.
+    static let seededKey = "starters_seeded"
+
+    init(db: Connection) {
+        self.db = db
+        ensureSchema()
+        seedOnce()
     }
 
-    func all(search: String = "", category: String? = nil) -> [Prompt] {
-        var query = t.order(cFavorite.desc, cUsageCount.desc, cUpdatedAt.desc)
-        if let category = category, !category.isEmpty, category != PromptsViewModel.allKey {
-            query = query.filter(cCategory == category)
-        }
-        var rows: [Prompt] = []
-        if let r = try? db.prepare(query) {
-            for row in r { rows.append(map(row)) }
-        }
-        if search.isEmpty { return rows }
-        // Simple substring match on title, body and tags
-        let s = search.lowercased()
-        return rows.filter {
-            $0.title.lowercased().contains(s)
-            || $0.body.lowercased().contains(s)
-            || $0.tags.joined(separator: " ").lowercased().contains(s)
+    private func ensureSchema() {
+        do {
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS prompts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    category TEXT NOT NULL DEFAULT 'General',
+                    tags TEXT NOT NULL DEFAULT '',
+                    favorite INTEGER NOT NULL DEFAULT 0,
+                    usage_count INTEGER NOT NULL DEFAULT 0,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+            """)
+            try db.execute("CREATE TABLE IF NOT EXISTS prompt_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);")
+        } catch {
+            Log.info("prompts schema: \(error)")
         }
     }
 
-    func categories() -> [String] {
-        var set = Set<String>()
-        if let rows = try? db.prepare(t.select(cCategory)) {
-            for row in rows { set.insert(row[cCategory]) }
-        }
-        return Array(set).sorted()
+    // MARK: - Reading
+
+    /// Every prompt, unsorted; the view model filters and sorts in memory (libraries are small).
+    func all() -> [Prompt] {
+        guard let rows = try? db.prepare(t) else { return [] }
+        return rows.map(map)
     }
 
+    var count: Int { (try? db.scalar(t.count)) ?? 0 }
+
+    // MARK: - Writing
+
+    @discardableResult
     func create(title: String, body: String, category: String, tags: [String], favorite: Bool = false) -> Prompt? {
         let now = Date().timeIntervalSince1970
-        if let rowId = try? db.run(t.insert(
+        let category = PromptLibrary.normalizedCategory(category)
+        let tags = PromptLibrary.normalizedTags(tags)
+        guard let rowId = try? db.run(t.insert(
             cTitle <- title,
             cBody <- body,
             cCategory <- category,
@@ -72,35 +93,107 @@ final class PromptStore {
             cUsageCount <- 0,
             cCreatedAt <- now,
             cUpdatedAt <- now
-        )) {
-            return Prompt(
-                id: rowId, title: title, body: body, category: category,
-                tags: tags, favorite: favorite, usageCount: 0,
-                createdAt: Date(timeIntervalSince1970: now),
-                updatedAt: Date(timeIntervalSince1970: now)
-            )
-        }
-        return nil
+        )) else { return nil }
+        return Prompt(id: rowId, title: title, body: body, category: category, tags: tags,
+                      favorite: favorite, usageCount: 0,
+                      createdAt: Date(timeIntervalSince1970: now), updatedAt: Date(timeIntervalSince1970: now))
     }
 
+    /// Saves an edit. Changes the "recently edited" time, unlike `setFavorite`.
     func update(_ p: Prompt) {
-        let now = Date().timeIntervalSince1970
         _ = try? db.run(t.filter(cId == p.id).update(
             cTitle <- p.title,
             cBody <- p.body,
-            cCategory <- p.category,
-            cTags <- p.tags.joined(separator: ","),
+            cCategory <- PromptLibrary.normalizedCategory(p.category),
+            cTags <- PromptLibrary.normalizedTags(p.tags).joined(separator: ","),
             cFavorite <- p.favorite ? 1 : 0,
-            cUpdatedAt <- now
+            cUpdatedAt <- Date().timeIntervalSince1970
         ))
+    }
+
+    func setFavorite(_ id: Int64, _ favorite: Bool) {
+        _ = try? db.run(t.filter(cId == id).update(cFavorite <- favorite ? 1 : 0))
     }
 
     func delete(_ id: Int64) {
         _ = try? db.run(t.filter(cId == id).delete())
     }
 
+    func deleteAll() {
+        _ = try? db.run(t.delete())
+    }
+
+    /// Puts a deleted prompt back with its id, counts and dates, for Undo.
+    func restore(_ p: Prompt) {
+        _ = try? db.run(t.insert(or: .replace,
+            cId <- p.id,
+            cTitle <- p.title,
+            cBody <- p.body,
+            cCategory <- p.category,
+            cTags <- p.tags.joined(separator: ","),
+            cFavorite <- p.favorite ? 1 : 0,
+            cUsageCount <- p.usageCount,
+            cCreatedAt <- p.createdAt.timeIntervalSince1970,
+            cUpdatedAt <- p.updatedAt.timeIntervalSince1970
+        ))
+    }
+
     func incrementUsage(_ id: Int64) {
         _ = try? db.run(t.filter(cId == id).update(cUsageCount++))
+    }
+
+    // MARK: - Starter prompts
+
+    /// Offers the starter prompts exactly once per database. Deleted starters stay deleted.
+    /// A library that already has prompts, or a database with clipboard history (an existing user
+    /// who deleted every starter), only records that seeding happened.
+    private func seedOnce() {
+        guard metaValue(Self.seededKey) == nil else { return }
+        let existingUser = count > 0 || ((try? db.scalar("SELECT COUNT(*) FROM clipboard_items") as? Int64) ?? 0) > 0
+        if !existingUser { _ = addStarters() }
+        setMeta(Self.seededKey, "1")
+    }
+
+    /// Adds the starter prompts whose title isn't in the library yet. Returns how many were added.
+    @discardableResult
+    func addStarters() -> Int {
+        let titles = Set(all().map { $0.title.lowercased() })
+        var added = 0
+        for s in StarterPrompts.all where !titles.contains(s.title.lowercased()) {
+            if create(title: s.title, body: s.body, category: s.category, tags: s.tags) != nil { added += 1 }
+        }
+        return added
+    }
+
+    func metaValue(_ key: String) -> String? {
+        (try? db.pluck(meta.filter(cKey == key)))?[cValue]
+    }
+
+    private func setMeta(_ key: String, _ value: String) {
+        _ = try? db.run(meta.insert(or: .replace, cKey <- key, cValue <- value))
+    }
+
+    // MARK: - Import and export
+
+    /// Writes the whole library as JSON (see `PromptArchive`).
+    func exportJSON() throws -> Data {
+        try PromptArchive.encode(all())
+    }
+
+    /// Adds the prompts from a JSON export, skipping ones already in the library (same title and text).
+    func importJSON(_ data: Data) throws -> (added: Int, skipped: Int) {
+        let incoming = try PromptArchive.decode(data)
+        var known = Set(all().map { PromptArchive.identity(title: $0.title, body: $0.body) })
+        var added = 0, skipped = 0
+        for p in incoming {
+            let key = PromptArchive.identity(title: p.title, body: p.body)
+            if known.contains(key) { skipped += 1; continue }
+            if create(title: p.title, body: p.body, category: p.category, tags: p.tags, favorite: p.favorite) != nil {
+                known.insert(key)
+                added += 1
+            }
+        }
+        return (added, skipped)
     }
 
     private func map(_ row: Row) -> Prompt {
@@ -116,42 +209,68 @@ final class PromptStore {
             updatedAt: Date(timeIntervalSince1970: row[cUpdatedAt])
         )
     }
+}
 
-    // MARK: - Seed
+/// The JSON file Import… and Export… read and write:
+/// `{"format": "deckhand-prompts", "version": 1, "prompts": [{"title", "body", "category", "tags", "favorite"}]}`.
+/// Import also accepts a bare array of such objects.
+enum PromptArchive {
+    struct Entry: Codable, Equatable {
+        var title: String
+        var body: String
+        var category: String
+        var tags: [String]
+        var favorite: Bool
 
-    private func seedIfEmpty() {
-        let count = (try? db.scalar(t.count)) ?? 0
-        guard count == 0 else { return }
-
-        // Starter examples for new users
-        let seeds: [(String, String, String, [String])] = [
-            ("Product UGC video",
-             "UGC-style try-on video of the product below. Natural hand movements, authentic daylight, handheld 50mm look, one continuous take.\nProduct: {{product}}",
-             "Image & Video", ["ugc", "video"]),
-            ("Hero product shot",
-             "Hero shot of {{product}} on a dark seamless background, single soft key light from the left, subtle rim light, shallow depth of field, premium commercial look.",
-             "Image & Video", ["product", "photo"]),
-            ("Character sheet",
-             "Character sheet of {{character}}: front, side, three-quarter and back views. Consistent proportions and lighting, neutral grey background.",
-             "Image & Video", ["character"]),
-            ("Explain this file",
-             "Read this file and explain what it does as a short list. Point out the main functions and dependencies.",
-             "Code", ["explain"]),
-            ("Find bugs",
-             "Check this code for bugs, race conditions, leaks and unhandled edge cases. Be brief and list the most serious first.",
-             "Code", ["review"]),
-            ("Refactor",
-             "Refactor this code for readability without changing behavior. Explain each change in one line.",
-             "Code", ["refactor"]),
-            ("Key points",
-             "Pull the 5 to 7 key points out of this text, one line each.",
-             "Writing", ["summary"]),
-            ("Explain like I'm ten",
-             "Explain this so a ten-year-old would understand it, in simple words but without losing the point.",
-             "Writing", ["explain"]),
-        ]
-        for (title, body, cat, tags) in seeds {
-            _ = create(title: title, body: body, category: cat, tags: tags)
+        init(title: String, body: String, category: String, tags: [String], favorite: Bool) {
+            self.title = title
+            self.body = body
+            self.category = category
+            self.tags = tags
+            self.favorite = favorite
         }
+
+        // Only the text is required, so hand-written files import too
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            body = try c.decode(String.self, forKey: .body)
+            title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+            category = try c.decodeIfPresent(String.self, forKey: .category) ?? ""
+            tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
+            favorite = try c.decodeIfPresent(Bool.self, forKey: .favorite) ?? false
+            if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { title = PromptLibrary.title(fromBody: body) }
+        }
+    }
+
+    private struct File: Codable {
+        var format = "deckhand-prompts"
+        var version = 1
+        var prompts: [Entry]
+    }
+
+    struct Unreadable: LocalizedError {
+        var errorDescription: String? { String(localized: "This file doesn't contain Deckhand prompts.") }
+    }
+
+    static func encode(_ prompts: [Prompt]) throws -> Data {
+        let entries = prompts
+            .sorted { $0.createdAt < $1.createdAt }
+            .map { Entry(title: $0.title, body: $0.body, category: $0.category, tags: $0.tags, favorite: $0.favorite) }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(File(prompts: entries))
+    }
+
+    static func decode(_ data: Data) throws -> [Entry] {
+        let decoder = JSONDecoder()
+        if let file = try? decoder.decode(File.self, from: data) { return file.prompts }
+        if let list = try? decoder.decode([Entry].self, from: data) { return list }
+        throw Unreadable()
+    }
+
+    /// Two prompts with the same title and text are the same prompt.
+    static func identity(title: String, body: String) -> String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() + "\u{1F}" +
+            body.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
