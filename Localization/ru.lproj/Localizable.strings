@@ -935,4 +935,43 @@
 "MIT License" = "Лицензия MIT";
 "© 2026 NNA1618. Deckhand is free and open source under the MIT License." = "© 2026 NNA1618. Deckhand — бесплатная программа с открытым кодом под лицензией MIT.";
 
+/* == codex == */
+"section.codex" = "Codex";
+"section.codex.subtitle" = "Сессии OpenAI Codex у чёлки — из Терминала, редакторов и приложения ChatGPT.";
+"search.codex.labels" = "Подключение; Разрешения из чёлки; Ждать ответа; Codex ждёт вас; Codex закончил задачу; Звук";
+"search.codex.synonyms" = "OpenAI; ChatGPT; хук; hooks.json; сессии; разрешения; агент; нейросеть; ИИ";
+"Allow or deny Codex's permission requests in the panel" = "Разрешать или отклонять запросы Codex в панели";
+"Answer in Codex instead" = "Ответить в самом Codex";
+"Approvals and notices go back to the defaults. Codex stays connected." = "Разрешения и уведомления вернутся к исходным. Codex останется подключённым.";
+"Where to approve" = "Где одобрить";
+"Badge and other notices" = "Значок и другие уведомления";
+"Codex finished a task" = "Codex закончил задачу";
+"Codex has imported Deckhand's Claude Code hook (claude-hook.sh). Remove it from Codex's hooks, or Codex sessions may show as Claude Code." = "Codex перенёс к себе хук Deckhand для Claude Code (claude-hook.sh). Удалите его из хуков Codex, иначе сессии Codex могут показываться как Claude Code.";
+"Codex is done · %@" = "Codex закончил · %@";
+"Codex is working" = "Codex работает";
+"Codex isn't installed on this Mac." = "Codex не установлен на этом Mac.";
+"Codex needs you" = "Codex ждёт вас";
+"Codex needs you · %@" = "Codex ждёт вас · %@";
+"Codex not found" = "Codex не найден";
+"Codex waits for the notch first and shows its own prompt if you don't answer in time. The panel shows only the tool and file or command name, and offers no “always allow”; check Codex when in doubt." = "Сначала Codex ждёт ответа из чёлки и показывает свой запрос, если вы не ответили вовремя. В панели видны только инструмент и имя файла или команды, а «Разрешать всегда» там нет; если сомневаетесь, проверьте в Codex.";
+"Codex's config.toml also defines hooks. Codex then warns that hooks come from two places; Deckhand's still run." = "В config.toml у Codex тоже заданы хуки. Codex предупредит, что хуки заданы в двух местах; хуки Deckhand всё равно работают.";
+"Connect adds Deckhand's hooks after your own in %@ and keeps a copy of the original file next to it. Codex runs them only after you approve them. Deckhand updates only its script later, so you approve once." = "«Подключить» добавляет хуки Deckhand после ваших в %@ и сохраняет рядом копию исходного файла. Codex запускает их только после вашего одобрения. Позже Deckhand обновляет лишь свой скрипт, так что одобрить нужно один раз.";
+"Connected — approve Deckhand's hooks in Codex (/hooks or Review hooks), then start a new session." = "Подключено — одобрите хуки Deckhand в Codex (/hooks или Review hooks) и начните новую сессию.";
+"Deckhand keeps only the session id, project folder, event and tool name; prompts, code and output never leave Codex." = "Deckhand хранит только идентификатор сессии, папку проекта, событие и название инструмента; запросы, код и вывод не покидают Codex.";
+"Deckhand removes only its own hooks from %@. Codex sessions stop showing in the notch." = "Deckhand удалит из %@ только свои хуки. Сессии Codex перестанут показываться у чёлки.";
+"Disconnect Codex?" = "Отключить Codex?";
+"Get Codex…" = "Установить Codex…";
+"Hooks are turned off in Codex's config.toml ([features] hooks = false), so Codex runs none of them." = "Хуки выключены в config.toml у Codex ([features] hooks = false), поэтому Codex не запускает ни один из них.";
+"Hooks file" = "Файл хуков";
+"In the Codex CLI type /hooks or answer the “Hooks need review” prompt; in the ChatGPT app use Review hooks or Settings → Hooks. Then start a new session." = "В Codex CLI введите /hooks или ответьте на запрос „Hooks need review“; в приложении ChatGPT откройте Review hooks или Settings → Hooks. Затем начните новую сессию.";
+"Install the Codex CLI or the ChatGPT app, sign in once, then come back here to connect." = "Установите Codex CLI или приложение ChatGPT, войдите один раз и вернитесь сюда, чтобы подключить.";
+"No sessions right now. Start Codex in Terminal or the ChatGPT app." = "Сейчас сессий нет. Запустите Codex в Терминале или в приложении ChatGPT.";
+"Off: Codex asks in its own window as usual, and the notch only shows that it waits." = "Выключено: Codex, как обычно, спрашивает в своём окне, а чёлка лишь показывает, что он ждёт.";
+"See when Codex works, finishes or needs you, right in the notch." = "Видно прямо в чёлке, когда Codex работает, закончил или ждёт вас.";
+"Sessions from the Codex CLI, editors and the ChatGPT app show in the notch." = "Сессии из Codex CLI, редакторов и приложения ChatGPT видны у чёлки.";
+"Sound" = "Звук";
+"The Codex hooks file has an unexpected layout, so it was left as is." = "У файла хуков Codex неожиданная структура, поэтому он оставлен как есть.";
+"The Codex hooks file is not valid JSON, so it was left as is." = "Файл хуков Codex — не корректный JSON, поэтому он оставлен как есть.";
+"Waiting for approval" = "Ждёт одобрения";
+
 /* == end == */

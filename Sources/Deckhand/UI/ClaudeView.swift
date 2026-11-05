@@ -149,25 +149,34 @@ struct ClaudeView: View {
 
 // MARK: - Sessions
 
-/// Claude Code sessions with what each is doing; on Home and in the Claude tab.
+/// Coding agent sessions (Claude Code, Codex) with what each is doing; on Home and in the Claude tab.
 struct ClaudeSessionsCard: View {
     var limit = 3
     @ObservedObject private var monitor = ClaudeCodeMonitor.shared
-    @ObservedObject private var claudeSettings = ClaudeSettings.shared
+    @ObservedObject private var codex = CodexMonitor.shared
     @State private var installError: String?
+
+    /// The agents whose sessions the card shows: the connected ones and any with sessions, Claude Code when none.
+    private var providers: [AgentProvider] {
+        let connected = AgentProvider.allCases.filter { provider in
+            (provider == .claudeCode ? monitor.hooksInstalled : codex.hooksInstalled) || monitor.sessions.contains { $0.provider == provider }
+        }
+        return connected.isEmpty ? [.claudeCode] : connected
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                AgentIcon(provider: .claudeCode, size: 14)
-                Text("Claude Code").font(Theme.label).foregroundColor(Theme.fg)
+                ForEach(providers, id: \.self) { AgentIcon(provider: $0, size: 14) }
+                Text(verbatim: providers.map(\.name).joined(separator: " · ")).font(Theme.label).foregroundColor(Theme.fg)
+                    .lineLimit(1)
                 Spacer()
                 if !monitor.sessions.isEmpty {
                     Text("\(monitor.active.count) active")
                         .font(Theme.caption).foregroundColor(Theme.fgMute)
                 }
             }
-            if !monitor.hooksInstalled {
+            if !monitor.hooksInstalled && !codex.hooksInstalled {
                 Text("See when Claude Code works, finishes or needs you, right in the notch.")
                     .font(Theme.caption).foregroundColor(Theme.fgDim)
                     .fixedSize(horizontal: false, vertical: true)
@@ -182,7 +191,8 @@ struct ClaudeSessionsCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else if monitor.sessions.isEmpty {
-                Text("No sessions right now. Start Claude Code in Terminal or the Claude app.")
+                Text(providers == [.codex] ? String(localized: "No sessions right now. Start Codex in Terminal or the ChatGPT app.")
+                     : String(localized: "No sessions right now. Start Claude Code in Terminal or the Claude app."))
                     .font(Theme.caption).foregroundColor(Theme.fgMute)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
@@ -190,7 +200,7 @@ struct ClaudeSessionsCard: View {
                     VStack(spacing: 4) {
                         ForEach(monitor.sessions.prefix(limit), id: \.key) { s in
                             ClaudeSessionRow(session: s, now: context.date,
-                                             request: claudeSettings.approveFromNotch ? monitor.pendingRequest(for: s, now: context.date) : nil)
+                                             request: monitor.pendingRequest(for: s, now: context.date))
                         }
                     }
                 }
@@ -242,7 +252,7 @@ struct ClaudeSessionRow: View {
                             .frame(width: 24, height: 24).contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help(Text("Answer in Claude Code instead"))
+                    .help(Text(session.provider == .codex ? String(localized: "Answer in Codex instead") : String(localized: "Answer in Claude Code instead")))
                     GlassButton(title: "Deny") { ClaudeCodeMonitor.shared.answer(session, allow: false) }
                     PrimaryButton(title: "Allow") { ClaudeCodeMonitor.shared.answer(session, allow: true) }
                 }
@@ -328,6 +338,8 @@ struct ClaudeBadge: View {
                 .padding(.trailing, 14)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(Text(waiting != nil ? "Claude needs you" : "Claude is working"))
+            .accessibilityLabel(Text(provider == .codex
+                                     ? (waiting != nil ? String(localized: "Codex needs you") : String(localized: "Codex is working"))
+                                     : (waiting != nil ? String(localized: "Claude needs you") : String(localized: "Claude is working"))))
     }
 }

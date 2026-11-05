@@ -53,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             UtilityNotices.install(notch: notch)
             TranslatorCoordinator.install(notch: notch)
             ClaudeNotices.install(notch: notch)
+            CodexNotices.install(notch: notch)
         } else {
             Theme.flatForSnapshot = true
             Task.detached(priority: .utility) { ClaudeCLI.resolve() }
