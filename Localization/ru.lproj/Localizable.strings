@@ -405,6 +405,49 @@
 
 
 /* == media == */
+"Yandex Music" = "Яндекс Музыка";
+"VK Music" = "VK Музыка";
+"Now playing is off" = "Музыка не отслеживается";
+"Turn On" = "Включить";
+"Playing sound" = "Воспроизводит звук";
+"Paused" = "На паузе";
+"Playing" = "Играет";
+"Previous" = "Предыдущий";
+"Next" = "Следующий";
+"Play" = "Воспроизвести";
+"Progress" = "Ход воспроизведения";
+"Playing: %@" = "Играет: %@";
+"Paused: %@" = "На паузе: %@";
+"Apple Music, Spotify, Yandex Music and music sites in Safari, Chrome and Edge show up here." = "Здесь появится музыка из Apple Music, Spotify, «Яндекс Музыки» и музыкальных сайтов в Safari, Chrome и Edge.";
+"To control browsers, Deckhand needs Accessibility." = "Чтобы управлять браузерами, Deckhand нужен Универсальный доступ.";
+"Allow Deckhand to control %@ in System Settings → Automation." = "Откройте Системные настройки → Автоматизация и разрешите Deckhand управлять %@.";
+"Allow Deckhand to read the tab title to see the track." = "Разрешите Deckhand читать заголовки вкладок, чтобы видеть трек.";
+"Reading %@ tabs is turned off in System Settings → Automation." = "Чтение вкладок %@ запрещено в Системных настройках → Автоматизация.";
+"To read the track from Yandex Music, Deckhand needs Accessibility." = "Чтобы видеть трек из «Яндекс Музыки», Deckhand нужен Универсальный доступ.";
+"Allow…" = "Разрешить…";
+"Open System Settings" = "Открыть Системные настройки";
+"Find out what's playing" = "Узнавать, что играет";
+"Badge at the notch" = "Значок у чёлки";
+"On" = "Включено";
+"Closed Notch…" = "Закрытая чёлка…";
+"Shows the track in the Music tab and at the notch. When this is off, Deckhand checks nothing." = "Трек виден во вкладке «Музыка» и у чёлки. Когда выключено, Deckhand ничего не проверяет.";
+"Sources" = "Источники";
+"Apple Music and Spotify announce their tracks themselves. Browsers are asked for the tab title only while they play sound. macOS asks once per app for permission (Automation)." = "Apple Music и Spotify сами сообщают о треке. Заголовок вкладки Deckhand узнаёт у браузера, только пока в нём играет звук. macOS один раз попросит разрешение для каждого приложения (Автоматизация).";
+"Hide after pause" = "Скрывать после паузы через";
+"Album artwork" = "Обложки альбомов";
+"From Apple Music and Spotify, when they allow it" = "Из Apple Music и Spotify, если есть разрешение";
+"Display" = "Отображение";
+"Media keys" = "Медиаклавиши";
+"Accessibility" = "Универсальный доступ";
+"Controls" = "Управление";
+"Apple Music and Spotify are controlled directly. Browsers and Yandex Music get the system media keys, which need Accessibility." = "Apple Music и Spotify управляются напрямую. Браузерам и «Яндекс Музыке» Deckhand отправляет системные медиаклавиши — для этого нужен Универсальный доступ.";
+"Controls and artwork need Automation" = "Управление и обложки: нужна Автоматизация";
+"Reads the window title with Accessibility" = "Заголовок окна: нужен Универсальный доступ";
+"Tab titles while sound plays, with Automation" = "Заголовки вкладок, пока играет звук: нужна Автоматизация";
+"Allowed" = "Разрешено";
+"Not allowed yet" = "Ещё не разрешено";
+"Turned off" = "Запрещено";
+"Checked when the app is open" = "Проверится, когда приложение открыто";
 
 
 /* == translate == */
