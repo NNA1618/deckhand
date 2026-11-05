@@ -165,10 +165,11 @@ struct ShortcutRow: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title ?? action.title)
+                    .foregroundStyle(Theme.fg)
                 if let caption {
                     Text(caption.text)
-                        .font(.caption)
-                        .foregroundStyle(caption.warning ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                        .font(Theme.caption)
+                        .foregroundStyle(caption.warning ? Theme.warn : Theme.fgMute)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

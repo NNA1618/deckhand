@@ -4,7 +4,6 @@ import SwiftUI
 /// Owned by the capture and hotkeys workstream.
 struct ShortcutsPane: View {
     @ObservedObject private var hotkeys = HotkeyManager.shared
-    @State private var confirmReset = false
 
     static let groups: [(title: LocalizedStringKey, actions: [HotkeyAction])] = [
         ("Deckhand", [.toggle]),
@@ -21,37 +20,26 @@ struct ShortcutsPane: View {
                 } header: {
                     Text(group.title)
                 } footer: {
-                    if index == Self.groups.count - 1 { footer }
+                    if index == Self.groups.count - 1 {
+                        SettingsFooter("Click a shortcut and press the new keys. Use ⌘ or ⌃, with ⌥ and ⇧ if you like. Esc cancels, ⌫ removes the shortcut.")
+                    }
                 }
             }
             Section {
                 ForEach(PanelKeys.all, id: \.title) { row in
-                    LabeledContent {
-                        Text(row.keys).foregroundStyle(.secondary)
-                    } label: {
-                        Text(row.title)
+                    SettingsRow(row.title) {
+                        Text(row.keys).foregroundStyle(Theme.fgDim)
                     }
                 }
             } header: {
                 Text("In the Panel")
             }
-        }
-        .confirmationDialog(Text("Restore the default shortcuts?"), isPresented: $confirmReset) {
-            Button("Restore Defaults") { hotkeys.resetToDefaults() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Every global shortcut goes back to its default. Shortcuts you set yourself are replaced.")
-        }
-    }
 
-    private var footer: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Click a shortcut and press the new keys. Use ⌘ or ⌃, with ⌥ and ⇧ if you like. Esc cancels, ⌫ removes the shortcut.")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Spacer()
-                Button("Restore Defaults…") { confirmReset = true }
+            SettingsPaneActions {
+                RestoreDefaultsButton(section: .shortcuts,
+                                      message: String(localized: "Every global shortcut goes back to its default. Shortcuts you set yourself are replaced.")) {
+                    hotkeys.resetToDefaults()
+                }
             }
         }
     }
