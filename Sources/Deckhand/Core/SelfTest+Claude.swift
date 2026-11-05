@@ -480,12 +480,15 @@ extension SelfTest {
               "claude: a backgrounded grandchild doesn't hold up the answer")
         started = Date()
         let semaphore = DispatchSemaphore(value: 0)
-        nonisolated(unsafe) var asyncOut: ProcessRunner.Output?
+        // A box rather than a captured var: the task is sent to another isolation domain (Swift 6.2 checks that)
+        final class Box: @unchecked Sendable { var output: ProcessRunner.Output? }
+        let box = Box()
         Task.detached {
-            asyncOut = try? await ProcessRunner.run("/bin/sh", ["-c", "echo hi; sleep 20 &"], timeout: 5)
+            box.output = try? await ProcessRunner.run("/bin/sh", ["-c", "echo hi; sleep 20 &"], timeout: 5)
             semaphore.signal()
         }
         _ = semaphore.wait(timeout: .now() + 6)
+        let asyncOut = box.output
         check(asyncOut?.stdout == "hi\n" && asyncOut?.stopped == false && Date().timeIntervalSince(started) < 2,
               "claude: the async runner returns promptly too")
         // Stopping ends the background children as well, through the process group
