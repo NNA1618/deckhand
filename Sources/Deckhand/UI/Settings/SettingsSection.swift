@@ -74,7 +74,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .closedNotch: return "bell.badge.fill"
         case .clipboard: return "doc.on.clipboard.fill"
         case .translate: return "translate"
-        case .claude: return "sparkle"
+        case .claude: return AgentProvider.claudeCode.fallbackSymbol   // SettingsIcon draws Claude's own icon
         case .codex: return AgentProvider.codex.fallbackSymbol
         case .music: return "music.note"
         case .prompts: return "text.quote"
