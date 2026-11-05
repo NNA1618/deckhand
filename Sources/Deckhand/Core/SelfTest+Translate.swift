@@ -96,6 +96,12 @@ extension SelfTest {
         check(TranslatorRules.hostUpdate(current: ("en", "ru"), source: "en", target: "de") == .replace
               && TranslatorRules.hostUpdate(current: nil, source: "en", target: "ru") == .replace,
               "translate: other languages get a new configuration")
+        check(TranslatorRules.hostChoice(busy: [true, false, false], max: 3) == .use(1)
+              && TranslatorRules.hostChoice(busy: [true], max: 3) == .create
+              && TranslatorRules.hostChoice(busy: [], max: 3) == .create,
+              "translate: macOS 15 uses a free hidden window, or adds one")
+        check(TranslatorRules.hostChoice(busy: [true, true, true], max: 3) == .wait,
+              "translate: with every hidden window busy the run waits instead of failing at once")
 
         let a = TranslatorRules.Request(text: "Hello", source: "en", target: "ru")
         check(!TranslatorRules.needsRun(a, last: a, lastSucceededOrRunning: true), "translate: no second run of the same text")

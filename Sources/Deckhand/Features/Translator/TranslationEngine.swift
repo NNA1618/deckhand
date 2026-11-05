@@ -101,18 +101,29 @@ final class TranslationEngine {
     // MARK: - macOS 15: sessions from hidden windows
 
     private func translateInHost(_ text: String, from source: String, to target: String) async throws -> String {
-        let host: TranslationHost
-        if let idle = hosts.first(where: { !$0.isBusy }) {
-            host = idle
-        } else if hosts.count < Self.maxHosts {
-            host = TranslationHost()
-            hosts.append(host)
-        } else {
-            // Every host is still waiting for an earlier run that never answered
-            throw TranslationFailure.timedOut
-        }
-        return try await Self.race(seconds: TranslatorRules.timeout, onAbandon: { host.abandon() }) {
+        // Waiting for a free host counts toward the same limit as the translation itself
+        let deadline = Date().addingTimeInterval(TranslatorRules.timeout)
+        let host = try await freeHost(before: deadline)
+        return try await Self.race(seconds: max(deadline.timeIntervalSinceNow, 0), onAbandon: { host.abandon() }) {
             try await host.translate(text, from: source, to: target)
+        }
+    }
+
+    /// A host that can take a run now. Runs cancelled by typing keep their host busy until Apple's
+    /// call returns, so with all of them busy this waits for one to free up.
+    private func freeHost(before deadline: Date) async throws -> TranslationHost {
+        while true {
+            switch TranslatorRules.hostChoice(busy: hosts.map(\.isBusy), max: Self.maxHosts) {
+            case .use(let index):
+                return hosts[index]
+            case .create:
+                let host = TranslationHost()
+                hosts.append(host)
+                return host
+            case .wait:
+                guard Date() < deadline else { throw TranslationFailure.timedOut }
+                try await Task.sleep(for: .milliseconds(100))
+            }
         }
     }
 
