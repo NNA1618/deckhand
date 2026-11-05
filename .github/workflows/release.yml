@@ -16,6 +16,8 @@ jobs:
         run: |
           XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
           sudo xcode-select -s "$XCODE"
+          SDK=$(xcrun --sdk macosx --show-sdk-version)
+          [ "${SDK%%.*}" -ge 26 ] || { echo "error: macOS 26 SDK or newer required, got $SDK"; exit 1; }
       - name: Build
         run: NO_INSTALL=1 SIGN_ID=- ./scripts/bundle.sh release
       - name: Self-test
