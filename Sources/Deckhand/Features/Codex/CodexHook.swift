@@ -167,6 +167,8 @@ enum CodexHook {
                 exit 0
             fi
             kill -0 "$pid" 2>/dev/null || exit 0
+            # Turning "Approve from the notch" off mid-wait hands the question back to Codex at once
+            [ -f "$dir/codex-approvals" ] || exit 0
             sleep 0.25
             i=$((i + 1))
         done
