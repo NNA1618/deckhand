@@ -34,7 +34,7 @@ enum Snapshot {
         ]
     }
 
-    /// Every panel tab, open. Owned by the panel workstream.
+    /// Every panel tab, open, and Home at all three panel sizes in its busy states. Owned by the panel workstream.
     static func panels(dir: URL, notch: NotchController) async {
         ClaudeCodeMonitor.shared.showForSnapshot(sampleSessions())
         for tab in NotchTab.allCases {
@@ -45,7 +45,62 @@ enum Snapshot {
             }
         }
         notch.close()
+
+        // Home at each size without changing the user's panel size: idle, then busy with the longest texts
+        let toggles = QuickToggles.shared
+        await home(.compact, notch: notch, dir: dir, name: "home-compact")
+        await home(.large, notch: notch, dir: dir, name: "home-large")
+        let wasAwake = KeepAwake.shared.isActive
+        KeepAwake.shared.start(for: 2 * 3600)
+        Countdown.shared.start(minutes: 25)
+        Countdown.shared.pause()
+        toggles.showForSnapshot(problem: QuickToggles.problem(for: .darkMode, code: -1743), confirming: nil)
+        await home(.compact, notch: notch, dir: dir, name: "home-compact-busy")
+        toggles.showForSnapshot(problem: QuickToggles.problem(for: .darkMode, code: -1712), confirming: .hiddenFiles)
+        await home(.standard, notch: notch, dir: dir, name: "home-standard-busy")
+        toggles.showForSnapshot(problem: nil, confirming: nil)
+        Countdown.shared.stop()
+        if !wasAwake { KeepAwake.shared.stop() }
         ClaudeCodeMonitor.shared.showForSnapshot([])
+
+        // The Tabs list from Settings → Notch & Panel, which sits below the fold of that pane
+        await render(Form { TabsSection() }.formStyle(.grouped), size: CGSize(width: 520, height: 560),
+                     to: dir.appendingPathComponent("settings-tabs.png"))
+    }
+
+    private static func render<V: View>(_ view: V, size: CGSize, to url: URL) async {
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless],
+                              backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
+        window.orderFront(nil)
+        try? await Task.sleep(for: .milliseconds(500))
+        save(window, cutout: nil, to: url)
+        window.orderOut(nil)
+    }
+
+    /// The open panel's content in a window of the given size, padded like the real panel.
+    private static func home(_ size: PanelSize, notch: NotchController, dir: URL, name: String) async {
+        let vm = NotchViewModel()
+        vm.isOpen = true
+        vm.tab = .home
+        vm.notchSize = notch.viewModel.notchSize
+        let root = PanelContent()
+            .environmentObject(vm)
+            .padding(.horizontal, 20)
+            .padding(.top, vm.notchSize.height + 8)
+            .padding(.bottom, 18)
+            .frame(width: size.size.width, height: size.size.height)
+            .background(Color(white: 0.08))
+            .environment(\.colorScheme, .dark)
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size.size), styleMask: [.borderless],
+                              backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: root)
+        window.orderFront(nil)
+        try? await Task.sleep(for: .milliseconds(700))
+        save(window, cutout: nil, to: dir.appendingPathComponent("panel-\(name).png"))
+        window.orderOut(nil)
     }
 
     /// Badges around the closed notch. Owned by the notch workstream.
