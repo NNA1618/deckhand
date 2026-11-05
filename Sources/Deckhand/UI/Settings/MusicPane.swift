@@ -12,17 +12,13 @@ struct MusicPane: View {
     var body: some View {
         SettingsPane(.music) {
             Section {
-                Toggle("Find out what's playing", isOn: $media.enabled)
-                LabeledContent("Badge at the notch") {
-                    HStack(spacing: 8) {
-                        Text(settings.showPlayingInNotch ? LocalizedStringKey("On") : LocalizedStringKey("Off")).foregroundStyle(.secondary)
-                        Button("Closed Notch…") { SettingsRouter.shared.section = .closedNotch }
-                    }
-                }
-                .disabled(!media.enabled)
+                SettingsToggleRow(String(localized: "Find out what's playing"), isOn: $media.enabled)
+                SettingsLinkRow(String(localized: "Badge at the notch"),
+                                value: settings.showPlayingInNotch ? String(localized: "On") : String(localized: "Off"),
+                                to: .section(.closedNotch))
+                    .disabled(!media.enabled)
             } footer: {
-                Text("Shows the track in the Music tab and at the notch. When this is off, Deckhand checks nothing.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("Shows the track in the Music tab and at the notch. When this is off, Deckhand checks nothing.")
             }
 
             Section {
@@ -35,8 +31,7 @@ struct MusicPane: View {
             } header: {
                 Text("Sources")
             } footer: {
-                Text("Apple Music and Spotify announce their tracks themselves. Browsers are asked for the tab title only while they play sound. macOS asks once per app for permission (Automation).")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("Apple Music and Spotify announce their tracks themselves. Browsers are asked for the tab title only while they play sound. macOS asks once per app for permission (Automation).")
             }
             .disabled(!media.enabled)
 
@@ -46,34 +41,29 @@ struct MusicPane: View {
                         Text(verbatim: Self.duration(seconds)).tag(seconds)
                     }
                 }
-                Toggle(isOn: $media.showArtwork) {
-                    Text("Album artwork")
-                    Text("From Apple Music and Spotify, when they allow it")
-                }
+                SettingsToggleRow(String(localized: "Album artwork"),
+                                  detail: String(localized: "From Apple Music and Spotify, when they allow it"),
+                                  isOn: $media.showArtwork)
             } header: {
                 Text(String(localized: "music.display", defaultValue: "Display"))
             }
             .disabled(!media.enabled)
 
             Section {
-                LabeledContent {
+                SettingsRow(String(localized: "Media keys"), detail: String(localized: "Accessibility")) {
                     PermissionBadge(state: status.accessibility ? .allowed : .notAsked)
                     if !status.accessibility {
                         Button("Allow…") { MediaController.requestAccessibility(); status.refresh(after: 1) }
+                            .buttonStyle(.settings(.prominent))
                     }
-                } label: {
-                    Text("Media keys")
-                    Text("Accessibility")
                 }
             } header: {
                 Text("Controls")
             } footer: {
-                Text("Apple Music and Spotify are controlled directly. Browsers and Yandex Music get the system media keys, which need Accessibility.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("Apple Music and Spotify are controlled directly. Browsers and Yandex Music get the system media keys, which need Accessibility.")
             }
         }
-        .onAppear { status.refresh() }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in status.refresh() }
+        .onSettingsActivation { status.refresh() }
     }
 
     /// "2 seconds", «2 секунды»: plural forms from the system, in the app's language.
@@ -95,26 +85,23 @@ private struct SourceRow: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        LabeledContent {
-            HStack(spacing: 8) {
-                if isOn { action }
-                Toggle("", isOn: $isOn).labelsHidden().toggleStyle(.switch)
+        SettingsRow(app.displayName, detail: String(localized: need), icon: icon) {
+            if isOn {
+                PermissionBadge(state: state)
+                action
             }
-        } label: {
-            HStack(spacing: 8) {
-                AppIcon(app: app).frame(width: 22, height: 22)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 8) {
-                        Text(verbatim: app.displayName)
-                        if isOn { PermissionBadge(state: state) }
-                    }
-                    Text(need).font(.caption).foregroundStyle(.secondary)
-                }
-            }
+            Toggle(app.displayName, isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
         }
     }
 
-    private var need: LocalizedStringKey {
+    private var icon: SettingsRowIcon {
+        AppIcon.icon(for: app).map(SettingsRowIcon.image) ?? .symbol("music.note", .pink)
+    }
+
+    private var need: String.LocalizationValue {
         switch app.kind {
         case .player: return "Controls and artwork need Automation"
         case .yandexApp: return "Reads the window title with Accessibility"
@@ -144,43 +131,42 @@ private struct SourceRow: View {
                     status.ask(app)
                 }
             }
+            .buttonStyle(.settings(.prominent))
         case .denied:
             Button("Open System Settings") { MediaController.openPrivacySettings("Privacy_Automation") }
+                .buttonStyle(.settings)
         case .allowed, .notRunning, .notInstalled:
             EmptyView()
         }
     }
 }
 
-/// A colored dot and a word for a permission.
+/// A permission as a status chip, the way the Privacy pane shows them.
 private struct PermissionBadge: View {
     enum State { case allowed, notAsked, denied, notRunning, notInstalled }
     let state: State
 
     var body: some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6)
-            Text(label).font(.caption).foregroundStyle(.secondary)
-        }
-        .fixedSize()
+        StatusChip(label, kind: kind)
+            .help(state == .notRunning ? Text("Checked when the app is open") : Text(verbatim: ""))
     }
 
-    private var label: LocalizedStringKey {
+    private var label: String {
         switch state {
-        case .allowed: return "Allowed"
-        case .notAsked: return "Not allowed yet"
-        case .denied: return "Turned off"
-        case .notRunning: return "Checked when the app is open"
-        case .notInstalled: return "Not installed"
+        case .allowed: return String(localized: "Allowed")
+        case .notAsked: return String(localized: "Not allowed yet")
+        case .denied: return String(localized: "Turned off")
+        case .notRunning: return String(localized: "Not running")
+        case .notInstalled: return String(localized: "Not installed")
         }
     }
 
-    private var color: Color {
+    private var kind: StatusChip.Kind {
         switch state {
-        case .allowed: return .green
-        case .notAsked: return .orange
-        case .denied: return .red
-        case .notRunning, .notInstalled: return .gray
+        case .allowed: return .good
+        case .notAsked: return .attention
+        case .denied: return .error
+        case .notRunning, .notInstalled: return .neutral
         }
     }
 }

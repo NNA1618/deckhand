@@ -6,22 +6,17 @@ struct CapturePane: View {
     @ObservedObject private var capture = CaptureSettings.shared
     @State private var supported: [String] = []
     @State private var screenRecording = ScreenRecordingPermission.isGranted
-    @State private var confirmReset = false
 
     var body: some View {
         SettingsPane(.capture) {
             if !screenRecording {
                 Section {
-                    HStack(spacing: 10) {
-                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Screen Recording is off")
-                            Text("Captures show only the desktop until you allow it.")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
+                    SettingsRow(String(localized: "Screen Recording is off"),
+                                detail: String(localized: "Captures show only the desktop until you allow it."),
+                                icon: .symbol("exclamationmark.triangle.fill", .orange)) {
                         // Asks once first: on macOS 15 Deckhand isn't in the list until it has
                         Button("Open System Settings") { ScreenRecordingPermission.request(openSettings: true) }
+                            .buttonStyle(.settings(.prominent))
                     }
                 }
             }
@@ -31,29 +26,28 @@ struct CapturePane: View {
                 Picker("After capture", selection: $capture.afterCapture) {
                     ForEach(CaptureAfterAction.allCases) { Text($0.title).tag($0) }
                 }
-                LabeledContent("Save to") {
-                    HStack(spacing: 8) {
-                        Label {
-                            Text(FileManager.default.displayName(atPath: capture.saveFolder))
-                        } icon: {
-                            Image(nsImage: NSWorkspace.shared.icon(forFile: capture.saveFolder))
-                                .resizable().frame(width: 16, height: 16)
-                        }
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        Button("Choose…", action: chooseFolder)
+                SettingsRow(String(localized: "Save to")) {
+                    Label {
+                        Text(FileManager.default.displayName(atPath: capture.saveFolder))
+                            .foregroundStyle(Theme.fgDim)
+                    } icon: {
+                        Image(nsImage: NSWorkspace.shared.icon(forFile: capture.saveFolder))
+                            .resizable().frame(width: 16, height: 16)
                     }
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    Button("Choose…", action: chooseFolder)
+                        .buttonStyle(.settings)
                 }
                 .help(Text(verbatim: capture.saveFolder))
                 Picker("Format", selection: $capture.format) {
                     ForEach(CaptureFormat.allCases) { Text(verbatim: $0.title).tag($0) }
                 }
-                Toggle("Shutter sound", isOn: $capture.shutterSound)
+                SettingsToggleRow(String(localized: "Shutter sound"), isOn: $capture.shutterSound)
             } header: {
                 Text("Capture Area")
             } footer: {
-                Text("Every choice copies the image first. While selecting, press Space to capture a window instead.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("Every choice copies the image first. While selecting, press Space to capture a window instead.")
             }
 
             Section {
@@ -68,18 +62,15 @@ struct CapturePane: View {
             Section {
                 ShortcutRow(action: .captureText, title: String(localized: "Shortcut"))
                 languages
-                Toggle("Detect automatically", isOn: $capture.ocrAutoDetect)
-                VStack(alignment: .leading, spacing: 2) {
-                    Toggle("Correct words", isOn: $capture.ocrLanguageCorrection)
-                    Text("Turn off for code, serial numbers and links.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Toggle("Keep line breaks", isOn: $capture.ocrKeepLineBreaks)
+                SettingsToggleRow(String(localized: "Detect automatically"), isOn: $capture.ocrAutoDetect)
+                SettingsToggleRow(String(localized: "Correct words"),
+                                  detail: String(localized: "Turn off for code, serial numbers and links."),
+                                  isOn: $capture.ocrLanguageCorrection)
+                SettingsToggleRow(String(localized: "Keep line breaks"), isOn: $capture.ocrKeepLineBreaks)
             } header: {
                 Text("Text from Screen")
             } footer: {
-                Text("Put the language you capture most first. QR codes and barcodes are copied as their content.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("Put the language you capture most first. QR codes and barcodes are copied as their content.")
             }
 
             Section {
@@ -99,31 +90,27 @@ struct CapturePane: View {
                 }
             } header: {
                 Text("Editor")
-            } footer: {
-                HStack {
-                    Spacer()
-                    Button("Restore Defaults…") { confirmReset = true }
+            }
+
+            SettingsPaneActions {
+                RestoreDefaultsButton(section: .capture,
+                                      message: String(localized: "Shortcuts stay as they are. Restore them in Shortcuts.")) {
+                    capture.restoreDefaults()
                 }
             }
         }
         .task {
             supported = await Task.detached(priority: .utility) { TextRecognizer.supportedLanguages() }.value
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+        .onSettingsActivation {
             screenRecording = ScreenRecordingPermission.isGranted
-        }
-        .confirmationDialog(Text("Restore the default screenshot settings?"), isPresented: $confirmReset) {
-            Button("Restore Defaults") { capture.restoreDefaults() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Shortcuts stay as they are. Restore them in Shortcuts.")
         }
     }
 
     // MARK: - Languages
 
     private var languages: some View {
-        LabeledContent("Languages") {
+        SettingsRow(String(localized: "Languages")) {
             VStack(alignment: .trailing, spacing: 4) {
                 ForEach(Array(capture.ocrLanguages.enumerated()), id: \.element) { index, code in
                     HStack(spacing: 6) {
