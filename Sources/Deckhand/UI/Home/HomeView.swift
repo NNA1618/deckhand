@@ -11,6 +11,7 @@ struct HomeView: View {
         case .toggle: return nil
         case .screenshot, .clipboard: return .clipboard
         case .captureText, .colorPicker, .keepAwake: return nil
+        case .captureWindow, .captureScreen, .captureDelayed, .captureAndEdit: return nil
         case .translator, .translateSelection: return .translator
         case .claude: return .claude
         case .prompts: return .prompts
