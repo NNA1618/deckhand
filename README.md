@@ -37,6 +37,12 @@ It is a native macOS app written in Swift and SwiftUI. No Electron, no account, 
 
 <p align="center"><img src="docs/images/claude-code.png" width="500" alt="Claude Code working, shown around the notch"></p>
 
+**Codex in the notch**
+- OpenAI Codex sessions show the same way, with Codex's icon: in the closed notch, on Home, in the session list and in notices. Works for the Codex CLI, editors and the ChatGPT app (formerly the Codex app), from Codex 0.124 on.
+- Connect it in Settings → Codex. Deckhand adds its hooks after your own in `~/.codex/hooks.json` (or the folder in `CODEX_HOME`), changes nothing else in the file and keeps a copy of the original next to it. Codex runs hooks it didn't create only after you approve them: type `/hooks` in the CLI or use Review hooks in the ChatGPT app, then start a new session.
+- Deckhand keeps only the session id, project folder, event and tool name. Prompts, code and output never leave Codex, and Deckhand never reads Codex's session files.
+- Approving from the notch is off by default. When on, Allow and Deny answer one request at a time; there is no "always allow", and Codex shows its own prompt if you don't answer in time.
+
 **Clipboard**
 - History of text, links, images and files with search in any language, filters and pinning. Copying something again moves it to the top.
 - Type to search, pick with the arrows, Return pastes into the app you were using, `⌥Return` pastes without formatting, `⌘1`–`⌘9` paste one of the first nine, Space previews.
