@@ -298,6 +298,11 @@ struct EditorView: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { g in
+                        // Take focus from the Ask field or the answer, so tool letters, ⌘Z, ⌘C and ⌫
+                        // go back to the editor. A text being placed on the image keeps it.
+                        if !textFocused, let window = model.window, window.firstResponder is NSText {
+                            window.makeFirstResponder(nil)
+                        }
                         model.dragChanged(start: scaled(g.startLocation, k), current: scaled(g.location, k))
                     }
                     .onEnded { g in
