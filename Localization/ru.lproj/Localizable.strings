@@ -922,6 +922,7 @@
 "History, prompts and shelf" = "История, промпты и полка";
 "Logs" = "Журнал";
 "Claude Code hook" = "Хук Claude Code";
+"Codex hooks" = "Хуки Codex";
 "Deckhand itself never connects to the internet. Claude actions go through Claude Code or, if you chose it, the Anthropic API." = "Сам Deckhand не выходит в интернет. Действия Claude идут через Claude Code или, если вы так выбрали, через API Anthropic.";
 "Version %@" = "Версия %@";
 "by NNA1618 · MIT License" = "от NNA1618 · лицензия MIT";

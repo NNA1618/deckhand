@@ -163,7 +163,7 @@ struct EditorView: View {
 
             HStack(spacing: 0) {
                 iconButton("text.viewfinder", "Copy Text from Image", keys: nil, enabled: true) { model.copyRecognizedText() }
-                iconButton("sparkle", "Ask Claude", keys: nil, enabled: true) { model.askVisible.toggle() }
+                iconButton("sparkle", "Ask Claude", keys: nil, enabled: true, agent: .claudeCode) { model.askVisible.toggle() }
                 iconButton("pin", "Pin on Screen", keys: nil, enabled: true) {
                     model.commitText()
                     if let image = model.renderNSImage() { PinnedImageWindow.show(image) }
@@ -186,14 +186,21 @@ struct EditorView: View {
         return Double(zoom).formatted(.percent.precision(.fractionLength(0)))
     }
 
+    /// A toolbar button with a symbol, or with an agent's own app icon for an action that runs it.
     private func iconButton(_ symbol: String, _ help: LocalizedStringKey, keys: String?, enabled: Bool,
-                            action: @escaping () -> Void) -> some View {
+                            agent: AgentProvider? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .medium))
-                .frame(width: 30, height: 28)
-                .foregroundColor(enabled ? Theme.fgDim : Theme.fgMute.opacity(0.5))
-                .contentShape(Rectangle())
+            Group {
+                if let agent {
+                    AgentIcon(provider: agent, size: 16).opacity(enabled ? 1 : 0.5)
+                } else {
+                    Image(systemName: symbol)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(enabled ? Theme.fgDim : Theme.fgMute.opacity(0.5))
+                }
+            }
+            .frame(width: 30, height: 28)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!enabled)

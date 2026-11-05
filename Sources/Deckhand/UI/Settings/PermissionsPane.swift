@@ -51,7 +51,7 @@ struct PermissionsPane: View {
 
             Section {
                 ForEach(model.dataLocations) { location in
-                    SettingsRow(location.title, detail: location.detail, icon: .symbol(location.symbol, location.color),
+                    SettingsRow(location.title, detail: location.detail, icon: location.icon,
                                 detailIsPath: true) {
                         if let size = location.size {
                             Text(size)
@@ -153,8 +153,7 @@ final class PermissionsModel: ObservableObject {
     struct DataLocation: Identifiable {
         let title: String
         let detail: String
-        let symbol: String
-        let color: Color
+        let icon: SettingsRowIcon
         let url: URL
         var size: String?
         var id: String { url.path }
@@ -246,19 +245,25 @@ final class PermissionsModel: ObservableObject {
 
     private static func locations() -> [DataLocation] {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        return [
+        var list = [
             DataLocation(title: String(localized: "History, prompts and shelf"),
                          detail: (AppPaths.supportDir.path as NSString).abbreviatingWithTildeInPath,
-                         symbol: "internaldrive.fill", color: .gray, url: AppPaths.supportDir),
+                         icon: .symbol("internaldrive.fill", .gray), url: AppPaths.supportDir),
             DataLocation(title: String(localized: "Logs"),
                          detail: "~/Library/Logs/Deckhand",
-                         symbol: "doc.text.fill", color: .gray,
+                         icon: .symbol("doc.text.fill", .gray),
                          url: home.appendingPathComponent("Library/Logs/Deckhand", isDirectory: true)),
             DataLocation(title: String(localized: "Claude Code hook"),
                          detail: (ClaudeCodeMonitor.shared.settingsFile.url.path as NSString).abbreviatingWithTildeInPath,
-                         symbol: "sparkle", color: SettingsSection.claude.color,
-                         url: ClaudeCodeMonitor.shared.settingsFile.url),
+                         icon: .section(.claude), url: ClaudeCodeMonitor.shared.settingsFile.url),
         ]
+        let codex = CodexMonitor.shared
+        if codex.hooksInstalled {
+            list.append(DataLocation(title: String(localized: "Codex hooks"),
+                                     detail: codex.hooksFile.displayPath,
+                                     icon: .section(.codex), url: codex.hooksFile.url))
+        }
+        return list
     }
 
     /// Bytes in a file or folder, or nil when it doesn't exist.
