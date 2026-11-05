@@ -43,18 +43,35 @@ struct AgentIcon: View {
 }
 
 /// A short arc that turns around the icon while the agent works.
+///
+/// It sits in the always-visible closed-notch badge, so it turns in steps a dozen times a second
+/// (smooth enough for a ring this small) instead of redrawing every display frame, and stands
+/// still with Reduce Motion on.
 private struct WorkingRing: View {
     let size: CGFloat
-    @State private var turning = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// One turn takes this long, as before.
+    static let period: TimeInterval = 1.4
+    static let framesPerSecond: Double = 12
 
     var body: some View {
+        if reduceMotion {
+            ring(angle: -90)
+        } else {
+            TimelineView(.periodic(from: .now, by: 1 / Self.framesPerSecond)) { context in
+                let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period
+                ring(angle: phase * 360)
+            }
+        }
+    }
+
+    private func ring(angle: Double) -> some View {
         Circle()
             .trim(from: 0, to: 0.28)
             .stroke(Theme.fg, style: StrokeStyle(lineWidth: max(1.5, size * 0.1), lineCap: .round))
             .frame(width: size * 1.32, height: size * 1.32)
-            .rotationEffect(.degrees(turning ? 360 : 0))
-            .animation(.linear(duration: 1.4).repeatForever(autoreverses: false), value: turning)
-            .onAppear { turning = true }
+            .rotationEffect(.degrees(angle))
             .allowsHitTesting(false)
     }
 }
