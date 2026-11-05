@@ -3,9 +3,9 @@ import SwiftUI
 
 /// A transparent borderless panel pinned to the top of the notch screen, centred on the notch.
 ///
-/// There are two: the badge window shows the closed notch (badges, notices) and never takes clicks;
-/// the panel window is ordered in only while the panel is open or animating, so ordering it out at the end
-/// of the close animation hands keyboard focus back without any visible flash.
+/// There are two: the badge window shows the closed notch (badges, notices) and never takes keyboard focus;
+/// the panel window is ordered in only while the panel is open or animating. Closing hands keyboard focus back
+/// at once and orders the panel out when the animation ends, so nothing flashes.
 /// The windows never resize while shown: SwiftUI draws opening and closing inside them.
 @MainActor
 final class NotchWindow: NSPanel {
@@ -16,6 +16,8 @@ final class NotchWindow: NSPanel {
 
     /// A click inside: called before the click is handled, with the location in global coordinates.
     var onMouseDown: ((CGPoint) -> Void)?
+    /// ⌘W (File › Close) while the window has keyboard focus.
+    var onPerformClose: (() -> Void)?
 
     /// The badge window only catches the click-to-open click and must never take keyboard focus.
     private let takesFocus: Bool
@@ -36,6 +38,8 @@ final class NotchWindow: NSPanel {
         isOpaque = false
         hasShadow = false
         hidesOnDeactivate = false
+        // ⌘H while Settings is in front hides Deckhand's windows; the notch must stay
+        canHide = false
         becomesKeyOnlyIfNeeded = false
         ignoresMouseEvents = true
         acceptsMouseMovedEvents = true
@@ -50,6 +54,11 @@ final class NotchWindow: NSPanel {
 
     override var canBecomeKey: Bool { takesFocus }
     override var canBecomeMain: Bool { false }
+
+    /// A borderless window would only beep; close the panel instead.
+    override func performClose(_ sender: Any?) {
+        if let onPerformClose { onPerformClose() } else { super.performClose(sender) }
+    }
 
     /// The window sits over the menu bar on purpose; don't let AppKit push it below.
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }

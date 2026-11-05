@@ -9,6 +9,7 @@ extension SelfTest {
         promptSeeding(check)
         promptCategoriesAndSort(check)
         promptArchive(check)
+        promptSearchOrder(check)
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("deckhand-selftest-prompts-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -40,17 +41,25 @@ extension SelfTest {
         check(reopened.addStarters() == starters && reopened.addStarters() == 0, "restore starters adds only missing ones")
 
         // A 0.4 library (prompts, no seeding mark) gets no extra starters
+        let schema04 = "CREATE TABLE prompts (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'General', tags TEXT NOT NULL DEFAULT '', favorite INTEGER NOT NULL DEFAULT 0, usage_count INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL, updated_at REAL NOT NULL);"
         guard let old = try? Connection(.inMemory) else { return }
-        _ = try? old.execute("CREATE TABLE prompts (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'General', tags TEXT NOT NULL DEFAULT '', favorite INTEGER NOT NULL DEFAULT 0, usage_count INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL, updated_at REAL NOT NULL);")
+        _ = try? old.execute(schema04)
         _ = try? old.execute("INSERT INTO prompts (title, body, created_at, updated_at) VALUES ('Mine', 'x', 0, 0);")
         let upgraded = PromptStore(db: old)
         check(upgraded.count == 1 && upgraded.metaValue(PromptStore.seededKey) != nil, "existing library is not re-seeded")
 
-        // An existing user who deleted every starter: clipboard history shows it's not a new install
+        // A 0.4 user who deleted every starter: the table's id sequence shows there were prompts
         guard let emptied = try? Connection(.inMemory) else { return }
-        _ = try? emptied.execute("CREATE TABLE clipboard_items (id INTEGER PRIMARY KEY);")
-        _ = try? emptied.execute("INSERT INTO clipboard_items (id) VALUES (1);")
-        check(PromptStore(db: emptied).count == 0, "user with history and no prompts gets no starters back")
+        _ = try? emptied.execute(schema04)
+        _ = try? emptied.execute("INSERT INTO prompts (title, body, created_at, updated_at) VALUES ('Starter', 'x', 0, 0);")
+        _ = try? emptied.execute("DELETE FROM prompts;")
+        check(PromptStore(db: emptied).count == 0, "user who deleted every prompt gets no starters back")
+
+        // Clipboard history fills up from launch, long before Prompts is opened: still a new library
+        guard let newUser = try? Connection(.inMemory) else { return }
+        _ = try? newUser.execute("CREATE TABLE clipboard_items (id INTEGER PRIMARY KEY);")
+        _ = try? newUser.execute("INSERT INTO clipboard_items (id) VALUES (1);")
+        check(PromptStore(db: newUser).count == starters, "new user with clipboard history gets the starters")
     }
 
     private static func prompt(_ id: Int64, _ title: String, category: String = "Code", favorite: Bool = false,
@@ -83,6 +92,34 @@ extension SelfTest {
         let fresh = PromptLibrary.sorted(bumped, by: .favoritesAndUsage) + [prompt(4, "new")]
         check(PromptLibrary.keepingOrder(of: shown, fresh: fresh).map(\.id) == [2, 3, 1, 4], "click keeps the order on screen")
         check(PromptLibrary.title(fromBody: "  First line here\nsecond") == "First line here", "title from the first line")
+    }
+
+    /// Narrowing a search and clearing it again shows the library in the chosen order.
+    private static func promptSearchOrder(_ check: Check) {
+        guard let db = try? Connection(.inMemory) else { return }
+        let store = PromptStore(db: db)
+        store.deleteAll()
+        for (title, body) in [("Alpha", "first"), ("Bravo", "second"), ("Charlie", "third")] {
+            store.create(title: title, body: body, category: "Code", tags: [])
+        }
+        let vm = PromptsViewModel(store: store)
+        let sorted = vm.prompts.map(\.id)
+        guard sorted.count == 3, let last = vm.prompts.last else { check(false, "search order library: \(sorted)"); return }
+        vm.searchChanged(to: last.title)
+        let narrowed = vm.prompts.map(\.id)
+        vm.searchChanged(to: "")
+        check(narrowed == [last.id] && vm.prompts.map(\.id) == sorted,
+              "clearing a search restores the chosen order: \(vm.prompts.map(\.title))")
+
+        // "Save as Prompt" from Recents never replaces a draft that has content
+        vm.newDraft()
+        check(vm.newDraft(body: "from recents") && vm.draft?.body == "from recents", "a blank draft takes the new text")
+        vm.draft?.title = "Half written"
+        check(!vm.newDraft(body: "another text") && vm.draft?.title == "Half written" && vm.draft?.body == "from recents"
+              && vm.pendingDraftBody == "another text", "a draft with content is kept and the new text waits")
+        vm.replaceDraftWithPending()
+        check(vm.draft?.body == "another text" && vm.draft?.title == "" && vm.pendingDraftBody == nil, "replacing the draft is a choice")
+        vm.cancelDraft()
     }
 
     private static func promptArchive(_ check: Check) {
@@ -127,10 +164,37 @@ extension SelfTest {
 
         let keep = copies.appendingPathComponent("keep", isDirectory: true)
         let drop = copies.appendingPathComponent("drop", isDirectory: true)
-        try? fm.createDirectory(at: keep, withIntermediateDirectories: true)
-        try? fm.createDirectory(at: drop, withIntermediateDirectories: true)
-        ShelfFiles.purgeCopies(keeping: [keep.appendingPathComponent("a.png").path], in: copies)
+        let fresh = copies.appendingPathComponent("fresh", isDirectory: true)
+        let pending = copies.appendingPathComponent("pending", isDirectory: true)
+        let hourAgo = Date().addingTimeInterval(-3600)
+        for folder in [keep, drop, fresh, pending] { try? fm.createDirectory(at: folder, withIntermediateDirectories: true) }
+        for folder in [keep, drop, pending] { try? fm.setAttributes([.creationDate: hourAgo], ofItemAtPath: folder.path) }
+        let oldEnough = (try? drop.resourceValues(forKeys: [.creationDateKey]))?.creationDate.map { $0 < Date().addingTimeInterval(-600) }
+        check(oldEnough == true, "test folders can be dated back")
+        // The purge runs while a drop is still being copied into "pending"; "fresh" was just made
+        // and its item isn't on the list yet. Neither may be deleted.
+        ShelfFiles.whileCopying(pending) {
+            ShelfFiles.purgeCopies(keeping: [keep.appendingPathComponent("a.png").path], in: copies)
+        }
         check(fm.fileExists(atPath: keep.path) && !fm.fileExists(atPath: drop.path), "unused shelf copies are purged")
+        check(fm.fileExists(atPath: pending.path), "a shelf copy in progress survives a purge")
+        check(fm.fileExists(atPath: fresh.path), "a new shelf copy not yet on the list survives a purge")
+        ShelfFiles.purgeCopies(keeping: [], in: copies, now: Date().addingTimeInterval(ShelfFiles.purgeGrace + 60))
+        check(!fm.fileExists(atPath: fresh.path) && !fm.fileExists(atPath: pending.path), "old unused shelf copies go eventually")
+
+        // Undo puts files back in their places, not by date: one drop's files have increasing dates top to bottom
+        let t0 = Date()
+        let dropped = (0..<3).map { ShelfItem(path: "/tmp/\($0).png", bookmark: nil, addedAt: t0.addingTimeInterval(Double($0))) }
+        let later = ShelfItem(path: "/tmp/later.png", bookmark: nil, addedAt: t0.addingTimeInterval(10))
+        let order = dropped.map(\.id)
+        let undone = ShelfStore.restoring(dropped, into: [later], order: order)
+        check(undone.map(\.id) == [later.id] + order, "shelf Undo keeps the drop order, newer files on top")
+        let partial = ShelfStore.restoring([dropped[1]], into: [dropped[0], dropped[2]], order: order)
+        check(partial.map(\.id) == order, "shelf Undo puts one file back in its place")
+
+        let outside = TileInteractionView.operations(for: .outsideApplication)
+        let inside = TileInteractionView.operations(for: .withinApplication)
+        check(outside == [.copy, .link] && inside == [.copy], "shelf drags offer copy (and link outside), never move or generic")
 
         let old = Data(#"[{"id":"5D6C7F7E-6C1B-4F77-9B39-1D0B7F1C2E11","path":"/tmp/a.png","addedAt":0}]"#.utf8)
         let decoded = try? JSONDecoder().decode([ShelfItem].self, from: old)

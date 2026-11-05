@@ -67,6 +67,8 @@ enum ClipboardSchema {
             case .text, .link: newHash = ClipboardCapture.hash(kind, text ?? "")
             default: newHash = row[hash]
             }
+            // The same rule as new copies: text from a password app is a password, hidden and not searchable
+            let secret = (kind == .text || kind == .link) && row[sourceApp].map(ClipboardWatcher.passwordApps.contains) == true
             try db.run(table.filter(id == row[id]).update(
                 self.kind <- kind.rawValue,
                 self.text <- text,
@@ -74,11 +76,39 @@ enum ClipboardSchema {
                 fileUrls <- fileURLs.map(\.absoluteString).joined(separator: "\n"),
                 self.preview <- preview,
                 self.hash <- newHash,
-                searchText <- ClipboardText.searchText(text: text, fileURLs: fileURLs, appName: row[sourceAppName]),
+                searchText <- (secret ? "" : ClipboardText.searchText(text: text, fileURLs: fileURLs, appName: row[sourceAppName])),
+                isSecret <- (secret ? 1 : 0),
                 // Absolute paths broke after a move to another Mac or user name; keep the file name only
                 imagePath <- row[imagePath].map { URL(fileURLWithPath: $0).lastPathComponent },
                 pinnedAt <- (row[pinned] == 1 ? row[createdAt] : nil)
             ))
+        }
+        try mergeDuplicates(db)
+    }
+
+    /// 0.4 saved a web link as a "file" and the same address copied as text as a separate row;
+    /// both are now the same link with the same hash. Keeps one row per hash: the most recently
+    /// used, pinned when any of them was, with the earliest creation time.
+    static func mergeDuplicates(_ db: Connection) throws {
+        struct Entry { let id: Int64; let pinned: Bool; let pinnedAt: Double?; let created: Double; let used: Double }
+        var groups: [String: [Entry]] = [:]
+        let dupes = table.select(hash).group(hash, having: id.count > 1)
+        let wanted = Set(try db.prepare(dupes).map { $0[hash] })
+        guard !wanted.isEmpty else { return }
+        for row in try db.prepare(table.select(id, hash, pinned, pinnedAt, createdAt, lastUsedAt).filter(wanted.contains(hash))) {
+            groups[row[hash], default: []].append(Entry(id: row[id], pinned: row[pinned] == 1, pinnedAt: row[pinnedAt],
+                                                        created: row[createdAt], used: row[lastUsedAt]))
+        }
+        for entries in groups.values where entries.count > 1 {
+            guard let keep = entries.max(by: { ($0.used, $0.id) < ($1.used, $1.id) }) else { continue }
+            let pins = entries.filter(\.pinned)
+            try db.run(table.filter(id == keep.id).update(
+                pinned <- (pins.isEmpty ? 0 : 1),
+                pinnedAt <- pins.compactMap(\.pinnedAt).min(),
+                createdAt <- entries.map(\.created).min() ?? keep.created
+            ))
+            // Image files left without a row are removed by the regular orphan cleanup
+            try db.run(table.filter(entries.map(\.id).filter { $0 != keep.id }.contains(id)).delete())
         }
     }
 }
@@ -91,14 +121,31 @@ enum ClipboardSchema {
 @MainActor
 final class ClipboardStore {
     static let shared: ClipboardStore = {
-        let store = ClipboardStore(db: Database.shared.db, imagesDir: AppPaths.clipboardImagesDir)
+        let database = Database.shared
+        if let damaged = database.movedAside { keepImages(AppPaths.clipboardImagesDir, of: damaged) }
+        let store = ClipboardStore(db: database.db, imagesDir: AppPaths.clipboardImagesDir)
+        // Without its file this session knows no items, so every saved image would look left over
+        store.removesOrphans = !database.inMemory
         if AppPaths.isSnapshot { store.addSnapshotSamples() }
         return store
     }()
 
+    /// A damaged database was replaced: its images move next to it, so the fresh history starts empty
+    /// and nothing the old file refers to is deleted as left over.
+    static func keepImages(_ images: URL, of damaged: URL) {
+        try? FileManager.default.moveItem(at: images, to: keptImagesDir(of: damaged))
+    }
+
+    static func keptImagesDir(of damaged: URL) -> URL {
+        damaged.deletingLastPathComponent()
+            .appendingPathComponent(damaged.deletingPathExtension().lastPathComponent + "-images", isDirectory: true)
+    }
+
     private typealias S = ClipboardSchema
     private let db: Connection
     let imagesDir: URL
+    /// False while the session has no database file: then no image may be treated as left over.
+    var removesOrphans = true
 
     init(db: Connection, imagesDir: URL) {
         self.db = db
@@ -119,16 +166,21 @@ final class ClipboardStore {
     @discardableResult
     func insert(_ entry: ClipboardEntry, limit: Int, maxAgeDays: Int, now: Date = Date()) -> InsertResult {
         let time = now.timeIntervalSince1970
-        if let existing = try? db.pluck(S.table.select(S.id, S.imagePath).filter(S.hash == entry.hash)) {
+        if let existing = try? db.pluck(S.table.select(S.id, S.imagePath, S.isSecret).filter(S.hash == entry.hash)) {
             let id = existing[S.id]
             // Rows from 0.4 name their image differently; drop the copy just written for this one
             if let name = entry.imageName, existing[S.imagePath].map({ URL(fileURLWithPath: $0).lastPathComponent }) != name {
                 try? FileManager.default.removeItem(at: imagesDir.appendingPathComponent(name))
             }
+            // The search covers the new source app. Once a password, always one: copying the same
+            // text again from another app doesn't reveal it
+            let secret = entry.isSecret || existing[S.isSecret] == 1
             _ = try? db.run(S.table.filter(S.id == id).update(
                 S.lastUsedAt <- time,
                 S.sourceApp <- entry.sourceApp,
-                S.sourceAppName <- entry.sourceAppName))
+                S.sourceAppName <- entry.sourceAppName,
+                S.searchText <- (secret ? "" : entry.searchText),
+                S.isSecret <- (secret ? 1 : 0)))
             NotificationCenter.default.post(name: .clipboardHistoryChanged, object: nil)
             return .movedToTop(id)
         }
@@ -310,7 +362,8 @@ final class ClipboardStore {
     /// Deletes image files no item refers to, e.g. left by a crash between saving and inserting.
     /// Files younger than a minute are skipped: a capture may be on its way in.
     func removeOrphanImages() {
-        guard let rows = try? db.prepare(S.table.select(S.imagePath).filter(S.imagePath != nil)) else { return }
+        guard removesOrphans,
+              let rows = try? db.prepare(S.table.select(S.imagePath).filter(S.imagePath != nil)) else { return }
         let known = Set(rows.compactMap { $0[S.imagePath].map { URL(fileURLWithPath: $0).lastPathComponent } })
         let dir = imagesDir
         DispatchQueue.global(qos: .utility).async {

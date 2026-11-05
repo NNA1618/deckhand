@@ -25,6 +25,8 @@ final class Countdown: ObservableObject {
 
     /// Called when the time is up, for the notice in the notch.
     var onFinish: () -> Void = {}
+    /// Called when a ringing timer is dismissed or stopped, wherever that happened, so the notice goes too.
+    var onSilenced: () -> Void = {}
     private var tick: Task<Void, Never>?
     private var ring: Task<Void, Never>?
 
@@ -113,7 +115,9 @@ final class Countdown: ObservableObject {
     private func stopRinging() {
         ring?.cancel()
         ring = nil
+        guard isRinging else { return }
         isRinging = false
+        onSilenced()
     }
 
     private static func play(_ name: String) {

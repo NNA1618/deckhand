@@ -43,10 +43,12 @@ struct NotchClosedView: View {
         return CGSize(width: max(n.width - 6, 10), height: max(n.height - 2, 10))
     }
 
-    /// Without a camera housing the idle notch is drawn, unless the user wants it invisible until hovered.
+    /// Without a camera housing the idle notch is drawn, unless the user wants it invisible until hovered;
+    /// over a full-screen app it shows only while hovered, so it never sits on top of a video or slides.
     private var visible: Bool {
         if vm.isOpen { return false }
         if toast != nil || badge != nil || vm.hasNotch { return true }
+        if closed.fullScreen { return vm.peek }
         return notchSettings.noNotchStyle == .blackPill || vm.peek
     }
 

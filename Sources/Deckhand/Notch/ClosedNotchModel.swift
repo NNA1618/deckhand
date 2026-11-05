@@ -12,7 +12,7 @@ final class ClosedNotchModel: ObservableObject {
     @Published private(set) var earWidth: CGFloat = 0
 
     /// Set by the controller from the cached full-screen state of the notch display.
-    var fullScreen = false { didSet { if fullScreen != oldValue { scheduleUpdate() } } }
+    @Published var fullScreen = false { didSet { if fullScreen != oldValue { scheduleUpdate() } } }
 
     private var subscriptions = Set<AnyCancellable>()
     private var pending = false
@@ -46,7 +46,7 @@ final class ClosedNotchModel: ObservableObject {
         let s = Settings.shared
         let inputs = BadgeKind.Inputs(
             claudeActive: !ClaudeCodeMonitor.shared.active.isEmpty, claudeEnabled: s.claudeInNotch,
-            timerActive: Countdown.shared.isActive, timerEnabled: s.badgeTimer,
+            timerActive: Countdown.shared.isActive, timerRinging: Countdown.shared.isRinging, timerEnabled: s.badgeTimer,
             musicPlaying: NowPlayingMonitor.shared.showsInNotch, musicEnabled: s.showPlayingInNotch,
             keepAwakeActive: KeepAwake.shared.isActive, keepAwakeEnabled: s.keepAwakeIndicator,
             fullScreen: fullScreen, hideInFullScreen: s.hideBadgesInFullScreen

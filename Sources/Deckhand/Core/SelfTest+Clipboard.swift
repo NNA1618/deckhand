@@ -119,6 +119,27 @@ extension SelfTest {
         check(found("safari") == ["https://example.com/docs"], "search finds the source app")
         check(found("москве встреча") == ["Встреча в Москве"] && found("москве nothing").isEmpty, "every word must match")
         check(found("", .links) == ["https://example.com/docs"] && found("", .files).count == 1, "filters by kind")
+        let longLink = "https://example.com/search?q=" + String(repeating: "a", count: 400)
+        if case let .inserted(longId) = store.insert(entry(longLink), limit: 0, maxAgeDays: 0), let long = store.item(id: longId) {
+            check(long.preview.count < longLink.count && ClipboardViewModel.linkURL(store.text(id: longId))?.absoluteString == longLink,
+                  "Open Link uses the whole address, not the preview")
+            store.delete(id: longId)
+        } else {
+            check(false, "Open Link uses the whole address")
+        }
+
+        // Copying the same content again updates what the search sees
+        store.insert(entry("https://example.com/docs", app: "com.google.Chrome", name: "Chrome"), limit: 0, maxAgeDays: 0)
+        check(found("chrome") == ["https://example.com/docs"] && found("safari").isEmpty, "a repeated copy is found by its new app")
+        var fromPasswords = entry("axb", app: "com.apple.Passwords", name: "Passwords")
+        fromPasswords.isSecret = true
+        fromPasswords.searchText = ""
+        store.insert(fromPasswords, limit: 0, maxAgeDays: 0)
+        store.insert(entry("axb"), limit: 0, maxAgeDays: 0)
+        let hidden = store.recentItems(filter: .text).first { $0.sourceApp == "com.apple.Notes" && $0.isSecret }
+        check(found("axb").isEmpty && hidden != nil && store.secretCount() == 1,
+              "text copied again from a password app becomes a password and stays one")
+        if let hidden { store.delete(id: hidden.id) }
 
         // Paging: no fixed cap
         for i in 0..<250 { store.insert(entry("item \(i)"), limit: 0, maxAgeDays: 0) }
@@ -203,6 +224,12 @@ extension SelfTest {
                     VALUES ('image', '/Users/old/Library/Application Support/Fringe/clipboard-images/img-1.png', 'h2', 1, 2, 2);
                 INSERT INTO clipboard_items (kind, text, hash, pinned, created_at, last_used_at)
                     VALUES ('text', 'Привет, Мир', 'h3', 0, 3, 3);
+                INSERT INTO clipboard_items (kind, text, hash, pinned, source_app, source_app_name, created_at, last_used_at)
+                    VALUES ('text', 'hunter2-old', 'h4', 0, 'com.apple.Passwords', 'Passwords', 4, 4);
+                INSERT INTO clipboard_items (kind, text, file_url, hash, pinned, created_at, last_used_at)
+                    VALUES ('file', NULL, 'https://example.org/page', 'h5', 1, 5, 5);
+                INSERT INTO clipboard_items (kind, text, hash, pinned, created_at, last_used_at)
+                    VALUES ('text', 'https://example.org/page', 'h6', 0, 6, 6);
             """)
         } catch {
             check(false, "old database created: \(error)")
@@ -215,15 +242,40 @@ extension SelfTest {
         let link = store.recentItems(filter: .links).first
         check(link?.preview == "https://github.com/owner/repo" && store.text(id: link?.id ?? 0) == "https://github.com/owner/repo",
               "0.4 web-link \"files\" become links")
-        check(store.pinnedItems().first?.imageName == "img-1.png", "image paths become relative")
+        check(store.pinnedItems(filter: .images).first?.imageName == "img-1.png", "image paths become relative")
         check(store.recentItems(search: "мир").count == 1, "old rows become searchable")
         let prompts = (try? database.db.scalar("SELECT count(*) FROM prompts WHERE title = 'Keep me'") as? Int64) ?? 0
         check(prompts == 1, "the prompts table is untouched by the migration")
+
+        // Passwords from password apps are hidden and not searchable, as new copies are
+        let password = store.recentItems().first { $0.sourceApp == "com.apple.Passwords" }
+        check(password?.isSecret == true && password?.title == "••••••••" && store.recentItems(search: "hunter2").isEmpty,
+              "0.4 copies from password apps become hidden passwords")
+        // A 0.4 link "file" and the same address copied as text merge into one pinned link
+        let merged = store.pinnedItems(filter: .links)
+        check(merged.count == 1 && merged.first?.id == 6 && store.recentItems(filter: .links).count == 1
+              && merged.first?.createdAt == Date(timeIntervalSince1970: 5),
+              "duplicate 0.4 links merge into the newer one, keeping the pin: \(merged.map(\.id))")
+        check(store.count() == 5, "the migration drops only duplicates: \(store.count()) rows")
+
+        func dump(_ db: Connection) -> [String] {
+            let sql = "SELECT id, kind, text, hash, pinned, pinned_at, is_secret, search_text, image_path, created_at FROM clipboard_items ORDER BY id"
+            return ((try? db.prepare(sql).map { row in row.map { "\($0 ?? "nil")" }.joined(separator: "|") }) ?? [])
+        }
+        let before = dump(database.db)
         do {
             try Database.migrate(database.db)
             check(true, "migrations can run twice")
         } catch {
             check(false, "migrations can run twice: \(error)")
+        }
+        let reopened = Database(url: url)
+        check(!before.isEmpty && dump(reopened.db) == before && dump(database.db) == before, "opening the migrated database again changes nothing")
+        do {
+            try ClipboardSchema.upgradeToV2(reopened.db)
+            check(dump(reopened.db) == before, "running the version 2 step again changes nothing")
+        } catch {
+            check(false, "running the version 2 step again: \(error)")
         }
 
         let broken = temp.appendingPathComponent("broken.sqlite")
@@ -232,6 +284,17 @@ extension SelfTest {
         let works = (try? recovered.db.scalar("SELECT count(*) FROM clipboard_items") as? Int64) == 0
         check(recovered.movedAside != nil && works && FileManager.default.fileExists(atPath: recovered.movedAside?.path ?? ""),
               "a damaged database is moved aside and replaced")
+
+        // Its images go with it, so the fresh history can't delete them as left over
+        let images = temp.appendingPathComponent("images-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: images, withIntermediateDirectories: true)
+        try? Data([1]).write(to: images.appendingPathComponent("old.png"))
+        if let damaged = recovered.movedAside {
+            ClipboardStore.keepImages(images, of: damaged)
+            let kept = ClipboardStore.keptImagesDir(of: damaged).appendingPathComponent("old.png")
+            check(FileManager.default.fileExists(atPath: kept.path) && !FileManager.default.fileExists(atPath: images.path),
+                  "a replaced database keeps its images next to it")
+        }
     }
 
     /// Reading and restoring, on private named pasteboards only.
@@ -301,6 +364,10 @@ extension SelfTest {
            case let .inserted(imageId) = store.insert(imageEntry, limit: 0, maxAgeDays: 0), let imageItem = store.item(id: imageId) {
             _ = ClipboardWriter.write(imageItem, store: store, to: pb)
             check(pb.data(forType: .png) != nil && pb.types?.contains(.tiff) == true, "images are restored as PNG, TIFF on demand")
+            pb.clearContents()
+            let async = wait { await ClipboardWriter.writeAsync(imageItem, store: store, to: pb) }
+            check(async != nil && (try? async?.get()) == pb.changeCount && pb.data(forType: .png) != nil,
+                  "copying an image from the history reads it off the main thread")
             try? FileManager.default.removeItem(at: store.imageURL(for: imageItem)!)
             pb.clearContents()
             pb.setString("keep me", forType: .string)
@@ -316,7 +383,26 @@ extension SelfTest {
             let result = ClipboardWriter.write(goneItem, store: store, to: pb)
             check(result == .failure(.missingFiles) && pb.string(forType: .string) == "keep me",
                   "a moved file fails clearly and leaves the clipboard alone")
+            let async = wait { await ClipboardWriter.writeAsync(goneItem, store: store, to: pb) }
+            check(async == .failure(.missingFiles) && pb.string(forType: .string) == "keep me",
+                  "the off-main file check also leaves the clipboard alone")
+            if case let .inserted(fileId) = store.insert(ClipboardCapture.prepare(PasteboardSnapshot(fileURLs: [file]), imagesDir: images,
+                                                                                    maxImageBytes: 0)!, limit: 0, maxAgeDays: 0),
+               let fileItem = store.item(id: fileId) {
+                let copied = wait { await ClipboardWriter.writeAsync(fileItem, store: store, to: pb) }
+                let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]
+                check(copied.map { (try? $0.get()) != nil } == true && urls == [file], "existing files are copied after an off-main check")
+            }
         }
+    }
+
+    /// Runs async work to the end from the synchronous self-test, letting the main queue run meanwhile.
+    private static func wait<T>(timeout: TimeInterval = 5, _ work: @escaping @MainActor () async -> T) -> T? {
+        let box = SelfTestBox<T>()
+        Task { @MainActor in box.value = await work() }
+        let deadline = Date().addingTimeInterval(timeout)
+        while box.value == nil, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        return box.value
     }
 
     /// ⌘V uses the key that types "v" in the layout, not a fixed key code.
@@ -333,4 +419,10 @@ extension SelfTest {
             check(PasteService.keyCode(for: "v", in: dvorak) == UInt16(kVK_ANSI_Period), "V on Dvorak is the period key")
         }
     }
+}
+
+/// Holds a result written by a task on the main actor while the self-test waits for it.
+@MainActor
+private final class SelfTestBox<T> {
+    var value: T?
 }

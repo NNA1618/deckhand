@@ -321,6 +321,8 @@
 "Keep Awake for %@" = "«Не спать» на %@";
 "Keep Awake off" = "«Не спать» выключено";
 "Hover over the notch to open · Esc closes" = "Наведите на чёлку, чтобы открыть · Esc закрывает";
+"Click the notch to open · Esc closes" = "Нажмите на чёлку, чтобы открыть · Esc закрывает";
+"Clipboard history was damaged and has been started over" = "История буфера обмена была повреждена и начата заново";
 "Open with %@ · Esc closes" = "Открыть: %@ · Esc закрывает";
 "Open from the menu bar · Esc closes" = "Открывается из строки меню · Esc закрывает";
 "All shortcuts in Settings" = "Все сочетания клавиш в настройках";
@@ -616,6 +618,7 @@
 "Save as Prompt" = "Сохранить как промпт";
 "Claude's version" = "Вариант Claude";
 "Replace" = "Заменить";
+"Your unsaved prompt is kept. Replace it with the new text?" = "Несохранённый промпт оставлен. Заменить его новым текстом?";
 "Replaced with Claude's version" = "Заменено вариантом Claude";
 "recents.period.day" = "За последние сутки";
 "recents.period.3days" = "За последние 3 дня";

@@ -80,7 +80,9 @@ final class NotchSettings: ObservableObject {
         // 0.4 had a single "open on hover" switch and a 0.08 s default delay that opened on every pass
         let stored = d.string(forKey: "panelActivation").flatMap(PanelActivation.init(rawValue:))
         activation = stored ?? (d.object(forKey: "openOnHover") as? Bool == false ? .shortcut : .hover)
-        hoverDelay = d.object(forKey: "hoverOpenDelay") != nil
+        // Only a stored value counts here: the registered default would always hide the 0.4 one
+        let saved = d.persistentDomain(forName: AppPaths.bundleId) ?? [:]
+        hoverDelay = saved["hoverOpenDelay"] != nil
             ? d.double(forKey: "hoverOpenDelay")
             : (d.double(forKey: "hoverDelay") >= 0.5 ? 0.5 : 0.2)
         hoverArea = HoverArea(rawValue: d.string(forKey: "hoverArea") ?? "") ?? .standard

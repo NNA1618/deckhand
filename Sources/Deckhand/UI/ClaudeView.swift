@@ -14,7 +14,16 @@ struct ClaudeView: View {
                 .frame(maxHeight: .infinity, alignment: .top)
             actions
         }
-        .onAppear { vm.loadFromClipboardIfEmpty() }
+        .onAppear {
+            vm.loadFromClipboardIfEmpty()
+            // Esc stops a running action before it closes the panel
+            notch.escapeHandlers[.claude] = { [vm] in
+                guard vm.isRunning else { return false }
+                vm.stop()
+                return true
+            }
+        }
+        .onDisappear { notch.escapeHandlers[.claude] = nil }
     }
 
     // MARK: - Quick actions

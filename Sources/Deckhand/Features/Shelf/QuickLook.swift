@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Quartz
 
 /// Quick Look for files on the Shelf and in Recents. The preview floats above the panel, and the
@@ -12,6 +13,7 @@ final class QuickLook: NSObject {
     private weak var notch: NotchViewModel?
     private var previousApp: NSRunningApplication?
     private var visibility: NSKeyValueObservation?
+    private var reactivation: AnyCancellable?
     private var showing = false
 
     var isVisible: Bool { QLPreviewPanel.sharedPreviewPanelExists() && QLPreviewPanel.shared().isVisible }
@@ -52,12 +54,22 @@ final class QuickLook: NSObject {
         showing = false
         visibility = nil
         notch?.holds.remove("quick-look")
-        if let notchWindow = NSApp.windows.first(where: { $0 is NotchWindow }), notch?.isOpen == true {
-            notchWindow.makeKey()
-        } else if let previousApp {
-            previousApp.activate()
-        }
+        let app = previousApp
         previousApp = nil
+        // Back to the panel's keys; only the panel window takes them (the badge window is a NotchWindow too)
+        guard let notch, notch.isOpen,
+              let panel = NSApp.windows.first(where: { $0 is NotchWindow && $0.canBecomeKey }) else {
+            app?.activate()
+            return
+        }
+        panel.makeKey()
+        // Deckhand was activated for the preview: once the panel closes, typing goes back to that app,
+        // unless the user has moved to another app meanwhile
+        guard let app else { return }
+        reactivation = notch.$isOpen.first { !$0 }.sink { [weak self] _ in
+            if NSApp.isActive { app.activate() }
+            self?.reactivation = nil
+        }
     }
 }
 

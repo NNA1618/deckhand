@@ -13,6 +13,8 @@ final class Database {
     let db: Connection
     /// Where a damaged database was moved, when it had to be replaced by a fresh one on this launch.
     private(set) var movedAside: URL?
+    /// This session runs without a database file (self-test, or the file couldn't be opened).
+    private(set) var inMemory = false
 
     /// The schema version this build writes.
     static let currentVersion: Int64 = 2
@@ -24,6 +26,7 @@ final class Database {
     init(url: URL?) {
         guard let url else {
             db = Self.openInMemory()
+            inMemory = true
             return
         }
         do {
@@ -33,6 +36,7 @@ final class Database {
             Log.info("database: cannot open \(url.lastPathComponent): \(error)")
             guard Self.isDamaged(error) else {
                 db = Self.openInMemory()
+                inMemory = true
                 return
             }
         }
@@ -42,6 +46,7 @@ final class Database {
         } catch {
             Log.info("database: fresh database failed too: \(error)")
             db = Self.openInMemory()
+            inMemory = true
         }
     }
 

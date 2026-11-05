@@ -6,7 +6,6 @@ import QuickLookThumbnailing
 /// a drag carries the whole selection, Space shows Quick Look.
 struct ShelfView: View {
     @ObservedObject private var store = ShelfStore.shared
-    @ObservedObject private var settings = ShelfSettings.shared
     @EnvironmentObject private var notch: NotchViewModel
     @State private var targeted = false
     @State private var anchor: UUID?
@@ -88,8 +87,8 @@ struct ShelfView: View {
             Spacer()
             DragAllHandle(title: store.selection.isEmpty ? "Drag All" : "Drag Selected",
                           urls: { store.urls(for: actionIds) },
-                          onDragStart: { store.draggingOut = actionIds },
-                          onDragEnd: { ended(actionIds, $0) })
+                          onDragStart: { store.beginDrag(actionIds) },
+                          onDragEnd: { store.endDrag($0) })
             ShareLink(items: store.urls(for: actionIds)) {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 11, weight: .medium)).foregroundColor(Theme.fg)
@@ -164,11 +163,6 @@ struct ShelfView: View {
     }
 
     // MARK: Actions
-
-    private func ended(_ ids: Set<UUID>, _ operation: NSDragOperation) {
-        store.draggingOut = []
-        if settings.removeAfterDrag, !operation.isEmpty { store.remove(ids) }
-    }
 
     /// Loads every dropped file, then adds them in the order they were dragged.
     private func accept(_ providers: [NSItemProvider]) {
@@ -255,14 +249,13 @@ struct ShelfTile: View {
     let onClick: (NSEvent.ModifierFlags) -> Void
     let menu: () -> NSMenu
     @ObservedObject private var store = ShelfStore.shared
-    @ObservedObject private var settings = ShelfSettings.shared
     @EnvironmentObject private var notch: NotchViewModel
     @State private var thumb: NSImage?
     @State private var hover = false
 
     var body: some View {
         VStack(spacing: 6) {
-            Image(nsImage: thumb ?? NSWorkspace.shared.icon(forFile: item.path))
+            Image(nsImage: thumb ?? Thumbnail.typeIcon(forPath: item.path))
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 72, height: 72)
@@ -296,12 +289,8 @@ struct ShelfTile: View {
                 onDoubleClick: { if reachable { NSWorkspace.shared.open(item.url) } },
                 onHover: { hover = $0 },
                 menu: menu,
-                onDragStart: { store.draggingOut = store.targetIds(for: item) },
-                onDragEnd: { op in
-                    let ids = store.targetIds(for: item)
-                    store.draggingOut = []
-                    if settings.removeAfterDrag, !op.isEmpty { store.remove(ids) }
-                }
+                onDragStart: { store.beginDrag(store.targetIds(for: item)) },
+                onDragEnd: { store.endDrag($0) }
             )
         }
         .overlay(alignment: .topTrailing) {
@@ -322,7 +311,7 @@ struct ShelfTile: View {
         .accessibilityLabel(Text(verbatim: item.name))
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { onClick([]) }
-        .task(id: item.path) { thumb = await Thumbnail.make(for: item.url, size: 144) }
+        .task(id: item.path) { thumb = await Thumbnail.make(for: item.url, size: 144, orIcon: true) }
     }
 }
 
@@ -374,15 +363,17 @@ enum Thumbnail {
         return c
     }()
 
-    static func make(for url: URL, size: CGFloat) async -> NSImage? {
+    /// `orIcon` falls back to the file's own icon (a folder, an app) when it has no thumbnail.
+    /// Runs off the main thread: reading the file's date can stall on a slow or stale drive.
+    static func make(for url: URL, size: CGFloat, orIcon: Bool = false) async -> NSImage? {
         let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-        let key = "\(url.path)#\(Int(size))#\(modified?.timeIntervalSince1970 ?? 0)" as NSString
+        let key = "\(url.path)#\(Int(size))#\(modified?.timeIntervalSince1970 ?? 0)#\(orIcon)" as NSString
         if let hit = cache.object(forKey: key) { return hit }
         let request = QLThumbnailGenerator.Request(
             fileAt: url,
             size: CGSize(width: size, height: size),
             scale: 2,
-            representationTypes: .thumbnail
+            representationTypes: orIcon ? [.thumbnail, .icon] : .thumbnail
         )
         guard let image = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request).nsImage else {
             return nil
@@ -390,4 +381,16 @@ enum Thumbnail {
         cache.setObject(image, forKey: key)
         return image
     }
+
+    /// The generic icon for the file's type, from its name only: no disk access, so it is safe to
+    /// show while the real thumbnail or icon loads.
+    @MainActor static func typeIcon(forPath path: String) -> NSImage {
+        let ext = (path as NSString).pathExtension.lowercased()
+        if let hit = typeIcons[ext] { return hit }
+        let icon = NSWorkspace.shared.icon(for: UTType(filenameExtension: ext) ?? .data)
+        typeIcons[ext] = icon
+        return icon
+    }
+
+    @MainActor private static var typeIcons: [String: NSImage] = [:]
 }
