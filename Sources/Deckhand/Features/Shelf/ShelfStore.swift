@@ -14,7 +14,8 @@ struct ShelfItem: Identifiable, Codable, Hashable {
     var isCopy: Bool
 
     var url: URL { URL(fileURLWithPath: path) }
-    var name: String { url.lastPathComponent }
+    /// From the path alone: `url` asks the disk whether the path is a folder.
+    var name: String { (path as NSString).lastPathComponent }
 
     init(id: UUID = UUID(), path: String, bookmark: Data?, addedAt: Date = Date(), isCopy: Bool = false) {
         self.id = id

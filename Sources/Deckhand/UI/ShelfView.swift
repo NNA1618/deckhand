@@ -255,7 +255,7 @@ struct ShelfTile: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            Image(nsImage: thumb ?? NSWorkspace.shared.icon(forFile: item.path))
+            Image(nsImage: thumb ?? Thumbnail.typeIcon(forPath: item.path))
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 72, height: 72)
@@ -311,7 +311,7 @@ struct ShelfTile: View {
         .accessibilityLabel(Text(verbatim: item.name))
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { onClick([]) }
-        .task(id: item.path) { thumb = await Thumbnail.make(for: item.url, size: 144) }
+        .task(id: item.path) { thumb = await Thumbnail.make(for: item.url, size: 144, orIcon: true) }
     }
 }
 
@@ -363,15 +363,17 @@ enum Thumbnail {
         return c
     }()
 
-    static func make(for url: URL, size: CGFloat) async -> NSImage? {
+    /// `orIcon` falls back to the file's own icon (a folder, an app) when it has no thumbnail.
+    /// Runs off the main thread: reading the file's date can stall on a slow or stale drive.
+    static func make(for url: URL, size: CGFloat, orIcon: Bool = false) async -> NSImage? {
         let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-        let key = "\(url.path)#\(Int(size))#\(modified?.timeIntervalSince1970 ?? 0)" as NSString
+        let key = "\(url.path)#\(Int(size))#\(modified?.timeIntervalSince1970 ?? 0)#\(orIcon)" as NSString
         if let hit = cache.object(forKey: key) { return hit }
         let request = QLThumbnailGenerator.Request(
             fileAt: url,
             size: CGSize(width: size, height: size),
             scale: 2,
-            representationTypes: .thumbnail
+            representationTypes: orIcon ? [.thumbnail, .icon] : .thumbnail
         )
         guard let image = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request).nsImage else {
             return nil
@@ -379,4 +381,16 @@ enum Thumbnail {
         cache.setObject(image, forKey: key)
         return image
     }
+
+    /// The generic icon for the file's type, from its name only: no disk access, so it is safe to
+    /// show while the real thumbnail or icon loads.
+    @MainActor static func typeIcon(forPath path: String) -> NSImage {
+        let ext = (path as NSString).pathExtension.lowercased()
+        if let hit = typeIcons[ext] { return hit }
+        let icon = NSWorkspace.shared.icon(for: UTType(filenameExtension: ext) ?? .data)
+        typeIcons[ext] = icon
+        return icon
+    }
+
+    @MainActor private static var typeIcons: [String: NSImage] = [:]
 }
