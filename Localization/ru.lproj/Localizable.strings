@@ -162,7 +162,7 @@
 "↑↓ to pick, Return to paste, ⌘1–9 for the first nine" = "↑↓ выбрать, Return вставить, ⌘1–9 первые девять";
 "Keep Awake" = "Не спать";
 "Keep Mac awake" = "Не давать Mac уснуть";
-"Until turned off" = "Пока не выключу";
+"Until turned off" = "Пока не выключите";
 "On until turned off" = "Включено, пока не выключите";
 "On, %@ left" = "Включено, осталось %@";
 "Off" = "Выключено";
@@ -228,11 +228,11 @@
 "Stop" = "Стоп";
 "Add a minute" = "Добавить минуту";
 "Time is up" = "Время вышло";
-"Dark Mode" = "Тёмная тема";
+"Dark Mode" = "Тёмный режим";
 "Mute" = "Без звука";
 "Hide Desktop" = "Скрыть стол";
 "Hidden Files" = "Скрытые файлы";
-"Switch the Mac between light and dark appearance" = "Переключить Mac между светлой и тёмной темой";
+"Switch the Mac between light and dark appearance" = "Переключить Mac между светлым и тёмным режимом";
 "Mute or unmute the sound output" = "Выключить или включить звук";
 "Hide the icons on the desktop, e.g. before a screen share" = "Спрятать значки на рабочем столе, например перед показом экрана";
 "Show hidden files in Finder" = "Показывать скрытые файлы в Finder";
@@ -273,6 +273,65 @@
 
 
 /* == panel == */
+"This output can't be muted" = "Нельзя выключить звук";
+"The current sound output has no mute control." = "У текущего устройства вывода нет выключения звука.";
+"Not allowed in Automation settings" = "Нет разрешения на автоматизацию";
+"Allow Deckhand to control System Events in System Settings → Privacy & Security → Automation." = "Разрешите Deckhand управлять System Events: Системные настройки → Конфиденциальность и безопасность → Автоматизация.";
+"System Events didn't respond" = "System Events не ответил";
+"System Events took too long to answer. Try again in a moment." = "System Events слишком долго не отвечал. Попробуйте ещё раз чуть позже.";
+"Couldn't switch %@" = "Не удалось переключить: %@";
+"macOS returned error %lld." = "macOS вернула ошибку %lld.";
+"Finder didn't restart" = "Finder не перезапустился";
+"The change applies the next time Finder starts." = "Изменение вступит в силу при следующем запуске Finder.";
+"Finder will restart to apply this." = "Чтобы применить, Finder перезапустится.";
+"Restart Finder" = "Перезапустить";
+"Allow…" = "Разрешить…";
+"Dismiss" = "Закрыть";
+"On" = "Включено";
+"+1 min" = "+1 мин";
+"Other length" = "Другая длительность";
+"Shorter" = "Меньше";
+"Longer" = "Больше";
+"Start" = "Запустить";
+"Paused, %@" = "Пауза, %@";
+"%@ left" = "Осталось %@";
+"Length in minutes" = "Длительность в минутах";
+"Turn Off" = "Выключить";
+"Turn On" = "Включить";
+"On, no time limit" = "Включено без срока";
+"Keep Awake ended" = "«Не спать» выключено";
+"Keep Awake off, battery %lld%%" = "«Не спать» выключено, заряд %lld%%";
+"Connected, %lld%%" = "Подключено, %lld%%";
+"Keep Awake on" = "«Не спать» включено";
+"Keep Awake for %@" = "«Не спать» на %@";
+"Keep Awake off" = "«Не спать» выключено";
+"Hover over the notch to open · Esc closes" = "Наведите на чёлку, чтобы открыть · Esc закрывает";
+"Open with %@ · Esc closes" = "Открыть: %@ · Esc закрывает";
+"Open from the menu bar · Esc closes" = "Открывается из строки меню · Esc закрывает";
+"All shortcuts in Settings" = "Все сочетания клавиш в настройках";
+"Close Deckhand" = "Закрыть Deckhand";
+"Add a Minute" = "Добавить минуту";
+"Resume Hover" = "Снова открывать при наведении";
+"Paused until %@" = "Пауза до %@";
+"Pause Hover for 1 Hour" = "Не открывать при наведении 1 час";
+"Tab when opened" = "Вкладка при открытии";
+"Last used" = "Последняя открытая";
+"Move Up" = "Переместить вверх";
+"Move Down" = "Переместить вниз";
+"Drag to reorder. Hidden tabs leave the panel and the menu bar; their shortcuts still open them." = "Перетащите, чтобы изменить порядок. Скрытые вкладки пропадают из панели и строки меню, но открываются своими сочетаниями клавиш.";
+"Home is always first and can't be hidden." = "«Главная» всегда первая, её нельзя скрыть.";
+"Shortcut" = "Сочетание клавиш";
+"Let the display turn off" = "Разрешить выключать дисплей";
+"Turn off below" = "Выключать при заряде ниже";
+"Never" = "Никогда";
+"The default length is used by the shortcut and the menu bar." = "Длительность по умолчанию — для сочетания клавиш и строки меню.";
+"Presets" = "Варианты";
+"min" = "мин";
+"Preset %lld" = "Вариант %lld";
+"Alert until I dismiss it" = "Напоминать, пока не закрою";
+"Keeps “Time is up” at the notch and repeats the sound." = "«Время вышло» остаётся у чёлки, а звук повторяется.";
+"Sound, badge and notices" = "Звук, значок и уведомления";
+"The timer sound, the badge at the notch, and the Keep Awake and battery notices." = "Звук таймера, значок у чёлки и уведомления «Не спать» и батареи.";
 
 
 /* == media == */

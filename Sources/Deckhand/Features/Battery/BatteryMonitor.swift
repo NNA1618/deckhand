@@ -14,12 +14,16 @@ final class BatteryMonitor {
     }
 
     enum Event: Equatable {
-        case pluggedIn(percent: Int)
+        /// The charger was connected. `charging` is false when macOS holds the charge
+        /// (Optimized Charging, a charge limit, or a full battery).
+        case pluggedIn(percent: Int, charging: Bool)
         case low(percent: Int)
     }
 
     /// Called on the main actor for each event.
     var onEvent: (Event) -> Void = { _ in }
+    /// Called on the main actor for every new reading, with the previous one.
+    var onChange: (State?, State) -> Void = { _, _ in }
 
     private var source: CFRunLoopSource?
     private var last: State?
@@ -49,8 +53,10 @@ final class BatteryMonitor {
     private func update() {
         guard let now = Self.read() else { return }
         let events = Self.events(from: last, to: now, warned: &warned)
+        let previous = last
         last = now
         events.forEach(onEvent)
+        onChange(previous, now)
     }
 
     /// What changed between two readings. Separate from IOKit so the self-test can drive it.
@@ -58,7 +64,7 @@ final class BatteryMonitor {
         var out: [Event] = []
         if new.onAC {
             warned.removeAll()
-            if let old, !old.onAC { out.append(.pluggedIn(percent: new.percent)) }
+            if let old, !old.onAC { out.append(.pluggedIn(percent: new.percent, charging: new.charging)) }
             return out
         }
         for level in lowLevels where new.percent <= level && !warned.contains(level) {
