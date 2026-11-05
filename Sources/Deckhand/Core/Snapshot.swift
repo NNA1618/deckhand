@@ -31,6 +31,8 @@ enum Snapshot {
             ClaudeSession(id: "b", cwd: "/Users/me/site", app: "com.anthropic.claudefordesktop", state: .waiting,
                           detail: "Claude needs your permission to use Bash", updated: now.addingTimeInterval(-30)),
             ClaudeSession(id: "c", cwd: "/Users/me/notes", state: .idle, updated: now.addingTimeInterval(-600)),
+            ClaudeSession(id: "d", cwd: "/Users/me/api", app: "com.apple.Terminal", state: .working, detail: "Bash · cargo",
+                          workStarted: now.addingTimeInterval(-75), updated: now.addingTimeInterval(-5), provider: .codex),
         ]
     }
 
@@ -166,6 +168,7 @@ enum Snapshot {
     static func settingsWindow(dir: URL) async {
         let router = SettingsRouter.shared
         router.searchText = ""
+        CodexMonitor.shared.showForSnapshot(connected: false, installed: false)
         SettingsWindow.show(.general)
         try? await Task.sleep(for: .milliseconds(600))
         for section in SettingsSection.allCases {
@@ -178,6 +181,20 @@ enum Snapshot {
                 save(window, cutout: nil, to: dir.appendingPathComponent("settings-\(section.rawValue)-end.png"))
             }
         }
+        // Settings → Codex once connected: waiting for the review in Codex, then with every warning
+        router.section = .codex
+        for (name, warnings) in [("settings-codex-connected", CodexMonitor.Warnings()),
+                                 ("settings-codex-warnings", CodexMonitor.Warnings(hooksDisabled: true, inlineHooks: true, claudeHookImported: true))] {
+            CodexMonitor.shared.showForSnapshot(connected: true, installed: true, warnings: warnings)
+            try? await Task.sleep(for: .milliseconds(600))
+            if let window = SettingsWindow.window { save(window, cutout: nil, to: dir.appendingPathComponent("\(name).png")) }
+            if SettingsWindow.scrollPaneToEnd() {
+                try? await Task.sleep(for: .milliseconds(300))
+                if let window = SettingsWindow.window { save(window, cutout: nil, to: dir.appendingPathComponent("\(name)-end.png")) }
+            }
+        }
+        CodexMonitor.shared.showForSnapshot(connected: false, installed: false)
+
         // "key" finds Claude's API key and Shortcuts in English and in Russian; "zzz" finds nothing
         for (name, query) in [("search", "key"), ("search-empty", "zzz")] {
             router.searchText = query

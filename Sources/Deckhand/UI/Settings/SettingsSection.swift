@@ -4,7 +4,7 @@ import SwiftUI
 /// Each one has its own pane file in this folder, owned by one area of the app.
 enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     case general, notch, closedNotch
-    case clipboard, translate, claude, music, prompts, recents
+    case clipboard, translate, claude, codex, music, prompts, recents
     case capture, keepAwake
     case shortcuts, permissions
     case about
@@ -14,7 +14,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     /// Sidebar groups, separated by space like System Settings.
     static let groups: [[SettingsSection]] = [
         [.general, .notch, .closedNotch],
-        [.clipboard, .translate, .claude, .music, .prompts, .recents],
+        [.clipboard, .translate, .claude, .codex, .music, .prompts, .recents],
         [.capture, .keepAwake],
         [.shortcuts, .permissions],
         [.about],
@@ -35,6 +35,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .clipboard: return LocalizedTerm("section.clipboard", "Clipboard")
         case .translate: return LocalizedTerm("section.translate", "Translate")
         case .claude: return LocalizedTerm("section.claude", "Claude")
+        case .codex: return LocalizedTerm("section.codex", "Codex")
         case .music: return LocalizedTerm("section.music", "Music")
         case .prompts: return LocalizedTerm("section.prompts", "Prompts")
         case .recents: return LocalizedTerm("section.recents", "Recents")
@@ -54,6 +55,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .clipboard: return LocalizedTerm("section.clipboard.subtitle", "History of what you copy. It never leaves this Mac.")
         case .translate: return LocalizedTerm("section.translate.subtitle", "On-device translation with Apple Translation.")
         case .claude: return LocalizedTerm("section.claude.subtitle", "Claude Code sessions in the notch and quick actions for text.")
+        case .codex: return LocalizedTerm("section.codex.subtitle", "OpenAI Codex sessions in the notch, from Terminal, editors and the ChatGPT app.")
         case .music: return LocalizedTerm("section.music.subtitle", "What's playing, where it comes from and the track at the notch.")
         case .prompts: return LocalizedTerm("section.prompts.subtitle", "Your prompt library in the panel.")
         case .recents: return LocalizedTerm("section.recents.subtitle", "New images and videos from folders you choose.")
@@ -73,6 +75,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .clipboard: return "doc.on.clipboard.fill"
         case .translate: return "translate"
         case .claude: return "sparkle"
+        case .codex: return AgentProvider.codex.fallbackSymbol
         case .music: return "music.note"
         case .prompts: return "text.quote"
         case .recents: return "photo.stack.fill"
@@ -93,6 +96,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .clipboard: return .teal
         case .translate: return .indigo
         case .claude: return Color(red: 0.85, green: 0.47, blue: 0.34)
+        case .codex: return Color(white: 0.3)
         case .music: return .pink
         case .prompts: return .green
         case .recents: return .orange
@@ -132,6 +136,9 @@ struct SettingsIcon: View {
         if section == .claude, AgentProvider.claudeCode.appIcon != nil {
             // Claude's own icon from the installed Claude app, like System Settings shows app icons
             AgentIcon(provider: .claudeCode, size: size)
+        } else if section == .codex, AgentProvider.codex.appIcon != nil {
+            // Codex's own icon from the installed ChatGPT app (formerly the Codex app); Deckhand ships no logos
+            AgentIcon(provider: .codex, size: size)
         } else {
             SettingsSymbolTile(symbol: section.symbol, color: section.color, size: size)
         }

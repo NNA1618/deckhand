@@ -35,6 +35,8 @@ enum SettingsSearch {
             return LocalizedTerm(key, "Translate into; Second language; Detect the language automatically; Source language; Favorite languages; Translation Languages")
         case .claude:
             return LocalizedTerm(key, "Connection; Run with; Claude Code; Location; API key; Model; Actions in the panel")
+        case .codex:
+            return LocalizedTerm(key, "Connection; Approve from the notch; Wait for an answer; Codex needs you; Codex finished a task; Sound")
         case .music:
             return LocalizedTerm(key, "Find out what's playing; Apple Music; Spotify; Yandex Music; Browser tabs")
         case .prompts:
@@ -64,6 +66,7 @@ enum SettingsSearch {
         case .clipboard: return LocalizedTerm(key, "history; copy; paste; password; exclude; pin")
         case .translate: return LocalizedTerm(key, "translation; language; translator; detect")
         case .claude: return LocalizedTerm(key, "Anthropic; API; key; hook; sessions; Haiku; Sonnet; Opus; Keychain; AI")
+        case .codex: return LocalizedTerm(key, "OpenAI; ChatGPT; hook; hooks.json; sessions; approvals; permissions; agent; AI")
         case .music: return LocalizedTerm(key, "now playing; track; song; player; YouTube; SoundCloud")
         case .prompts: return LocalizedTerm(key, "prompt; library; template; variables; JSON")
         case .recents: return LocalizedTerm(key, "downloads; images; videos; generations; watched folders")

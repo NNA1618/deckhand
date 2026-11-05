@@ -619,6 +619,7 @@ struct SettingsDetail: View {
         case .clipboard: ClipboardPane()
         case .translate: TranslatePane()
         case .claude: ClaudePane()
+        case .codex: CodexPane()
         case .music: MusicPane()
         case .prompts: PromptsPane()
         case .recents: RecentsPane()
