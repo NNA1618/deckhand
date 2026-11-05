@@ -68,7 +68,11 @@ echo "==> built $APP_PATH"
 [ "${NO_INSTALL:-0}" = "1" ] && exit 0
 
 echo "==> installing to /Applications"
-pkill -x "$APP_NAME" 2>/dev/null || true
+# Quit only the installed copy, the way the user would; check builds and snapshot runs keep running
+INSTALLED="/Applications/$APP_NAME.app/Contents/MacOS/$APP_NAME"
+osascript -e "if application id \"$BUNDLE_ID\" is running then tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
+for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -f "^$INSTALLED" >/dev/null || break; sleep 0.3; done
+pkill -f "^$INSTALLED" 2>/dev/null || true
 sleep 0.5
 rm -rf "/Applications/$APP_NAME.app"
 cp -R "$APP_PATH" "/Applications/$APP_NAME.app"

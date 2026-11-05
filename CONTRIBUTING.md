@@ -22,7 +22,7 @@ Liquid Glass needs the macOS 26 SDK. On older SDKs the app falls back to a regul
   editor to PNG files in English (`DIR/en`) and Russian (`DIR/ru`). Snapshot runs use a temporary data folder and sample
   content. Add `--only panels,closed,settings,editor` to render part of it.
 - `python3 scripts/l10n-check.py` lists user-facing strings that have no Russian translation; CI runs it too.
-- `./scripts/snapshot.sh DIR --clean` renders README images from the installed app.
+- `./scripts/snapshot.sh DIR` renders the same images for the README; the installed app keeps running.
 - Logs go to `~/Library/Logs/Deckhand/deckhand.log`.
 
 ## Style
