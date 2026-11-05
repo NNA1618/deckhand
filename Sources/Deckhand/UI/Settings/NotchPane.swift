@@ -42,7 +42,7 @@ struct NotchPane: View {
             }
 
             Section {
-                Picker("Close the panel", selection: $notch.closeOnPointerExit) {
+                Picker(String(localized: "notch.closeThePanel", defaultValue: "Close the panel"), selection: $notch.closeOnPointerExit) {
                     Text("When the pointer leaves").tag(true)
                     Text("On click outside or Esc").tag(false)
                 }

@@ -270,6 +270,7 @@
 /* ===== Workstream sections for 0.5. Add new strings only under your own marker, keep the blank lines. ===== */
 
 /* == notch == */
+"notch.closeThePanel" = "Закрывать панель";
 "Open the panel" = "Открывать панель";
 "When the pointer rests on the notch" = "При наведении на чёлку";
 "When I click the notch" = "По щелчку на чёлке";
@@ -285,7 +286,7 @@
 "Open the Shelf when files are dragged to the notch" = "Открывать полку, когда на чёлку перетаскивают файлы";
 "Opening" = "Открытие";
 "The panel opens when the pointer stops on the notch, not when it passes by. The shortcut opens it in any mode." = "Панель открывается, когда указатель останавливается на чёлке, а не проходит мимо. Сочетание клавиш открывает её в любом режиме.";
-"Close the panel" = "Закрывать панель";
+"Close the panel" = "Закрыть панель";
 "When the pointer leaves" = "Когда указатель уходит";
 "On click outside or Esc" = "По щелчку снаружи или Esc";
 "Close delay" = "Задержка закрытия";
@@ -467,7 +468,6 @@
 "Typing and Shortcut" = "Ввод и сочетание клавиш";
 "Translates a moment after you stop typing. %@ translates right away." = "Перевод появляется, когда вы перестаёте печатать. %@ переводит сразу.";
 "Translate as you type" = "Переводить при вводе";
-"None" = "Нет";
 "Change…" = "Изменить…";
 "Languages on this Mac" = "Языки на этом Mac";
 "Translation Languages…" = "Языки перевода…";
@@ -497,7 +497,6 @@
 "Paste as Plain Text" = "Вставить без форматирования";
 "Quick Paste" = "Быстрая вставка";
 "Space" = "Пробел";
-"Preview" = "Просмотр";
 "Clear Search" = "Очистить поиск";
 "Password" = "Пароль";
 "Link" = "Ссылка";
@@ -530,8 +529,8 @@
 "Paste into the app" = "Вставляют в приложение";
 "Copy only" = "Только копируют";
 "Accessibility" = "Универсальный доступ";
-"Allowed" = "Разрешён";
-"Not allowed" = "Не разрешён";
+"Allowed" = "Разрешено";
+"Not allowed" = "Не разрешено";
 "Pasting" = "Вставка";
 "Pasting into another app needs Accessibility. To paste without formatting, press %@." = "Для вставки в другое приложение нужен Универсальный доступ. Чтобы вставить без форматирования, нажмите %@.";
 "Save copied passwords" = "Сохранять скопированные пароли";
@@ -689,7 +688,6 @@
 "Click a shortcut and press the new keys. Use ⌘ or ⌃, with ⌥ and ⇧ if you like. Esc cancels, ⌫ removes the shortcut." = "Щёлкните сочетание и нажмите новые клавиши. Нужна клавиша ⌘ или ⌃, можно вместе с ⌥ и ⇧. Esc — отмена, ⌫ — удалить сочетание.";
 "Clipboard: paste" = "Буфер обмена: вставить";
 "Clipboard: pick" = "Буфер обмена: выбрать";
-"Close the panel" = "Закрыть панель";
 "Copied and saved" = "Скопирован и сохранён";
 "Copied, but not saved" = "Скопирован, но не сохранён";
 "Copy and edit" = "Скопировать и изменить";
@@ -725,7 +723,6 @@
 "Redact" = "Закрасить";
 "Remove Shortcut" = "Удалить сочетание";
 "Removed from “%@”." = "Снято с «%@».";
-"Restore Defaults…" = "Восстановить настройки по умолчанию…";
 "Restore the default screenshot settings?" = "Восстановить настройки снимков по умолчанию?";
 "Restore the default shortcuts?" = "Восстановить сочетания клавиш по умолчанию?";
 "Save to" = "Папка для сохранения";
@@ -762,7 +759,6 @@
 /* == claude == */
 "%dh %02dm" = "%d ч %02d мин";
 "Actions in the panel" = "Действия в панели";
-"Allow" = "Разрешить";
 "Deny" = "Отклонить";
 "Answer in Claude Code instead" = "Ответить в самом Claude Code";
 "Approve from the notch" = "Разрешения из чёлки";
@@ -778,7 +774,6 @@
 "Billing problem" = "Проблема с оплатой";
 "Reply too long" = "Слишком длинный ответ";
 "Stopped with an error" = "Остановлен с ошибкой";
-"Claude needs you" = "Claude ждёт вас";
 "Claude is working" = "Claude работает";
 "Badge, notices and sound" = "Значок, уведомления и звук";
 "Connection" = "Подключение";
@@ -791,7 +786,6 @@
 "Signed in · %@" = "Вход выполнен · %@";
 "Location" = "Расположение";
 "Automatic" = "Автоматически";
-"Choose…" = "Выбрать…";
 "Choose the claude program" = "Выберите программу claude";
 "Model" = "Модель";
 "Per action" = "Своя для каждого действия";
@@ -802,7 +796,6 @@
 "Remove the API key?" = "Удалить ключ API?";
 "The key is deleted from your Keychain." = "Ключ будет удалён из связки ключей.";
 "This doesn't look like an Anthropic key. Keys start with sk-ant-." = "Это не похоже на ключ Anthropic. Ключ начинается с sk-ant-.";
-"Move up" = "Выше";
 "Move down" = "Ниже";
 "The Claude Code settings file has an unexpected layout, so it was left as is." = "Файл настроек Claude Code устроен необычно, поэтому он не тронут.";
 "The Claude Code settings file is not valid JSON, so it was left as is." = "Файл настроек Claude Code — некорректный JSON, поэтому он не тронут.";
@@ -903,10 +896,8 @@
 "No Results" = "Нет результатов";
 "Try another word." = "Попробуйте другое слово.";
 "Opens %@" = "Открывает раздел «%@»";
-"Restore Defaults…" = "Восстановить настройки по умолчанию…";
 "Restore the default settings for “%@”?" = "Восстановить настройки по умолчанию в разделе «%@»?";
 "Only settings in this section change. Your data stays." = "Изменятся только настройки этого раздела. Ваши данные сохранятся.";
-"Restore" = "Восстановить";
 "Allow Deckhand in Login Items." = "Разрешите Deckhand в разделе «Объекты входа».";
 "Open Login Items…" = "Открыть «Объекты входа»…";
 "Restart Deckhand to switch the language." = "Чтобы сменить язык, перезапустите Deckhand.";
@@ -924,18 +915,13 @@
 "Screen Recording" = "Запись экрана";
 "Screenshots and text from the screen" = "Снимки и текст с экрана";
 "Restart Deckhand to finish." = "Перезапустите Deckhand, чтобы применить.";
-"Accessibility" = "Универсальный доступ";
 "Paste into other apps, read the selected text" = "Вставка в другие приложения, чтение выделенного текста";
 "Files and Folders" = "Файлы и папки";
 "Watched folders in Recents" = "Папки «Недавних»";
 "Login Items" = "Объекты входа";
 "Open Deckhand when you log in" = "Открывать Deckhand при входе в систему";
 "Open Settings…" = "Открыть настройки…";
-"Allow…" = "Разрешить…";
-"On" = "Включено";
 "Needs approval" = "Ждёт разрешения";
-"Allowed" = "Разрешено";
-"Not allowed" = "Не разрешено";
 "Not asked yet" = "Ещё не запрашивалось";
 "Not running" = "Не запущено";
 "Unknown" = "Неизвестно";

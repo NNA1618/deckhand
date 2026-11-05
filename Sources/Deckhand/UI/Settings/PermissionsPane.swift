@@ -255,9 +255,9 @@ final class PermissionsModel: ObservableObject {
                          symbol: "doc.text.fill", color: .gray,
                          url: home.appendingPathComponent("Library/Logs/Deckhand", isDirectory: true)),
             DataLocation(title: String(localized: "Claude Code hook"),
-                         detail: (ClaudeCodeMonitor.settingsFile.path as NSString).abbreviatingWithTildeInPath,
+                         detail: (ClaudeCodeMonitor.shared.settingsFile.url.path as NSString).abbreviatingWithTildeInPath,
                          symbol: "sparkle", color: SettingsSection.claude.color,
-                         url: ClaudeCodeMonitor.settingsFile),
+                         url: ClaudeCodeMonitor.shared.settingsFile.url),
         ]
     }
 
