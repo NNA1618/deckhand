@@ -56,7 +56,7 @@ enum SelectionReader {
         let before = pb.changeCount
         // The shortcut's own keys are usually still down; ⌘C with ⌃⌥⇧ held means something else
         await waitForModifierKeysUp()
-        postCommandKey(keyCode(for: "c") ?? CGKeyCode(kVK_ANSI_C))
+        PasteService.postCommandShortcut("c", fallback: kVK_ANSI_C)
         for _ in 0..<30 where pb.changeCount == before {
             try? await Task.sleep(for: .milliseconds(20))
         }
@@ -72,38 +72,6 @@ enum SelectionReader {
         for _ in 0..<40 {
             if CGEventSource.flagsState(.combinedSessionState).intersection(modifiers).isEmpty { return }
             try? await Task.sleep(for: .milliseconds(20))
-        }
-    }
-
-    private static func postCommandKey(_ key: CGKeyCode) {
-        let source = CGEventSource(stateID: .combinedSessionState)
-        let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true)
-        let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
-        down?.flags = .maskCommand
-        up?.flags = .maskCommand
-        down?.post(tap: .cgAnnotatedSessionEventTap)
-        up?.post(tap: .cgAnnotatedSessionEventTap)
-    }
-
-    /// The key that types `character` in the current Latin layout, so ⌘C is right in Dvorak or AZERTY.
-    /// Russian and other non-Latin layouts use their Latin companion for shortcuts, as macOS does.
-    private static func keyCode(for character: Character) -> CGKeyCode? {
-        guard let source = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue(),
-              let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return nil }
-        let data = Unmanaged<CFData>.fromOpaque(raw).takeUnretainedValue() as Data
-        return data.withUnsafeBytes { bytes -> CGKeyCode? in
-            guard let layout = bytes.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else { return nil }
-            for code in 0..<128 {
-                var deadKeys: UInt32 = 0
-                var length = 0
-                var chars = [UniChar](repeating: 0, count: 4)
-                let status = UCKeyTranslate(layout, UInt16(code), UInt16(kUCKeyActionDisplay), 0, UInt32(LMGetKbdType()),
-                                            OptionBits(kUCKeyTranslateNoDeadKeysBit), &deadKeys, 4, &length, &chars)
-                if status == noErr, length == 1, String(utf16CodeUnits: chars, count: 1) == String(character) {
-                    return CGKeyCode(code)
-                }
-            }
-            return nil
         }
     }
 }

@@ -54,13 +54,14 @@ enum PasteService {
             target.activate()
             delay = 0.35
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { postCommandV() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { postCommandShortcut("v", fallback: kVK_ANSI_V) }
         return true
     }
 
-    private static func postCommandV() {
+    /// Sends ⌘ plus the key that types `character` with ⌘ held, e.g. ⌘V or ⌘C, to the app in front.
+    static func postCommandShortcut(_ character: Character, fallback: Int) {
         let source = CGEventSource(stateID: .combinedSessionState)
-        let key = CGKeyCode(vKeyCode())
+        let key = CGKeyCode(commandKeyCode(for: character, fallback: fallback))
         let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true)
         let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
         down?.flags = .maskCommand
@@ -69,14 +70,16 @@ enum PasteService {
         up?.post(tap: .cgAnnotatedSessionEventTap)
     }
 
-    /// The key that types "v" with ⌘ held in the current layout: "." on Dvorak, the QWERTY V on
-    /// "Dvorak – QWERTY ⌘" and on Russian (macOS uses the Latin layout for shortcuts there).
-    static func vKeyCode() -> UInt16 {
+    /// The key that types `character` with ⌘ held in the current layout: for "v", "." on Dvorak and
+    /// the QWERTY V on "Dvorak – QWERTY ⌘" and on Russian (macOS uses the Latin layout for shortcuts
+    /// there). `fallback` (a `kVK_ANSI_…` code) is used when the layout can't be read.
+    static func commandKeyCode(for character: Character, fallback: Int) -> UInt16 {
         guard let source = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue(),
-              let code = keyCode(for: "v", in: source) else { return UInt16(kVK_ANSI_V) }
+              let code = keyCode(for: character, in: source) else { return UInt16(fallback) }
         return code
     }
 
+    /// The key that types `character` with ⌘ held in `source`.
     static func keyCode(for character: Character, in source: TISInputSource) -> UInt16? {
         guard let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return nil }
         let data = Unmanaged<CFData>.fromOpaque(raw).takeUnretainedValue() as Data

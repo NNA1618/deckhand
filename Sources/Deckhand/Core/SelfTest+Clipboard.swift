@@ -343,6 +343,18 @@ extension SelfTest {
         }
         if let dvorak = layout("com.apple.keylayout.Dvorak") {
             check(PasteService.keyCode(for: "v", in: dvorak) == UInt16(kVK_ANSI_Period), "V on Dvorak is the period key")
+            check(PasteService.keyCode(for: "c", in: dvorak) == UInt16(kVK_ANSI_I), "C on Dvorak is the QWERTY I key")
+        }
+        if let us = layout("com.apple.keylayout.US") {
+            check(PasteService.keyCode(for: "c", in: us) == UInt16(kVK_ANSI_C), "C on the US layout")
+        }
+        // Types Dvorak, but ⌘ shortcuts use QWERTY: ⌘C must not become ⌘I
+        if let mixed = layout("com.apple.keylayout.DVORAK-QWERTYCMD") {
+            check(PasteService.keyCode(for: "c", in: mixed) == UInt16(kVK_ANSI_C)
+                  && PasteService.keyCode(for: "v", in: mixed) == UInt16(kVK_ANSI_V),
+                  "⌘C and ⌘V on Dvorak – QWERTY ⌘ are the QWERTY keys")
+        } else {
+            check(false, "the Dvorak – QWERTY ⌘ layout is available for the key test")
         }
     }
 
