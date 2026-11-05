@@ -693,6 +693,7 @@
 "Keep line breaks" = "Сохранять переносы строк";
 "Large text" = "Крупный текст";
 "Many apps use this shortcut. Deckhand will take it from them." = "Это сочетание есть во многих приложениях. Deckhand перехватит его у них.";
+"Every app uses this shortcut for a command such as Save or Find. Deckhand will take it from all of them." = "Это сочетание есть в каждом приложении — например, для команд «Сохранить» и «Найти». Deckhand перехватит его у всех.";
 "Medium text" = "Средний текст";
 "Mission Control" = "Mission Control";
 "More Ways to Capture" = "Другие снимки";
@@ -721,7 +722,7 @@
 "Spotlight" = "Spotlight";
 "Start with" = "Начальный инструмент";
 "SwiftUI Color" = "Color для SwiftUI";
-"Taken by another app or macOS." = "Занято другим приложением или macOS.";
+"This shortcut couldn’t be turned on. Another Deckhand action may already use it." = "Не удалось включить это сочетание клавиш. Возможно, его уже использует другое действие Deckhand.";
 "Text from Screen" = "Текст с экрана";
 "The folder “%@” doesn’t exist." = "Папки «%@» нет.";
 "The image could not be encoded." = "Не удалось закодировать изображение.";

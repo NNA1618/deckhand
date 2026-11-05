@@ -268,6 +268,8 @@ extension SelfTest {
         check(ShortcutRules.verdict(for: Shortcut(kVK_F5, 0)) == .ok, "F5 alone allowed")
         check(ShortcutRules.verdict(for: Shortcut(kVK_ANSI_S, c | o | s)) == .ok, "⌃⌥⇧S allowed")
 
+        check(ShortcutConflict.find(for: Shortcut(kVK_ANSI_S, m), system: [], apps: []) == .everyApp, "⌘S warns")
+        check(ShortcutConflict.find(for: Shortcut(kVK_ANSI_1, m), system: [], apps: []) == nil, "⌘1 is not a letter")
 
         // Migration from 0.4 defaults. A real 0.4 store has exactly the 12 actions 0.4 knew.
         let actions04: [HotkeyAction] = [.toggle, .screenshot, .captureText, .colorPicker, .keepAwake, .clipboard,
