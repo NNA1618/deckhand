@@ -17,7 +17,11 @@ enum PanelActions {
         last = (action, Date())
         switch action {
         case .toggle: notch.toggle()
-        case .screenshot: CaptureActions.captureArea(notch: notch)
+        case .screenshot: CaptureActions.capture(.area, notch: notch)
+        case .captureWindow: CaptureActions.capture(.window, notch: notch)
+        case .captureScreen: CaptureActions.capture(.screen, notch: notch)
+        case .captureDelayed: CaptureActions.capture(.delayedScreen, notch: notch)
+        case .captureAndEdit: CaptureActions.capture(.areaAndEdit, notch: notch)
         case .captureText: CaptureActions.captureText(notch: notch)
         case .colorPicker: CaptureActions.pickColor(notch: notch)
         case .keepAwake: UtilityNotices.toggleKeepAwake(notch: notch)
@@ -37,7 +41,8 @@ enum PanelActions {
         case .media: return .media
         case .shelf: return .shelf
         case .recents: return .recents
-        case .toggle, .screenshot, .captureText, .colorPicker, .keepAwake, .translateSelection: return nil
+        case .toggle, .screenshot, .captureWindow, .captureScreen, .captureDelayed, .captureAndEdit,
+             .captureText, .colorPicker, .keepAwake, .translateSelection: return nil
         }
     }
 

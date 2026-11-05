@@ -90,7 +90,7 @@ struct ShortcutsCard: View {
                 .help(Text("All shortcuts in Settings"))
             }
             ForEach(Self.featured) { action in
-                ShortcutRow(action: action, shortcut: hotkeys.shortcuts[action]?.display)
+                HomeShortcutRow(action: action, shortcut: hotkeys.shortcuts[action]?.display)
             }
         }
         .padding(.horizontal, 6)
@@ -100,7 +100,7 @@ struct ShortcutsCard: View {
     }
 }
 
-private struct ShortcutRow: View {
+private struct HomeShortcutRow: View {
     let action: HotkeyAction
     let shortcut: String?
     @State private var hovering = false

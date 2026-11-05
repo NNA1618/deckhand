@@ -158,11 +158,34 @@ enum Snapshot {
 
     /// The image editor. Owned by the capture workstream.
     static func editorWindow(dir: URL) async {
-        if let editor = EditorWindow.open(image: sampleImage()) {
-            try? await Task.sleep(for: .milliseconds(900))
-            save(editor, cutout: nil, to: dir.appendingPathComponent("editor.png"))
-            editor.close()
+        guard let editor = EditorWindow.open(image: sampleImage()), let model = EditorWindow.model(for: editor) else { return }
+        try? await Task.sleep(for: .milliseconds(900))
+        save(editor, cutout: nil, to: dir.appendingPathComponent("editor.png"))
+
+        // Annotations of every kind, a selection, the text sizes and the Ask panel with an answer
+        let s = model.pixelScale
+        func drag(_ tool: EditorTool, _ a: CGPoint, _ b: CGPoint) {
+            model.tool = tool
+            let pa = CGPoint(x: a.x * s, y: a.y * s), pb = CGPoint(x: b.x * s, y: b.y * s)
+            model.dragChanged(start: pa, current: pb)
+            model.dragEnded(start: pa, end: pb)
         }
+        drag(.arrow, CGPoint(x: 420, y: 320), CGPoint(x: 330, y: 230))
+        drag(.rect, CGPoint(x: 30, y: 160), CGPoint(x: 360, y: 240))
+        drag(.blur, CGPoint(x: 440, y: 40), CGPoint(x: 600, y: 120))
+        drag(.redact, CGPoint(x: 440, y: 140), CGPoint(x: 600, y: 170))
+        model.tool = .text
+        model.dragEnded(start: CGPoint(x: 40 * s, y: 40 * s), end: CGPoint(x: 40 * s, y: 40 * s))
+        model.pendingText = String(localized: "Text")
+        model.commitText()
+        drag(.select, CGPoint(x: 400, y: 300), CGPoint(x: 400, y: 300))
+        model.askVisible = true
+        model.question = String(localized: "What’s in this screenshot?")
+        model.answer = "A gradient with the words “Sample screenshot”."
+        model.tool = .text
+        try? await Task.sleep(for: .milliseconds(900))
+        save(editor, cutout: nil, to: dir.appendingPathComponent("editor-ask.png"))
+        editor.close()
     }
 
     private static func save(_ window: NSWindow, cutout: CGRect?, to url: URL) {
