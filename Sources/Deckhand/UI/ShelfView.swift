@@ -108,7 +108,7 @@ struct ShelfView: View {
             .buttonStyle(.plain)
             .help(Text("Send with AirDrop"))
             .accessibilityLabel(Text("Send with AirDrop"))
-            GlassButton(title: store.selection.isEmpty ? "Clear" : "Remove", symbol: "xmark") {
+            GlassButton(title: store.selection.isEmpty ? "Clear" : "Remove from Shelf", symbol: "xmark") {
                 store.remove(actionIds)
             }
             .help(Text(store.selection.isEmpty ? "Take every file off the shelf. The files themselves stay." : "Take the selected files off the shelf. The files themselves stay."))
