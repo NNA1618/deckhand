@@ -361,7 +361,6 @@
 "No voice for this language" = "Нет голоса для этого языка";
 "Copy the translation" = "Скопировать перевод";
 "Paste into %@" = "Вставить в «%@»";
-"Paste into the app you were using" = "Вставить в программу, где вы работали";
 "Translating…" = "Перевод…";
 "Waiting for the download…" = "Ждём загрузку…";
 "%@ → %@ isn't downloaded on this Mac yet." = "Пара %@ → %@ ещё не загружена на этот Mac.";
