@@ -67,6 +67,8 @@ enum ClipboardSchema {
             case .text, .link: newHash = ClipboardCapture.hash(kind, text ?? "")
             default: newHash = row[hash]
             }
+            // The same rule as new copies: text from a password app is a password, hidden and not searchable
+            let secret = (kind == .text || kind == .link) && row[sourceApp].map(ClipboardWatcher.passwordApps.contains) == true
             try db.run(table.filter(id == row[id]).update(
                 self.kind <- kind.rawValue,
                 self.text <- text,
@@ -74,11 +76,39 @@ enum ClipboardSchema {
                 fileUrls <- fileURLs.map(\.absoluteString).joined(separator: "\n"),
                 self.preview <- preview,
                 self.hash <- newHash,
-                searchText <- ClipboardText.searchText(text: text, fileURLs: fileURLs, appName: row[sourceAppName]),
+                searchText <- (secret ? "" : ClipboardText.searchText(text: text, fileURLs: fileURLs, appName: row[sourceAppName])),
+                isSecret <- (secret ? 1 : 0),
                 // Absolute paths broke after a move to another Mac or user name; keep the file name only
                 imagePath <- row[imagePath].map { URL(fileURLWithPath: $0).lastPathComponent },
                 pinnedAt <- (row[pinned] == 1 ? row[createdAt] : nil)
             ))
+        }
+        try mergeDuplicates(db)
+    }
+
+    /// 0.4 saved a web link as a "file" and the same address copied as text as a separate row;
+    /// both are now the same link with the same hash. Keeps one row per hash: the most recently
+    /// used, pinned when any of them was, with the earliest creation time.
+    static func mergeDuplicates(_ db: Connection) throws {
+        struct Entry { let id: Int64; let pinned: Bool; let pinnedAt: Double?; let created: Double; let used: Double }
+        var groups: [String: [Entry]] = [:]
+        let dupes = table.select(hash).group(hash, having: id.count > 1)
+        let wanted = Set(try db.prepare(dupes).map { $0[hash] })
+        guard !wanted.isEmpty else { return }
+        for row in try db.prepare(table.select(id, hash, pinned, pinnedAt, createdAt, lastUsedAt).filter(wanted.contains(hash))) {
+            groups[row[hash], default: []].append(Entry(id: row[id], pinned: row[pinned] == 1, pinnedAt: row[pinnedAt],
+                                                        created: row[createdAt], used: row[lastUsedAt]))
+        }
+        for entries in groups.values where entries.count > 1 {
+            guard let keep = entries.max(by: { ($0.used, $0.id) < ($1.used, $1.id) }) else { continue }
+            let pins = entries.filter(\.pinned)
+            try db.run(table.filter(id == keep.id).update(
+                pinned <- (pins.isEmpty ? 0 : 1),
+                pinnedAt <- pins.compactMap(\.pinnedAt).min(),
+                createdAt <- entries.map(\.created).min() ?? keep.created
+            ))
+            // Image files left without a row are removed by the regular orphan cleanup
+            try db.run(table.filter(entries.map(\.id).filter { $0 != keep.id }.contains(id)).delete())
         }
     }
 }

@@ -203,6 +203,12 @@ extension SelfTest {
                     VALUES ('image', '/Users/old/Library/Application Support/Fringe/clipboard-images/img-1.png', 'h2', 1, 2, 2);
                 INSERT INTO clipboard_items (kind, text, hash, pinned, created_at, last_used_at)
                     VALUES ('text', 'Привет, Мир', 'h3', 0, 3, 3);
+                INSERT INTO clipboard_items (kind, text, hash, pinned, source_app, source_app_name, created_at, last_used_at)
+                    VALUES ('text', 'hunter2-old', 'h4', 0, 'com.apple.Passwords', 'Passwords', 4, 4);
+                INSERT INTO clipboard_items (kind, text, file_url, hash, pinned, created_at, last_used_at)
+                    VALUES ('file', NULL, 'https://example.org/page', 'h5', 1, 5, 5);
+                INSERT INTO clipboard_items (kind, text, hash, pinned, created_at, last_used_at)
+                    VALUES ('text', 'https://example.org/page', 'h6', 0, 6, 6);
             """)
         } catch {
             check(false, "old database created: \(error)")
@@ -215,15 +221,40 @@ extension SelfTest {
         let link = store.recentItems(filter: .links).first
         check(link?.preview == "https://github.com/owner/repo" && store.text(id: link?.id ?? 0) == "https://github.com/owner/repo",
               "0.4 web-link \"files\" become links")
-        check(store.pinnedItems().first?.imageName == "img-1.png", "image paths become relative")
+        check(store.pinnedItems(filter: .images).first?.imageName == "img-1.png", "image paths become relative")
         check(store.recentItems(search: "мир").count == 1, "old rows become searchable")
         let prompts = (try? database.db.scalar("SELECT count(*) FROM prompts WHERE title = 'Keep me'") as? Int64) ?? 0
         check(prompts == 1, "the prompts table is untouched by the migration")
+
+        // Passwords from password apps are hidden and not searchable, as new copies are
+        let password = store.recentItems().first { $0.sourceApp == "com.apple.Passwords" }
+        check(password?.isSecret == true && password?.title == "••••••••" && store.recentItems(search: "hunter2").isEmpty,
+              "0.4 copies from password apps become hidden passwords")
+        // A 0.4 link "file" and the same address copied as text merge into one pinned link
+        let merged = store.pinnedItems(filter: .links)
+        check(merged.count == 1 && merged.first?.id == 6 && store.recentItems(filter: .links).count == 1
+              && merged.first?.createdAt == Date(timeIntervalSince1970: 5),
+              "duplicate 0.4 links merge into the newer one, keeping the pin: \(merged.map(\.id))")
+        check(store.count() == 5, "the migration drops only duplicates: \(store.count()) rows")
+
+        func dump(_ db: Connection) -> [String] {
+            let sql = "SELECT id, kind, text, hash, pinned, pinned_at, is_secret, search_text, image_path, created_at FROM clipboard_items ORDER BY id"
+            return ((try? db.prepare(sql).map { row in row.map { "\($0 ?? "nil")" }.joined(separator: "|") }) ?? [])
+        }
+        let before = dump(database.db)
         do {
             try Database.migrate(database.db)
             check(true, "migrations can run twice")
         } catch {
             check(false, "migrations can run twice: \(error)")
+        }
+        let reopened = Database(url: url)
+        check(!before.isEmpty && dump(reopened.db) == before && dump(database.db) == before, "opening the migrated database again changes nothing")
+        do {
+            try ClipboardSchema.upgradeToV2(reopened.db)
+            check(dump(reopened.db) == before, "running the version 2 step again changes nothing")
+        } catch {
+            check(false, "running the version 2 step again: \(error)")
         }
 
         let broken = temp.appendingPathComponent("broken.sqlite")
