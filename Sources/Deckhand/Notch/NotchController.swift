@@ -52,6 +52,9 @@ final class NotchViewModel: ObservableObject {
     var closedWidth: CGFloat = 0
     /// Lets tabs close the panel, e.g. before opening the editor window.
     var requestClose: () -> Void = {}
+    /// Reasons the panel stays open when the pointer leaves or the user clicks elsewhere, e.g. a prompt
+    /// being edited or Quick Look showing a file. Esc, the shortcut and the menu still close it.
+    var holds: Set<String> = []
 }
 
 extension Notification.Name {
@@ -155,7 +158,7 @@ final class NotchController {
     private func setupMonitors() {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.viewModel.isOpen, let window = self.window else { return }
+                guard let self, self.viewModel.isOpen, self.viewModel.holds.isEmpty, let window = self.window else { return }
                 let rect = window.panelRect(notch: NotchGeometry.current())
                 if !rect.contains(NSEvent.mouseLocation) { self.close() }
             }
@@ -192,7 +195,7 @@ final class NotchController {
     }
 
     private func cursorLeft() {
-        guard viewModel.isOpen else { return }
+        guard viewModel.isOpen, viewModel.holds.isEmpty else { return }
         if openedManually && !cursorWasInside { return }
         close()
     }
