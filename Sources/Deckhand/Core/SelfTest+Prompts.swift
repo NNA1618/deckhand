@@ -184,6 +184,10 @@ extension SelfTest {
         let partial = ShelfStore.restoring([dropped[1]], into: [dropped[0], dropped[2]], order: order)
         check(partial.map(\.id) == order, "shelf Undo puts one file back in its place")
 
+        let outside = TileInteractionView.operations(for: .outsideApplication)
+        let inside = TileInteractionView.operations(for: .withinApplication)
+        check(outside == [.copy, .link] && inside == [.copy], "shelf drags offer copy (and link outside), never move or generic")
+
         let old = Data(#"[{"id":"5D6C7F7E-6C1B-4F77-9B39-1D0B7F1C2E11","path":"/tmp/a.png","addedAt":0}]"#.utf8)
         let decoded = try? JSONDecoder().decode([ShelfItem].self, from: old)
         check(decoded?.first?.bookmark == nil && decoded?.first?.isCopy == false, "0.4 shelf.json still loads")
