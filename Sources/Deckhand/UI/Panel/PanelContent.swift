@@ -163,8 +163,14 @@ struct TabIcon: View {
     let tab: NotchTab
 
     var body: some View {
-        Image(systemName: tab.symbol)
-            .font(.system(size: 12, weight: .medium))
-            .frame(width: 16, height: 16)
+        if tab == .claude {
+            // Claude's own icon, from the installed Claude app
+            AgentIcon(provider: .claudeCode, size: 15)
+                .frame(width: 16, height: 16)
+        } else {
+            Image(systemName: tab.symbol)
+                .font(.system(size: 12, weight: .medium))
+                .frame(width: 16, height: 16)
+        }
     }
 }

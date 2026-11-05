@@ -8,7 +8,8 @@ enum NotchTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// The tabs shown in the panel, in order.
-    @MainActor static var visible: [NotchTab] { visible(hidden: Settings.shared.hiddenTabs) }
+    /// The tabs shown in the panel, in the user's order.
+    @MainActor static var visible: [NotchTab] { PanelSettings.shared.visibleTabs }
 
     static func visible(hidden: [String]) -> [NotchTab] {
         allCases.filter { $0 == .home || !hidden.contains($0.rawValue) }
@@ -478,7 +479,7 @@ final class NotchController {
 
     /// The tab the panel opens on.
     private func openingTab() -> NotchTab {
-        NotchTab.visible.contains(viewModel.tab) ? viewModel.tab : .home
+        PanelSettings.shared.tabWhenOpened
     }
 
     func toggle() {

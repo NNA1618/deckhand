@@ -41,8 +41,7 @@ enum BadgeText {
 
     /// A finished timer waiting to be dismissed: still active, nothing left, not paused.
     static func timerRinging(now: Date = Date()) -> Bool {
-        let c = Countdown.shared
-        return c.isActive && !c.isPaused && timerLeft(now: now) <= 0
+        Countdown.shared.isRinging
     }
 
     static var timeIsUp: String { String(localized: "Time is up") }

@@ -29,7 +29,7 @@ enum UtilityNotices {
 
         Countdown.shared.onFinish = { [weak notch] in
             guard Settings.shared.noticeTimer else { return }
-            notch?.showToast(symbol: "timer", text: String(localized: "Time is up"))
+            notch?.showToast(symbol: "timer", text: String(localized: "Time is up"), style: .alert)
         }
 
         KeepAwake.shared.onEnd = { [weak notch] reason in

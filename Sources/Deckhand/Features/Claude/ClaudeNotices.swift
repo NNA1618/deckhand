@@ -41,7 +41,7 @@ enum ClaudeNotices {
             announced.insert(key)
             if !settings.soundClaudeNeedsYou.isEmpty { NSSound(named: settings.soundClaudeNeedsYou)?.play() }
             if settings.noticeClaudeNeedsYou {
-                notch.showToast(symbol: "hand.raised.fill", text: String(localized: "Needs you · \(project)"))
+                notch.showToast(symbol: "hand.raised.fill", text: String(localized: "Needs you · \(project)"), style: .alert)
             }
         case .failed(let project, let message):
             guard settings.noticeClaudeNeedsYou else { return }

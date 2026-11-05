@@ -4,6 +4,7 @@ import SwiftUI
 
 struct HomeView: View {
     @ObservedObject private var settings = Settings.shared
+    @ObservedObject private var notchSettings = NotchSettings.shared
     @ObservedObject private var hotkeys = HotkeyManager.shared
 
     var body: some View {
@@ -44,7 +45,7 @@ struct HomeView: View {
                 .foregroundColor(Theme.fg)
                 .fixedSize()
             Spacer(minLength: 12)
-            Text(Self.hint(hover: settings.openOnHover, shortcut: hotkeys.shortcuts[.toggle]?.display))
+            Text(Self.hint(hover: notchSettings.activation.opensOnHover, shortcut: hotkeys.shortcuts[.toggle]?.display))
                 .font(Theme.caption)
                 .foregroundColor(Theme.fgMute)
                 .lineLimit(1)
