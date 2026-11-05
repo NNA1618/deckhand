@@ -9,6 +9,11 @@ enum ThumbnailCache {
         return c
     }()
 
+    /// A preview already decoded, without touching the disk.
+    static func cached(at path: String, maxPixels: Int = 160) -> NSImage? {
+        cache.object(forKey: "\(path)#\(maxPixels)" as NSString)
+    }
+
     static func image(at path: String, maxPixels: Int = 160) -> NSImage? {
         let key = "\(path)#\(maxPixels)" as NSString
         if let hit = cache.object(forKey: key) { return hit }
