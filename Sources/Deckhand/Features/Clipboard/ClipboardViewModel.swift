@@ -96,17 +96,20 @@ final class ClipboardViewModel: ObservableObject {
 
     // MARK: - Actions
 
-    /// Puts the item on the clipboard. Returns false (and says why) when it can't be restored.
-    @discardableResult
-    func copy(_ item: ClipboardItem, plain: Bool = false) -> Bool {
-        switch ClipboardWriter.write(item, store: store, to: .general, plain: plain) {
-        case .success(let changeCount):
-            ClipboardWatcher.shared.noteOwnWrite(changeCount: changeCount)
-            store.markUsed(id: item.id)
-            return true
-        case .failure(let failure):
-            show(ClipboardNotice(kind: .error, text: failure.message))
-            return false
+    /// Puts the item on the clipboard, then calls `done` with true, or with false after saying why
+    /// it can't be restored. Images are read and files checked off the main thread.
+    func copy(_ item: ClipboardItem, plain: Bool = false, then done: @escaping @MainActor (Bool) -> Void = { _ in }) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            switch await ClipboardWriter.writeAsync(item, store: self.store, to: .general, plain: plain) {
+            case .success(let changeCount):
+                ClipboardWatcher.shared.noteOwnWrite(changeCount: changeCount)
+                self.store.markUsed(id: item.id)
+                done(true)
+            case .failure(let failure):
+                self.show(ClipboardNotice(kind: .error, text: failure.message))
+                done(false)
+            }
         }
     }
 
@@ -115,25 +118,28 @@ final class ClipboardViewModel: ObservableObject {
     func choose(_ item: ClipboardItem, plain: Bool = false, notch: NotchViewModel) {
         if ClipboardSettings.shared.pasteOnSelect {
             paste(item, plain: plain, notch: notch)
-        } else if copy(item, plain: plain) {
-            notch.requestClose()
+        } else {
+            copy(item, plain: plain) { if $0 { notch.requestClose() } }
         }
     }
 
     /// Copies, closes the panel and sends ⌘V. Without Accessibility the panel stays open and says
     /// the item is copied and what to allow, instead of closing and silently doing nothing.
+    /// The panel closes and ⌘V goes out only once the item is on the clipboard.
     func paste(_ item: ClipboardItem, plain: Bool = false, notch: NotchViewModel) {
-        guard copy(item, plain: plain) else { return }
-        guard PasteService.isTrusted else {
-            show(ClipboardNotice(kind: .needsAccessibility,
-                                 text: String(localized: "Copied. To paste automatically, allow Deckhand in Accessibility.")),
-                 sticky: true)
-            return
+        copy(item, plain: plain) { [weak self] copied in
+            guard let self, copied else { return }
+            guard PasteService.isTrusted else {
+                self.show(ClipboardNotice(kind: .needsAccessibility,
+                                          text: String(localized: "Copied. To paste automatically, allow Deckhand in Accessibility.")),
+                          sticky: true)
+                return
+            }
+            self.notice = nil
+            self.previewItem = nil
+            notch.requestClose()
+            PasteService.pasteIntoFrontApp()
         }
-        notice = nil
-        previewItem = nil
-        notch.requestClose()
-        PasteService.pasteIntoFrontApp()
     }
 
     /// Opens a link item. Uses the full address: the preview is cut at 300 characters.

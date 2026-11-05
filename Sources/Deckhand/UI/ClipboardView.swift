@@ -20,7 +20,7 @@ struct ClipboardView: View {
                 if let item = vm.previewItem {
                     ClipboardPreview(item: item, store: vm.store,
                                      onPaste: { vm.paste(item, notch: notch) },
-                                     onCopy: { if vm.copy(item) { vm.show(ClipboardNotice(kind: .info, text: String(localized: "Copied"))) } },
+                                     onCopy: { vm.copy(item) { if $0 { vm.show(ClipboardNotice(kind: .info, text: String(localized: "Copied"))) } } },
                                      onClose: { vm.previewItem = nil })
                         .transition(.opacity)
                 }
@@ -162,7 +162,7 @@ struct ClipboardView: View {
                     vm.selectedId = item.id
                     vm.choose(item, plain: plain, notch: notch)
                 },
-                copy: { vm.copy(item) },
+                copy: { vm.copy(item, then: $0) },
                 paste: { plain in vm.paste(item, plain: plain, notch: notch) },
                 preview: {
                     vm.selectedId = item.id
@@ -371,7 +371,8 @@ private struct NoticeBar: View {
 
 struct ClipboardRowActions {
     let choose: (_ plain: Bool) -> Void
-    let copy: () -> Bool
+    /// Copies, then reports whether it worked.
+    let copy: (_ done: @escaping @MainActor (Bool) -> Void) -> Void
     let paste: (_ plain: Bool) -> Void
     let preview: () -> Void
     let edit: () -> Void
@@ -533,9 +534,11 @@ struct ClipboardRow: View {
     }
 
     private func copy() {
-        guard actions.copy() else { return }
-        copied = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
+        actions.copy { ok in
+            guard ok else { return }
+            copied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
+        }
     }
 
     private func copyImageText() {

@@ -353,6 +353,10 @@ extension SelfTest {
            case let .inserted(imageId) = store.insert(imageEntry, limit: 0, maxAgeDays: 0), let imageItem = store.item(id: imageId) {
             _ = ClipboardWriter.write(imageItem, store: store, to: pb)
             check(pb.data(forType: .png) != nil && pb.types?.contains(.tiff) == true, "images are restored as PNG, TIFF on demand")
+            pb.clearContents()
+            let async = wait { await ClipboardWriter.writeAsync(imageItem, store: store, to: pb) }
+            check(async != nil && (try? async?.get()) == pb.changeCount && pb.data(forType: .png) != nil,
+                  "copying an image from the history reads it off the main thread")
             try? FileManager.default.removeItem(at: store.imageURL(for: imageItem)!)
             pb.clearContents()
             pb.setString("keep me", forType: .string)
@@ -368,7 +372,26 @@ extension SelfTest {
             let result = ClipboardWriter.write(goneItem, store: store, to: pb)
             check(result == .failure(.missingFiles) && pb.string(forType: .string) == "keep me",
                   "a moved file fails clearly and leaves the clipboard alone")
+            let async = wait { await ClipboardWriter.writeAsync(goneItem, store: store, to: pb) }
+            check(async == .failure(.missingFiles) && pb.string(forType: .string) == "keep me",
+                  "the off-main file check also leaves the clipboard alone")
+            if case let .inserted(fileId) = store.insert(ClipboardCapture.prepare(PasteboardSnapshot(fileURLs: [file]), imagesDir: images,
+                                                                                    maxImageBytes: 0)!, limit: 0, maxAgeDays: 0),
+               let fileItem = store.item(id: fileId) {
+                let copied = wait { await ClipboardWriter.writeAsync(fileItem, store: store, to: pb) }
+                let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]
+                check(copied.map { (try? $0.get()) != nil } == true && urls == [file], "existing files are copied after an off-main check")
+            }
         }
+    }
+
+    /// Runs async work to the end from the synchronous self-test, letting the main queue run meanwhile.
+    private static func wait<T>(timeout: TimeInterval = 5, _ work: @escaping @MainActor () async -> T) -> T? {
+        let box = SelfTestBox<T>()
+        Task { @MainActor in box.value = await work() }
+        let deadline = Date().addingTimeInterval(timeout)
+        while box.value == nil, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        return box.value
     }
 
     /// ⌘V uses the key that types "v" in the layout, not a fixed key code.
@@ -385,4 +408,10 @@ extension SelfTest {
             check(PasteService.keyCode(for: "v", in: dvorak) == UInt16(kVK_ANSI_Period), "V on Dvorak is the period key")
         }
     }
+}
+
+/// Holds a result written by a task on the main actor while the self-test waits for it.
+@MainActor
+private final class SelfTestBox<T> {
+    var value: T?
 }
