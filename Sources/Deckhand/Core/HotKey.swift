@@ -185,9 +185,9 @@ final class HotkeyManager: ObservableObject {
     }
 
     /// The shortcut if it is registered right now. Menus and Home show this one, so they never
-    /// advertise a shortcut that failed to register.
+    /// advertise a shortcut that failed to register. Snapshot runs never register, so they show the stored one.
     func activeShortcut(for action: HotkeyAction) -> Shortcut? {
-        refs[action] != nil || suspended ? shortcuts[action] : nil
+        refs[action] != nil || suspended || AppPaths.isSnapshot ? shortcuts[action] : nil
     }
 
     /// A new shortcut, or nil to remove it. Taking a shortcut from another action is reported in `lastMove`.

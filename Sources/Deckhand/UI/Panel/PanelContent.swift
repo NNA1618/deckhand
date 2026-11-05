@@ -152,7 +152,7 @@ struct TabStrip: View {
 
     /// "Clipboard  ⌃⌥V" when the tab has a shortcut.
     private func help(for tab: NotchTab) -> String {
-        guard let action = PanelActions.action(for: tab), let shortcut = hotkeys.shortcuts[action] else { return tab.title }
+        guard let action = PanelActions.action(for: tab), let shortcut = hotkeys.activeShortcut(for: action) else { return tab.title }
         return "\(tab.title)  \(shortcut.display)"
     }
 }

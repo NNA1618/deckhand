@@ -213,7 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func item(_ title: String, _ action: Selector, hotkey: HotkeyAction? = nil, key: String = "") -> NSMenuItem {
         let mi = NSMenuItem(title: title, action: action, keyEquivalent: key)
         mi.target = self
-        if let hotkey, let shortcut = HotkeyManager.shared.shortcuts[hotkey],
+        if let hotkey, let shortcut = HotkeyManager.shared.activeShortcut(for: hotkey),
            let equivalent = Self.keyEquivalent(for: shortcut.keyCode) {
             mi.keyEquivalent = equivalent
             mi.keyEquivalentModifierMask = Self.modifierFlags(carbon: shortcut.modifiers)
