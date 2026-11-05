@@ -205,7 +205,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTo
     // MARK: Toolbar
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.trackingItem, Self.navigationItem, .flexibleSpace]
+        // The system draws back and forward as glass, which a snapshot captures as a white blob
+        AppPaths.isSnapshot ? [Self.trackingItem, .flexibleSpace] : [Self.trackingItem, Self.navigationItem, .flexibleSpace]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
