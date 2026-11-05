@@ -14,18 +14,25 @@ final class ClipboardWatcher: ObservableObject {
 
     private var timer: Timer?
     private var pauseTimer: Timer?
-    private var lastChangeCount: Int = NSPasteboard.general.changeCount
+    private let pasteboard: NSPasteboard
+    private var lastChangeCount: Int
+    /// Open `suspendCapture()` calls. Separate from the user's pause, and never shown.
+    private var captureSuspensions = 0
     /// Change counts of Deckhand's own writes from the history; those are already in it.
     private var ownChangeCounts: Set<Int> = []
     private let queue = DispatchQueue(label: "deckhand.clipboard.capture", qos: .userInitiated)
     private var subscriptions = Set<AnyCancellable>()
 
-    private init() {}
+    /// `pasteboard` is the general one except in the self-test, which uses a private one.
+    init(pasteboard: NSPasteboard = .general) {
+        self.pasteboard = pasteboard
+        lastChangeCount = pasteboard.changeCount
+    }
 
     func start() {
         stop()
         PasteService.startTracking()
-        lastChangeCount = NSPasteboard.general.changeCount
+        lastChangeCount = pasteboard.changeCount
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -72,8 +79,25 @@ final class ClipboardWatcher: ObservableObject {
         pauseTimer = nil
         pausedUntil = nil
         // What was copied during the pause stays out of the history
-        lastChangeCount = NSPasteboard.general.changeCount
+        lastChangeCount = pasteboard.changeCount
     }
+
+    /// Stops recording while Deckhand itself uses the clipboard, e.g. the ⌘C that reads a selection
+    /// and the restore after it. Calls nest; every call needs a matching `resumeCapture()`.
+    /// This is not the user's pause: `isPaused` and `pausedUntil` don't change.
+    func suspendCapture() {
+        captureSuspensions += 1
+    }
+
+    /// Ends one `suspendCapture()`. After the last one, whatever is on the clipboard now counts as
+    /// already seen, so the copy and the restore never reach the history.
+    func resumeCapture() {
+        guard captureSuspensions > 0 else { return }
+        captureSuspensions -= 1
+        if captureSuspensions == 0 { lastChangeCount = pasteboard.changeCount }
+    }
+
+    var isCaptureSuspended: Bool { captureSuspensions > 0 }
 
     /// Called after Deckhand wrote a history item back to the pasteboard.
     func noteOwnWrite(changeCount: Int) {
@@ -82,12 +106,21 @@ final class ClipboardWatcher: ObservableObject {
 
     // MARK: - Capture
 
-    private func tick() {
-        let pb = NSPasteboard.general
-        guard pb.changeCount != lastChangeCount else { return }
-        lastChangeCount = pb.changeCount
-        if ownChangeCounts.remove(pb.changeCount) != nil { return }
+    /// Whether the pasteboard holds a copy to record: it changed since the last look, not by
+    /// Deckhand writing a history item back, and capture isn't suspended. Marks the change as seen.
+    func takeNewChange() -> Bool {
+        let count = pasteboard.changeCount
+        // Left unseen while suspended: `resumeCapture()` skips it
+        guard captureSuspensions == 0, count != lastChangeCount else { return false }
+        lastChangeCount = count
+        if ownChangeCounts.remove(count) != nil { return false }
         ownChangeCounts.removeAll()
+        return true
+    }
+
+    private func tick() {
+        let pb = pasteboard
+        guard takeNewChange() else { return }
         guard ClipboardSettings.shared.recordHistory, !isPaused else { return }
         let types = Set((pb.types ?? []).map(\.rawValue))
         guard let snap = Self.snapshot(of: pb, source: currentSource(types: types), rules: .current) else { return }

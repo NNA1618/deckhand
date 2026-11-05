@@ -16,6 +16,7 @@ extension SelfTest {
         clipboardMigration(check, temp: temp)
         clipboardPasteboards(check, temp: temp)
         clipboardKeyboard(check)
+        clipboardSuspension(check)
     }
 
     private static func clipboardPasswords(_ check: Check) {
@@ -343,5 +344,35 @@ extension SelfTest {
         if let dvorak = layout("com.apple.keylayout.Dvorak") {
             check(PasteService.keyCode(for: "v", in: dvorak) == UInt16(kVK_ANSI_Period), "V on Dvorak is the period key")
         }
+    }
+
+    /// Deckhand's own ⌘C and restore stay out of the history, separately from the user's pause.
+    private static func clipboardSuspension(_ check: Check) {
+        let pb = NSPasteboard(name: NSPasteboard.Name("com.nna1618.deckhand.selftest.\(UUID().uuidString)"))
+        defer { pb.releaseGlobally() }
+        let watcher = ClipboardWatcher(pasteboard: pb)
+        func copy(_ text: String) {
+            pb.clearContents()
+            pb.setString(text, forType: .string)
+        }
+        check(!watcher.takeNewChange(), "watcher: nothing new right after start")
+        copy("one")
+        check(watcher.takeNewChange() && !watcher.takeNewChange(), "watcher: a copy is seen once")
+
+        watcher.suspendCapture()
+        watcher.suspendCapture()
+        copy("selected text")
+        check(!watcher.takeNewChange(), "watcher: a copy while suspended is not taken")
+        copy("restored")
+        watcher.resumeCapture()
+        check(watcher.isCaptureSuspended && !watcher.takeNewChange(), "watcher: suspensions nest")
+        watcher.resumeCapture()
+        check(!watcher.isCaptureSuspended && !watcher.takeNewChange(),
+              "watcher: the copy and the restore made while suspended never reach the history")
+        watcher.resumeCapture()
+        check(!watcher.isCaptureSuspended, "watcher: an extra resume is harmless")
+        check(!watcher.isPaused && watcher.pausedUntil == nil, "watcher: suspending is not the user's pause")
+        copy("two")
+        check(watcher.takeNewChange(), "watcher: copies after the last resume are recorded")
     }
 }
