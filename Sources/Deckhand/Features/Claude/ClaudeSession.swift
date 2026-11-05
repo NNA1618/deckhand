@@ -5,6 +5,7 @@ struct ClaudeSession: Identifiable, Equatable {
     enum State: Equatable { case working, waiting, idle }
 
     let id: String
+    /// The session's project folder. It stays put when the agent's shell changes folder with `cd`.
     var cwd: String
     /// Bundle id of the app the session runs in (Terminal, Claude, an editor), if known.
     var app: String?
@@ -22,6 +23,8 @@ struct ClaudeSession: Identifiable, Equatable {
     var waitingSince: Date?
     /// The tool a permission request is about; its result means the user answered.
     var waitingTool: String?
+    /// The wait was started by a subagent, so only that subagent's events end it.
+    var waitingForSubagent = false
     /// A permission request the notch can answer: the event file's name and when it arrived.
     var request: ClaudeRequest?
     /// Which coding agent runs the session.
@@ -63,6 +66,9 @@ struct ClaudeHookEvent: Equatable, Sendable {
     var session: String
     var name: String
     var cwd = ""
+    /// The project folder (`CLAUDE_PROJECT_DIR`); unlike `cwd` it doesn't follow `cd`.
+    /// Missing in event files from before 0.5.
+    var project: String?
     var subagent = false
     var tool: String?
     /// The file name or the first word of a command.
@@ -95,6 +101,7 @@ struct ClaudeHookEvent: Equatable, Sendable {
         self.time = time
         fileId = (fileName as NSString).deletingPathExtension
         cwd = json["cwd"] as? String ?? ""
+        project = (json["project"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         notificationType = json["notification_type"] as? String
         if json["v"] != nil {
             subagent = json["subagent"] as? Bool ?? false
@@ -170,7 +177,11 @@ struct AgentEvent: Equatable, Sendable {
     var session: String
     var kind: Kind
     var time: Date
+    /// The folder the agent's shell is in right now.
     var cwd = ""
+    /// The session's project folder when the adapter knows it. Without it, the first `cwd`
+    /// seen in the session names the project, because `cwd` follows `cd`.
+    var project: String?
     var app: String?
     /// The event came from a subagent; it doesn't change what the session's line shows.
     var subagent = false
@@ -208,7 +219,7 @@ extension ClaudeHookEvent {
             }
         default: kind = .other
         }
-        return AgentEvent(provider: .claudeCode, session: session, kind: kind, time: time, cwd: cwd, app: app,
+        return AgentEvent(provider: .claudeCode, session: session, kind: kind, time: time, cwd: cwd, project: project, app: app,
                           subagent: subagent, tool: tool, summary: summary, requestId: fileId)
     }
 }
@@ -227,6 +238,9 @@ enum ClaudeStateMachine {
     /// Claude Code notification types that mean Claude is blocked on the user. Every other type is informational.
     static let needsYouTypes: Set<String> = ["permission_prompt", "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input"]
 
+    /// Seconds after a permission request from which a new main-agent tool means it was answered.
+    static let answeredAfter: TimeInterval = 2
+
     /// Tools whose prompt only the terminal can answer, so the notch never offers Allow for them.
     static let interactiveTools: Set<String> = ["AskUserQuestion", "ExitPlanMode"]
 
@@ -236,8 +250,12 @@ enum ClaudeStateMachine {
             sessions[key] = nil
             return nil
         }
-        var s = sessions[key] ?? ClaudeSession(id: e.session, cwd: e.cwd, app: e.app, updated: e.time, provider: e.provider)
-        if !e.cwd.isEmpty { s.cwd = e.cwd }
+        var s = sessions[key] ?? ClaudeSession(id: e.session, cwd: e.project ?? e.cwd, app: e.app, updated: e.time, provider: e.provider)
+        if let project = e.project, !project.isEmpty {
+            s.cwd = project
+        } else if s.cwd.isEmpty {
+            s.cwd = e.cwd
+        }
         if let app = e.app { s.app = app }
         s.updated = max(s.updated, e.time)
         var signal: Signal?
@@ -250,6 +268,7 @@ enum ClaudeStateMachine {
             s.state = .working
             s.waitingSince = nil
             s.waitingTool = nil
+            s.waitingForSubagent = false
             s.request = nil
             s.workStarted = s.workStarted ?? e.time
         }
@@ -265,6 +284,7 @@ enum ClaudeStateMachine {
             s.toolsInFlight = 0
             s.waitingSince = nil
             s.waitingTool = nil
+            s.waitingForSubagent = false
             s.request = nil
         }
 
@@ -281,30 +301,42 @@ enum ClaudeStateMachine {
             guard !e.subagent else { break }
             s.toolsInFlight += 1
             if s.state == .waiting {
-                // Waiting without a tool means a dialog, which this tool call shows was answered
-                if s.waitingTool == nil { stopWaiting(); s.detail = e.summary }
+                // Waiting without a tool means a dialog, which this tool call shows was answered.
+                // A new tool well after a permission request means it was answered too: a denial
+                // in the terminal sends no event of its own. Tools started alongside the request
+                // arrive within a moment of it.
+                let late = s.waitingSince.map { e.time.timeIntervalSince($0) >= ClaudeStateMachine.answeredAfter } ?? false
+                if s.waitingTool == nil || (late && !s.waitingForSubagent) { stopWaiting(); s.detail = e.summary }
             } else {
                 startWork()
                 s.detail = e.summary
             }
         case .toolFinished:
             if !e.subagent { s.toolsInFlight = max(0, s.toolsInFlight - 1) }
-            let answered = s.waitingTool == nil ? !e.subagent : s.waitingTool == e.tool
+            // Only the agent that waits can show the wait is over; a background subagent finishing
+            // a tool of the same name says nothing about the main agent's prompt
+            let answered = e.subagent == s.waitingForSubagent && (s.waitingTool == nil || s.waitingTool == e.tool)
             if s.state == .waiting && answered { stopWaiting() }
         case .permissionRequested(let answerable):
             enterWaiting(detail: e.summary)
+            // A request after a dialog or for another tool is a new wait; time it from here
+            if s.waitingTool != e.tool || s.waitingForSubagent != e.subagent { s.waitingSince = e.time }
             s.waitingTool = e.tool
+            s.waitingForSubagent = e.subagent
             if answerable, let tool = e.tool, let id = e.requestId, !id.isEmpty {
                 s.request = ClaudeRequest(id: id, tool: tool, time: e.time)
             } else {
                 s.request = nil
             }
         case .permissionDenied:
-            if s.state == .waiting, s.waitingTool == e.tool { stopWaiting() }
+            if s.state == .waiting, s.waitingTool == e.tool, e.subagent == s.waitingForSubagent { stopWaiting() }
         case .needsInput(let text):
             enterWaiting(detail: s.waitingTool == nil ? text : nil)
         case .idle:
-            if s.state != .waiting { end(); s.detail = nil }
+            // Claude Code sends idle_prompt a minute after it last finished, so no prompt can still be
+            // open; it is also the only sign left when the user denied a permission or pressed Esc
+            end()
+            s.detail = nil
         case .resumed:
             startWork()
             s.detail = nil

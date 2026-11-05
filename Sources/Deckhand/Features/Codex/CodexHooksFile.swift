@@ -122,22 +122,11 @@ struct CodexHooksFile {
         return firstHandler(in: doc, script: claudeScript, mixedOnly: false) != nil
     }
 
-    /// The script path a command line runs: the command without surrounding whitespace and one pair of quotes.
-    static func scriptPath(_ command: String) -> String {
-        var text = command.trimmingCharacters(in: .whitespaces)
-        for quote in ["\"", "'"] where text.count >= 2 && text.hasPrefix(quote) && text.hasSuffix(quote) {
-            text = String(text.dropFirst().dropLast())
-        }
-        return text
-    }
+    /// The script path a command line runs (see `HookCommand.scriptPath`).
+    static func scriptPath(_ command: String) -> String { HookCommand.scriptPath(command) }
 
     /// Whether two paths name the same file, after `~` and `.`/`..` are resolved.
-    static func samePath(_ a: String, _ b: String) -> Bool {
-        func normal(_ p: String) -> String {
-            URL(fileURLWithPath: (p as NSString).expandingTildeInPath).standardizedFileURL.path
-        }
-        return !a.isEmpty && !b.isEmpty && normal(a) == normal(b)
-    }
+    static func samePath(_ a: String, _ b: String) -> Bool { HookCommand.samePath(a, b) }
 
     private static let invalid = Failure(message: String(localized: "The Codex hooks file has an unexpected layout, so it was left as is."))
     private static let notJSON = Failure(message: String(localized: "The Codex hooks file is not valid JSON, so it was left as is."))

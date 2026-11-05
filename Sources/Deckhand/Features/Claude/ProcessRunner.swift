@@ -35,14 +35,21 @@ enum ProcessRunner {
         return env
     }
 
+    /// After the process exits, its output is read for at most this long. A background child it
+    /// left behind may hold the pipes open for much longer; what arrived by then is the answer.
+    static let drainGrace: TimeInterval = 0.5
+
     /// Runs and waits. Blocks the calling thread, so call it off the main thread
     /// (or in the self-test with short timeouts).
     static func runSync(_ executable: String, _ arguments: [String], input: String? = nil, timeout: TimeInterval,
                         cwd: URL? = nil, env: [String: String] = [:]) throws -> Output {
         let job = try Job(executable, arguments, input: input, cwd: cwd, env: env)
-        let finished = job.done.wait(timeout: .now() + timeout) == .success
-        if !finished { job.stop() }
-        return job.output(stopped: !finished)
+        if job.done.wait(timeout: .now() + timeout) != .success {
+            job.stop()
+            // A stopped tool usually exits at once; take what it printed on the way out
+            _ = job.done.wait(timeout: .now() + drainGrace + 0.2)
+        }
+        return job.output()
     }
 
     /// Runs without blocking a thread. Cancelling the task stops the process (SIGTERM, then SIGKILL).
@@ -62,18 +69,24 @@ enum ProcessRunner {
             job.stop()
         }
         try Task.checkCancellation()
-        return job.output(stopped: job.wasStopped)
+        return job.output()
     }
 
     /// One running process with its pipes being drained in the background.
+    ///
+    /// `done` fires once the process has exited and both pipes reached their end, or `drainGrace`
+    /// after the exit, whichever comes first: a child the tool left running in the background
+    /// keeps the pipes open but must not keep the caller waiting.
     private final class Job: @unchecked Sendable {
         let process = Process()
         let done = DispatchGroup()
         private let lock = NSLock()
         private var out = Data(), err = Data()
         private var stopped = false
-
-        var wasStopped: Bool { lock.withLock { stopped } }
+        private var finished = false
+        /// Both pipes reached their end.
+        private let pipes = DispatchGroup()
+        private let outPipe = Pipe(), errPipe = Pipe()
 
         init(_ executable: String, _ arguments: [String], input: String?, cwd: URL?, env: [String: String]) throws {
             _ = ProcessRunner.ignoreSigpipe
@@ -81,27 +94,25 @@ enum ProcessRunner {
             process.arguments = arguments
             if let cwd { process.currentDirectoryURL = cwd }
             process.environment = ProcessRunner.environment(env)
-            let outPipe = Pipe(), errPipe = Pipe(), inPipe = Pipe()
+            let inPipe = Pipe()
             process.standardOutput = outPipe
             process.standardError = errPipe
             process.standardInput = inPipe
-            // Three parts finish: both pipes read to the end, and the process exits
-            done.enter(); done.enter(); done.enter()
-            process.terminationHandler = { [done] _ in done.leave() }
+            done.enter()
+            read(outPipe) { [self] data in out.append(data) }
+            read(errPipe) { [self] data in err.append(data) }
+            process.terminationHandler = { [self] _ in
+                DispatchQueue.global().async { [self] in
+                    _ = pipes.wait(timeout: .now() + ProcessRunner.drainGrace)
+                    finish()
+                }
+            }
             do {
                 try process.run()
             } catch {
+                outPipe.fileHandleForReading.readabilityHandler = nil
+                errPipe.fileHandleForReading.readabilityHandler = nil
                 throw Failure(message: error.localizedDescription)
-            }
-            DispatchQueue.global().async { [self] in
-                let data = outPipe.fileHandleForReading.readDataToEndOfFile()
-                lock.withLock { out = data }
-                done.leave()
-            }
-            DispatchQueue.global().async { [self] in
-                let data = errPipe.fileHandleForReading.readDataToEndOfFile()
-                lock.withLock { err = data }
-                done.leave()
             }
             let writer = inPipe.fileHandleForWriting
             DispatchQueue.global().async {
@@ -111,22 +122,63 @@ enum ProcessRunner {
             }
         }
 
+        /// Appends what arrives on a pipe until its end, then leaves `pipes` once.
+        private func read(_ pipe: Pipe, append: @escaping @Sendable (Data) -> Void) {
+            pipes.enter()
+            let ended = NSLock()
+            nonisolated(unsafe) var left = false
+            pipe.fileHandleForReading.readabilityHandler = { [self, pipes] handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    handle.readabilityHandler = nil
+                    let first = ended.withLock { () -> Bool in
+                        defer { left = true }
+                        return !left
+                    }
+                    if first { pipes.leave() }
+                } else {
+                    lock.withLock { if !finished { append(data) } }
+                }
+            }
+        }
+
+        /// Stops reading and reports the job done; the output read so far is the answer.
+        private func finish() {
+            let first = lock.withLock { () -> Bool in
+                defer { finished = true }
+                return !finished
+            }
+            guard first else { return }
+            outPipe.fileHandleForReading.readabilityHandler = nil
+            errPipe.fileHandleForReading.readabilityHandler = nil
+            done.leave()
+        }
+
+        /// Ends the process and anything it started in the background: Foundation puts the child
+        /// in a process group of its own, so the group is signalled even after the child exited.
+        /// Counts as stopped only when something was still running.
         func stop() {
-            lock.withLock { stopped = true }
-            guard process.isRunning else { return }
-            process.terminate()
             let pid = process.processIdentifier
+            guard pid > 0 else { return }
+            let running = process.isRunning
+            let group = kill(-pid, 0) == 0
+            guard running || group else { return }
+            lock.withLock { stopped = true }
+            if group { kill(-pid, SIGTERM) }
+            if running { process.terminate() }
             DispatchQueue.global().asyncAfter(deadline: .now() + ProcessRunner.killDelay) { [process] in
+                if kill(-pid, 0) == 0 { kill(-pid, SIGKILL) }
                 if process.isRunning { kill(pid, SIGKILL) }
             }
         }
 
-        func output(stopped: Bool) -> Output {
-            lock.withLock {
-                Output(status: process.isRunning ? -1 : process.terminationStatus,
+        func output() -> Output {
+            let running = process.isRunning
+            return lock.withLock {
+                Output(status: running ? -1 : process.terminationStatus,
                        stdout: String(decoding: out, as: UTF8.self),
                        stderr: String(decoding: err, as: UTF8.self),
-                       stopped: stopped || self.stopped)
+                       stopped: stopped)
             }
         }
     }

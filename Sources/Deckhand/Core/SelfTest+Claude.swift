@@ -8,6 +8,10 @@ extension SelfTest {
         claudeSettingsFile(check)
         claudeHookScript(check)
         claudeQuickActions(check)
+        claudeHookPaths(check)
+        claudeOwnerUpgrade(check)
+        claudeLeftovers(check)
+        claudeProcessRunner(check)
     }
 
     private static func claudeStateMachine(_ check: Check) {
@@ -62,6 +66,45 @@ extension SelfTest {
         check(s1()?.state == .waiting && s1()?.request == nil, "claude: questions are answered in the terminal only")
         event("SessionEnd", at: 80)
         check(sessions.isEmpty, "claude: session end removes it")
+
+        // A denial or Esc at the terminal prompt sends nothing; idle_prompt a minute later ends the wait
+        event("UserPromptSubmit", at: 100)
+        event("PreToolUse", ["tool": "Bash", "target": "rm"], at: 101)
+        event("PermissionRequest", ["tool": "Bash", "target": "rm"], at: 101.2)
+        event("Notification", ["notification_type": "idle_prompt"], at: 161)
+        check(s1()?.state == .idle && s1()?.request == nil && s1()?.waitingSince == nil && s1()?.waitingTool == nil,
+              "claude: idle_prompt ends a wait nobody answered in the notch")
+        // "No" with feedback: Claude goes on with other tools; one started well after the request ends the wait
+        event("UserPromptSubmit", at: 200)
+        event("PreToolUse", ["tool": "Bash", "target": "rm"], at: 201)
+        event("PermissionRequest", ["tool": "Bash", "target": "rm"], at: 201.1)
+        event("PreToolUse", ["tool": "Read", "target": "a.swift"], at: 201.3)
+        check(s1()?.state == .waiting, "claude: a tool started alongside the request doesn't end the wait")
+        event("PostToolUse", ["tool": "Bash", "subagent": true], at: 205)
+        check(s1()?.state == .waiting, "claude: a subagent finishing a tool of the same name doesn't end the main wait")
+        event("PreToolUse", ["tool": "Read", "target": "b.swift", "subagent": true], at: 206)
+        check(s1()?.state == .waiting, "claude: a subagent's tool doesn't end the main wait")
+        event("PreToolUse", ["tool": "Edit", "target": "c.swift"], at: 215)
+        check(s1()?.state == .working && s1()?.detail == "Edit · c.swift" && s1()?.request == nil,
+              "claude: a main-agent tool well after the request means it was answered")
+        // A subagent's own permission request: only that subagent's events end it
+        event("PermissionRequest", ["tool": "Bash", "target": "make", "subagent": true], at: 220)
+        event("PreToolUse", ["tool": "Grep"], at: 230)
+        check(s1()?.state == .waiting, "claude: the main agent working on doesn't end a subagent's wait")
+        event("PostToolUse", ["tool": "Bash", "subagent": true], at: 240)
+        check(s1()?.state == .working, "claude: the subagent's tool result ends its wait")
+        event("SessionEnd", at: 250)
+
+        // The project follows CLAUDE_PROJECT_DIR, not the shell's `cd`
+        event("SessionStart", ["project": "/Users/me/repo", "cwd": "/Users/me/repo"], at: 300)
+        event("PreToolUse", ["tool": "Bash", "target": "npm", "project": "/Users/me/repo", "cwd": "/Users/me/repo/packages/web"], at: 301)
+        check(s1()?.project == "repo" && s1()?.cwd == "/Users/me/repo", "claude: cd inside the session keeps the project name")
+        event("SessionEnd", at: 302)
+        // Event files from before 0.5 have no project: the first folder seen names it
+        event("SessionStart", ["cwd": "/Users/me/app"], at: 310)
+        event("PreToolUse", ["tool": "Bash", "cwd": "/Users/me/app/sub"], at: 311)
+        check(s1()?.project == "app", "claude: without a project folder the first cwd names the session")
+        event("SessionEnd", at: 312)
 
         // Older Deckhand versions saved the whole payload; only the same few fields are taken from it
         let legacy = ClaudeHookEvent(json: ["session_id": "s", "hook_event_name": "PreToolUse", "tool_name": "Bash",
@@ -132,15 +175,15 @@ extension SelfTest {
               "claude: an up-to-date install is recognized")
         let twice = (try? ClaudeSettingsFile.installing(into: installed, command: command)) ?? ""
         check(twice == installed, "claude: installing twice changes nothing")
-        check((try? ClaudeSettingsFile.removing(from: installed)) == user, "claude: removing restores the file byte for byte")
+        check((try? ClaudeSettingsFile.removing(from: installed, command: command)) == user, "claude: removing restores the file byte for byte")
         for original in ["", "{}", "{\"a\":1}", "{\n\t\"a\": true\n}\n"] {
-            let back = (try? ClaudeSettingsFile.installing(into: original, command: command)).flatMap { try? ClaudeSettingsFile.removing(from: $0) }
+            let back = (try? ClaudeSettingsFile.installing(into: original, command: command)).flatMap { try? ClaudeSettingsFile.removing(from: $0, command: command) }
             let ok = original.isEmpty ? back == "{}\n" : back == original
             check(ok, "claude: round trip of \(original.debugDescription)")
         }
         // Only Deckhand's own entries go; an old 0.4 entry inside the user's list is replaced
-        let mixed = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"\"/old/claude-hook.sh\"","timeout":5}]},{"hooks":[{"type":"command","command":"say"}]}]}}"#
-        let cleaned = (try? ClaudeSettingsFile.removing(from: mixed)) ?? ""
+        let mixed = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"\"/x/Deckhand/claude-hook.sh\"","timeout":5}]},{"hooks":[{"type":"command","command":"say"}]}]}}"#
+        let cleaned = (try? ClaudeSettingsFile.removing(from: mixed, command: command)) ?? ""
         check(cleaned == #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"say"}]}]}}"#, "claude: removes only Deckhand's entries")
         check((try? ClaudeSettingsFile.installing(into: "{ not json", command: command)) == nil
               && (try? ClaudeSettingsFile.installing(into: #"{"hooks": []}"#, command: command)) == nil, "claude: invalid files are refused")
@@ -158,7 +201,7 @@ extension SelfTest {
         try? fm.createSymbolicLink(at: link, withDestinationURL: real)
         let file = ClaudeSettingsFile(url: link)
         let wrote = (try? file.update { try ClaudeSettingsFile.installing(into: $0, command: command) }) ?? false
-        let removed = (try? file.update { try ClaudeSettingsFile.removing(from: $0) }) ?? false
+        let removed = (try? file.update { try ClaudeSettingsFile.removing(from: $0, command: command) }) ?? false
         let isLink = (try? fm.destinationOfSymbolicLink(atPath: link.path)) != nil
         let perms = (try? fm.attributesOfItem(atPath: real.path))?[.posixPermissions] as? Int
         check(wrote && removed && isLink && perms == 0o600 && (try? String(contentsOf: real, encoding: .utf8)) == user
@@ -206,10 +249,31 @@ extension SelfTest {
               && event?.summary == "Bash · git" && event?.cwd == "/Users/me/app" && event?.app == "com.apple.Terminal",
               "claude: the hook saves the event's few fields \(names)")
         check(!text.contains(secret) && !text.contains("prompt") && !text.contains("transcript"), "claude: no prompt, command, output or path in the file")
+        check(event?.project == "/Users/me/app" || event?.project == ProcessInfo.processInfo.environment["CLAUDE_PROJECT_DIR"],
+              "claude: the project folder is saved")
+        clear()
+        _ = run(payload, env: ["CLAUDE_PROJECT_DIR": "/Users/me"])
+        let projectEvent = inbox().first.flatMap { name in
+            (try? Data(contentsOf: files.inbox.appendingPathComponent(name))).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                .flatMap { ClaudeHookEvent(json: $0, time: Date(), fileName: name) }
+        }
+        check(projectEvent?.project == "/Users/me" && projectEvent?.cwd == "/Users/me/app", "claude: CLAUDE_PROJECT_DIR names the project, cwd stays the shell's folder")
+        clear()
+        _ = run(payload, env: ["CLAUDE_PROJECT_DIR": ""])
+        let fallback = inbox().first.flatMap { name in
+            (try? Data(contentsOf: files.inbox.appendingPathComponent(name))).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        }
+        check(fallback?["project"] as? String == "/Users/me/app", "claude: without CLAUDE_PROJECT_DIR the project is the cwd")
         clear()
         check(run(payload, env: ["DECKHAND_INTERNAL": "1"])?.status == 0 && inbox().isEmpty, "claude: Deckhand's own calls are ignored")
         try? "999999".write(to: files.pidFile, atomically: true, encoding: .utf8)
         check(run(payload)?.status == 0 && inbox().isEmpty, "claude: a stale pid file stops the hook")
+        // After a crash the id may belong to another program: a live process that isn't Deckhand
+        if let other = try? Process.run(URL(fileURLWithPath: "/bin/sleep"), arguments: ["10"]) {
+            try? String(other.processIdentifier).write(to: files.pidFile, atomically: true, encoding: .utf8)
+            check(run(payload)?.status == 0 && inbox().isEmpty, "claude: a reused pid of another program stops the hook")
+            other.terminate()
+        }
         try? String(getpid()).write(to: files.pidFile, atomically: true, encoding: .utf8)
         check(run("not json")?.status == 0 && run("[1]")?.status == 0 && inbox().isEmpty
               && ((try? fm.contentsOfDirectory(atPath: files.inbox.path)) ?? []).isEmpty, "claude: bad input leaves no file")
@@ -244,6 +308,27 @@ extension SelfTest {
         check(unattended?.stdout.isEmpty == true && Date().timeIntervalSince(start) < 3 && !fm.fileExists(atPath: files.approvals.path),
               "claude: with approvals off the prompt is not held up")
 
+        // Turning approvals off mid-wait hands the question back at once
+        clear()
+        ClaudeCodeMonitor.writeApprovalFlag(files, on: true, wait: 30)
+        nonisolated(unsafe) var handedBack: ProcessRunner.Output?
+        nonisolated(unsafe) var waitedFor: TimeInterval = 0
+        group.enter()
+        DispatchQueue.global().async {
+            let begin = Date()
+            handedBack = runHook(request, [:])
+            waitedFor = Date().timeIntervalSince(begin)
+            group.leave()
+        }
+        waited = 0
+        while inbox().isEmpty && waited < 60 { usleep(50_000); waited += 1 }
+        usleep(300_000)
+        let switchedOff = Date()
+        ClaudeCodeMonitor.writeApprovalFlag(files, on: false, wait: 30)
+        _ = group.wait(timeout: .now() + 8)
+        check(handedBack?.stdout.isEmpty == true && waitedFor < 5 && Date().timeIntervalSince(switchedOff) < 2,
+              "claude: approvals turned off mid-wait end the wait")
+
         // Reading the inbox deletes what it read, in order
         clear()
         for (i, name) in ["UserPromptSubmit", "Stop"].enumerated() {
@@ -253,6 +338,174 @@ extension SelfTest {
         }
         let read = ClaudeCodeMonitor.readInbox(files.inbox)
         check(read.map(\.name) == ["UserPromptSubmit", "Stop"] && inbox().isEmpty, "claude: events are read in order and removed")
+    }
+
+    /// Deckhand's entries are told apart by the script's full path, never by its file name.
+    private static func claudeHookPaths(_ check: Check) {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let script = "\(home)/Library/Application Support/Deckhand/claude-hook.sh"
+        let command = "\"\(script)\""
+        for written in [command, script, "'\(script)'", "  \(command) ", "~/Library/Application Support/Deckhand/claude-hook.sh",
+                        "\"~/Library/Application Support/Deckhand/claude-hook.sh\"", "~/Library/Application\\ Support/Deckhand/claude-hook.sh",
+                        "\"$HOME/Library/Application Support/Deckhand/claude-hook.sh\"", "\(home)/Library/Application Support/Deckhand/./claude-hook.sh"] {
+            check(HookCommand.runs(written, script: command), "claude: \(written.replacingOccurrences(of: home, with: "~home")) is Deckhand's")
+        }
+        for foreign in ["~/.other-app/claude-hook.sh", "\"\(home)/.other-notch-app/claude-hook.sh\"", "claude-hook.sh",
+                        "\(home)/Library/Application Support/Fringe/claude-hook.sh", "\(command) --other", "say claude-hook.sh"] {
+            check(!HookCommand.runs(foreign, script: command), "claude: \(foreign.replacingOccurrences(of: home, with: "~home")) is not Deckhand's")
+        }
+        // Another tool's claude-hook.sh stays on install, launch and Disconnect
+        let other = #"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"~/.other-app/claude-hook.sh"}]}]}}"#
+        let withOurs = (try? ClaudeSettingsFile.installing(into: other, command: command)) ?? ""
+        check(!ClaudeSettingsFile.hasOurs(other, command: command)
+              && (try? ClaudeSettingsFile.removing(from: other, command: command)) == other
+              && withOurs.contains("~/.other-app/claude-hook.sh") && ClaudeSettingsFile.isCurrent(withOurs, command: command)
+              && (try? ClaudeSettingsFile.removing(from: withOurs, command: command)) == other,
+              "claude: another tool's claude-hook.sh is never touched")
+        // Deckhand's handler inside a user's matcher group: only that handler goes
+        let shared = """
+        {"hooks":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"say hi"},{"type":"command","command":\(JSONValue.string(command).render(indent: "", unit: "", pretty: false)),"timeout":5}]}]}}
+        """
+        let sharedRemoved = (try? ClaudeSettingsFile.removing(from: shared, command: command)) ?? ""
+        check(sharedRemoved == #"{"hooks":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"say hi"}]}]}}"#,
+              "claude: removing keeps the user's handlers in a shared group \(sharedRemoved)")
+        let sharedInstalled = (try? ClaudeSettingsFile.installing(into: shared, command: command)) ?? ""
+        let sharedJSON = (try? JSONSerialization.jsonObject(with: Data(sharedInstalled.utf8))) as? [String: Any]
+        let pre = ((sharedJSON?["hooks"] as? [String: Any])?["PreToolUse"] as? [[String: Any]]) ?? []
+        check(!ClaudeSettingsFile.isCurrent(shared, command: command) && ClaudeSettingsFile.isCurrent(sharedInstalled, command: command)
+              && pre.count == 2 && (pre[0]["hooks"] as? [[String: Any]])?.count == 1,
+              "claude: an install moves Deckhand's handler out of the user's group")
+    }
+
+    /// The owner's 0.4.1 settings.json, shape only: two-space indent, " : " separators, no final
+    /// newline, other keys first, seven entries with timeout 5, one written with `~`.
+    private static func claudeOwnerUpgrade(_ check: Check) {
+        let fm = FileManager.default
+        let home = fm.homeDirectoryForCurrentUser.path
+        let files = ClaudeHookFiles(dir: URL(fileURLWithPath: "\(home)/Library/Application Support/Deckhand", isDirectory: true))
+        let command = ClaudeHook.command(for: files)
+        func old(_ written: String, matcher: Bool) -> String {
+            let quoted = JSONValue.string(written).render(indent: "", unit: "", pretty: false)
+            return """
+            [ {
+                  \(matcher ? "\"matcher\" : \"*\",\n          " : "")"hooks" : [ {
+                    "command" : \(quoted),
+                    "timeout" : 5,
+                    "type" : "command"
+                  } ]
+                } ]
+            """
+        }
+        let events: [(String, Bool)] = [("Notification", false), ("PostToolUse", true), ("PreToolUse", true), ("SessionEnd", false),
+                                        ("SessionStart", false), ("Stop", false), ("UserPromptSubmit", false)]
+        let entries = events.enumerated().map { i, item in
+            "    \"\(item.0)\" : " + old(i == 3 ? "\"~/Library/Application Support/Deckhand/claude-hook.sh\"" : command, matcher: item.1)
+        }
+        let original = "{\n  \"agentPushNotifEnabled\" : true,\n  \"env\" : {\n    \"EXAMPLE_FLAG\" : \"1\"\n  },\n  \"hooks\" : {\n"
+            + entries.joined(separator: ",\n") + "\n  }\n}"
+        let dir = fm.temporaryDirectory.appendingPathComponent("deckhand-claude-owner-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: dir) }
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = ClaudeSettingsFile(url: dir.appendingPathComponent("settings.json"))
+        try? Data(original.utf8).write(to: file.url)
+        let parsedOriginal = (try? JSONSerialization.jsonObject(with: Data(original.utf8))) as? [String: Any]
+        check(parsedOriginal != nil && ClaudeSettingsFile.hasOurs(original, command: command) && !ClaudeSettingsFile.isCurrent(original, command: command),
+              "claude upgrade: the 0.4.1 entries are recognized as Deckhand's and outdated")
+        let wrote = (try? file.update { try ClaudeSettingsFile.installing(into: $0, command: command) }) ?? false
+        let upgraded = ((try? file.read()) ?? nil) ?? ""
+        let json = (try? JSONSerialization.jsonObject(with: Data(upgraded.utf8))) as? [String: Any]
+        let hooks = json?["hooks"] as? [String: Any] ?? [:]
+        let exact = ClaudeHook.events.allSatisfy { event in
+            guard let list = hooks[event] as? [[String: Any]], list.count == 1 else { return false }
+            return (list[0] as NSDictionary).isEqual(ClaudeHook.entry(for: event, command: command).foundation)
+        }
+        check(wrote && exact && hooks.count == ClaudeHook.events.count && !upgraded.contains("\"timeout\" : 5") && !upgraded.contains("~/Library"),
+              "claude upgrade: exactly one current Deckhand entry per event")
+        check(json?["agentPushNotifEnabled"] as? Bool == true && (json?["env"] as? NSDictionary) == (parsedOriginal?["env"] as? NSDictionary)
+              && upgraded.hasPrefix("{\n  \"agentPushNotifEnabled\" : true,\n  \"env\" : {\n    \"EXAMPLE_FLAG\" : \"1\"\n  },\n"),
+              "claude upgrade: the other keys stay as written")
+        check(ClaudeSettingsFile.isCurrent(upgraded, command: command)
+              && (try? file.update { try ClaudeSettingsFile.installing(into: $0, command: command) }) == false,
+              "claude upgrade: a second launch writes nothing")
+        check((try? String(contentsOf: file.backup, encoding: .utf8)) == original, "claude upgrade: the backup holds the 0.4.1 file")
+        let removed = (try? ClaudeSettingsFile.removing(from: upgraded, command: command)) ?? ""
+        let removedJSON = (try? JSONSerialization.jsonObject(with: Data(removed.utf8))) as? [String: Any]
+        check(removedJSON?["hooks"] == nil && removedJSON?["agentPushNotifEnabled"] as? Bool == true && removedJSON?.count == 2,
+              "claude upgrade: Disconnect afterwards leaves only the user's keys")
+    }
+
+    /// What a previous run or a crash leaves behind.
+    private static func claudeLeftovers(_ check: Check) {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("deckhand-claude-leftovers-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: dir) }
+        let files = ClaudeHookFiles(dir: dir)
+        let codex = CodexHookFiles(dir: dir)
+        for folder in [files.inbox, files.replies, codex.inbox, codex.replies] { try? fm.createDirectory(at: folder, withIntermediateDirectories: true) }
+
+        // Quitting releases only a pid file this instance owns, and then the approval switches too
+        ClaudeCodeMonitor.writeApprovalFlag(files, on: true, wait: 30)
+        CodexMonitor.writeApprovalFlag(codex, on: true, wait: 30)
+        try? "4242".write(to: files.pidFile, atomically: true, encoding: .utf8)
+        let foreign = ClaudeCodeMonitor.release(files, pid: getpid())
+        check(!foreign && fm.fileExists(atPath: files.pidFile.path) && fm.fileExists(atPath: files.approvals.path)
+              && fm.fileExists(atPath: codex.approvals.path), "claude: quitting leaves another instance's pid file and switches")
+        try? "\(getpid())\n".write(to: files.pidFile, atomically: true, encoding: .utf8)
+        let own = ClaudeCodeMonitor.release(files, pid: getpid())
+        check(own && !fm.fileExists(atPath: files.pidFile.path) && !fm.fileExists(atPath: files.approvals.path)
+              && !fm.fileExists(atPath: codex.approvals.path), "claude: quitting removes its own pid file and both approval switches")
+
+        // Launch cleanup: every .tmp goes however new; fresh events stay; old events and replies go
+        let now = Date()
+        for inbox in [files.inbox, codex.inbox] {
+            for name in ["fresh.tmp", "fresh.json", "old.json"] { fm.createFile(atPath: inbox.appendingPathComponent(name).path, contents: Data("{}".utf8)) }
+            try? fm.setAttributes([.creationDate: now.addingTimeInterval(-3600)], ofItemAtPath: inbox.appendingPathComponent("old.json").path)
+        }
+        fm.createFile(atPath: files.replies.appendingPathComponent("r").path, contents: Data("allow".utf8))
+        fm.createFile(atPath: codex.replies.appendingPathComponent("r").path, contents: Data("allow".utf8))
+        ClaudeCodeMonitor.cleanUp(files, now: now)
+        CodexMonitor.cleanUp(codex, now: now)
+        for (name, inbox, replies) in [("claude", files.inbox, files.replies), ("codex", codex.inbox, codex.replies)] {
+            let left = ((try? fm.contentsOfDirectory(atPath: inbox.path)) ?? []).sorted()
+            check(left == ["fresh.json"] && ((try? fm.contentsOfDirectory(atPath: replies.path)) ?? []).isEmpty,
+                  "\(name): launch cleanup removes every .tmp, old events and replies \(left)")
+        }
+    }
+
+    private static func claudeProcessRunner(_ check: Check) {
+        // A tool that leaves a background child holding its pipes still answers promptly
+        var started = Date()
+        let detached = try? ProcessRunner.runSync("/bin/sh", ["-c", "echo hi; sleep 20 &"], timeout: 5)
+        check(detached?.stdout == "hi\n" && detached?.status == 0 && detached?.stopped == false && Date().timeIntervalSince(started) < 2,
+              "claude: a backgrounded grandchild doesn't hold up the answer")
+        started = Date()
+        let semaphore = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var asyncOut: ProcessRunner.Output?
+        Task.detached {
+            asyncOut = try? await ProcessRunner.run("/bin/sh", ["-c", "echo hi; sleep 20 &"], timeout: 5)
+            semaphore.signal()
+        }
+        _ = semaphore.wait(timeout: .now() + 6)
+        check(asyncOut?.stdout == "hi\n" && asyncOut?.stopped == false && Date().timeIntervalSince(started) < 2,
+              "claude: the async runner returns promptly too")
+        // Stopping ends the background children as well, through the process group
+        let stopped = try? ProcessRunner.runSync("/bin/sh", ["-c", "sleep 30 & echo $!; wait"], timeout: 0.5)
+        let child = Int32((stopped?.stdout ?? "").trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+        var gone = false
+        for _ in 0..<40 where !gone {
+            gone = child > 0 && kill(child, 0) != 0
+            if !gone { usleep(50_000) }
+        }
+        check(stopped?.stopped == true && child > 0 && gone, "claude: stopping a tool ends its background children")
+        if child > 0 && !gone { kill(child, SIGKILL) }
+
+        // CLAUDE_CONFIG_DIR from the login shell reaches every claude call
+        let location = ClaudeCLI.Location(path: "/usr/bin/true", searchPath: "/usr/bin", configDirectory: "~/cc")
+        let env = ClaudeCLI.environment(for: location, ["DECKHAND_INTERNAL": "1"])
+        let plain = ClaudeCLI.environment(for: ClaudeCLI.Location(path: "/usr/bin/true", searchPath: "/usr/bin", configDirectory: nil))
+        check(env["CLAUDE_CONFIG_DIR"] == FileManager.default.homeDirectoryForCurrentUser.path + "/cc" && env["PATH"] == "/usr/bin"
+              && env["DECKHAND_INTERNAL"] == "1" && plain["CLAUDE_CONFIG_DIR"] == nil,
+              "claude: the shell's CLAUDE_CONFIG_DIR is passed to claude")
     }
 
     private static func claudeQuickActions(_ check: Check) {
