@@ -102,15 +102,27 @@ enum ScreenRecordingPermission {
             let answer = alert.runModal()
             alertShown = false
             guard answer == .alertFirstButtonReturn else { return }
-            let settings = CaptureSettings.shared
-            if !settings.askedForScreenRecording {
-                // The first request adds Deckhand to the list and shows macOS's own prompt with its own button
-                settings.askedForScreenRecording = true
-                if !CGRequestScreenCaptureAccess() { NSWorkspace.shared.open(settingsURL) }
-            } else {
-                NSWorkspace.shared.open(settingsURL)
-            }
+            request(openSettings: true)
         }
+    }
+
+    /// The first call asks macOS, which adds Deckhand to the Screen Recording list (on macOS 15 it
+    /// isn't listed until it has asked) and shows macOS's own prompt. macOS shows that prompt only
+    /// once, so later calls open System Settings instead. The capture alert, Privacy & Permissions
+    /// and the Screenshots pane share this one flag, so none of them spends a click on a prompt
+    /// that won't appear. With `openSettings`, the first call opens System Settings too.
+    /// Returns true when macOS reports access right away.
+    @discardableResult
+    static func request(openSettings: Bool) -> Bool {
+        let settings = CaptureSettings.shared
+        guard !settings.askedForScreenRecording else {
+            NSWorkspace.shared.open(settingsURL)
+            return false
+        }
+        settings.askedForScreenRecording = true
+        if CGRequestScreenCaptureAccess() { return true }
+        if openSettings { NSWorkspace.shared.open(settingsURL) }
+        return false
     }
 }
 

@@ -13,6 +13,9 @@ enum CaptureActions {
     }
 
     static let delay: TimeInterval = 3
+    /// How long the panel takes to animate out (0.45 s) plus a margin, so a screen or window
+    /// capture started while it was open doesn't catch it half closed.
+    static let panelCloseDelay: TimeInterval = 0.5
     private static var delayedPending = false
     /// Kept alive while the system color sampler is up.
     private static var sampler: NSColorSampler?
@@ -21,6 +24,7 @@ enum CaptureActions {
 
     static func capture(_ mode: Mode, notch: NotchController) {
         guard !ScreenshotService.isRunning, !delayedPending else { return }
+        let panelWasOpen = notch.viewModel.isOpen
         notch.close()
         guard ScreenRecordingPermission.isGranted else {
             ScreenRecordingPermission.explainMissing()
@@ -48,6 +52,10 @@ enum CaptureActions {
         if mode == .delayedScreen {
             delayedPending = true
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: run)
+        } else if panelWasOpen, mode == .screen || mode == .window {
+            // An area selection is drawn over the live screen, so only these two wait
+            delayedPending = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + panelCloseDelay, execute: run)
         } else {
             run()
         }
@@ -126,7 +134,7 @@ enum CaptureActions {
     }
 
     static func pickColor(notch: NotchController) {
-        guard sampler == nil else { return }
+        guard sampler == nil, !ScreenshotService.isRunning, !delayedPending else { return }
         notch.close()
         notch.suspendHover(true)
         let picker = NSColorSampler()

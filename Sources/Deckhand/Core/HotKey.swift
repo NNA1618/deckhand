@@ -172,15 +172,7 @@ final class HotkeyManager: ObservableObject {
         if needsMigration {
             stored = HotkeyMigration.migrate(stored)
         }
-        var loaded: [HotkeyAction: Shortcut] = [:]
-        for action in HotkeyAction.allCases {
-            if let entry = stored[action.rawValue] {
-                if let sc = entry { loaded[action] = sc }
-            } else if let sc = action.defaultShortcut {
-                loaded[action] = sc
-            }
-        }
-        shortcuts = loaded
+        shortcuts = HotkeyMigration.resolve(stored)
         if needsMigration {
             save()
             Log.info("hotkeys migrated to the 0.5 defaults where they were unchanged")
@@ -193,9 +185,9 @@ final class HotkeyManager: ObservableObject {
     }
 
     /// The shortcut if it is registered right now. Menus and Home show this one, so they never
-    /// advertise a shortcut that failed to register.
+    /// advertise a shortcut that failed to register. Snapshot runs never register, so they show the stored one.
     func activeShortcut(for action: HotkeyAction) -> Shortcut? {
-        refs[action] != nil || suspended ? shortcuts[action] : nil
+        refs[action] != nil || suspended || AppPaths.isSnapshot ? shortcuts[action] : nil
     }
 
     /// A new shortcut, or nil to remove it. Taking a shortcut from another action is reported in `lastMove`.
@@ -329,6 +321,22 @@ enum HotkeyMigration {
         }
         return result
     }
+
+    /// The shortcuts to use for a stored dictionary. An action missing from it (one added in a
+    /// later version, like `translateSelection` for a 0.4 store) gets its default, unless a stored
+    /// shortcut already uses those keys: then it starts without one rather than duplicating it.
+    static func resolve(_ stored: [String: Shortcut?]) -> [HotkeyAction: Shortcut] {
+        let taken = Set(stored.values.compactMap { $0 })
+        var loaded: [HotkeyAction: Shortcut] = [:]
+        for action in HotkeyAction.allCases {
+            if let entry = stored[action.rawValue] {
+                if let sc = entry { loaded[action] = sc }
+            } else if let sc = action.defaultShortcut, !taken.contains(sc) {
+                loaded[action] = sc
+            }
+        }
+        return loaded
+    }
 }
 
 /// What the recorder accepts.
@@ -374,7 +382,10 @@ enum ShortcutConflict: Equatable {
     case app(name: String)
     /// ⇧⌘ plus a letter: menus in many apps (Save As, Duplicate, Show Explorer).
     case manyApps
-    /// Carbon refused to register it: another app holds it.
+    /// ⌘ plus a letter: a standard command in every app (Save, New, Find).
+    case everyApp
+    /// Carbon refused to register it. Across processes Carbon doesn't refuse, so this means
+    /// another Deckhand action registered the same keys first.
     case registrationFailed
 
     /// Orange caption under the recorder.
@@ -384,7 +395,8 @@ enum ShortcutConflict: Equatable {
         case .system(nil): return String(localized: "macOS uses this shortcut.")
         case .app(let name): return String(localized: "\(name) uses this shortcut.")
         case .manyApps: return String(localized: "Many apps use this shortcut. Deckhand will take it from them.")
-        case .registrationFailed: return String(localized: "Taken by another app or macOS.")
+        case .everyApp: return String(localized: "Every app uses this shortcut for a command such as Save or Find. Deckhand will take it from all of them.")
+        case .registrationFailed: return String(localized: "This shortcut couldn’t be turned on. Another Deckhand action may already use it.")
         }
     }
 
@@ -393,11 +405,12 @@ enum ShortcutConflict: Equatable {
         case .system(let name): return "system \(name ?? "?")"
         case .app(let name): return "app \(name)"
         case .manyApps: return "many apps"
+        case .everyApp: return "every app"
         case .registrationFailed: return "registration failed"
         }
     }
 
-    /// The most important conflict for a shortcut: macOS first, then known apps, then the ⇧⌘ warning.
+    /// The most important conflict for a shortcut: macOS first, then known apps, then the ⇧⌘ and ⌘ letter warnings.
     static func find(for sc: Shortcut, system: [SymbolicHotKeys.Entry], apps: [KnownAppShortcuts.App]) -> ShortcutConflict? {
         if system.contains(where: { $0.matches(sc) }) {
             return .system(name: SymbolicHotKeys.name(for: sc))
@@ -407,6 +420,9 @@ enum ShortcutConflict: Equatable {
         }
         if sc.modifiers == Shortcut.command | Shortcut.shift, KeyNames.isLetter(sc.keyCode) {
             return .manyApps
+        }
+        if sc.modifiers == Shortcut.command, KeyNames.isLetter(sc.keyCode) {
+            return .everyApp
         }
         return nil
     }

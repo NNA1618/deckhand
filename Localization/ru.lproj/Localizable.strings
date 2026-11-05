@@ -694,6 +694,7 @@
 "Keep line breaks" = "Сохранять переносы строк";
 "Large text" = "Крупный текст";
 "Many apps use this shortcut. Deckhand will take it from them." = "Это сочетание есть во многих приложениях. Deckhand перехватит его у них.";
+"Every app uses this shortcut for a command such as Save or Find. Deckhand will take it from all of them." = "Это сочетание есть в каждом приложении — например, для команд «Сохранить» и «Найти». Deckhand перехватит его у всех.";
 "Medium text" = "Средний текст";
 "Mission Control" = "Mission Control";
 "More Ways to Capture" = "Другие снимки";
@@ -722,7 +723,7 @@
 "Spotlight" = "Spotlight";
 "Start with" = "Начальный инструмент";
 "SwiftUI Color" = "Color для SwiftUI";
-"Taken by another app or macOS." = "Занято другим приложением или macOS.";
+"This shortcut couldn’t be turned on. Another Deckhand action may already use it." = "Не удалось включить это сочетание клавиш. Возможно, его уже использует другое действие Deckhand.";
 "Text from Screen" = "Текст с экрана";
 "The folder “%@” doesn’t exist." = "Папки «%@» нет.";
 "The image could not be encoded." = "Не удалось закодировать изображение.";
@@ -837,7 +838,7 @@
 "search.recents.labels" = "Папки; Добавить папку; Период; Включая вложенные папки; Показывать поле для промпта; Кнопка-ссылка";
 "search.capture.labels" = "Снимок области; После снимка; Папка для сохранения; Формат; Звук затвора; Языки; Исправлять слова; Сохранять переносы строк; Цвет с экрана; Формат цвета; Начальный инструмент";
 "search.keepAwake.labels" = "Длительность по умолчанию; Разрешить выключать дисплей; Выключать при заряде ниже; Варианты таймера; Напоминать, пока не закрою; Аккумулятор";
-"search.shortcuts.labels" = "Открыть или закрыть Deckhand; Снять область в буфер обмена; Скопировать текст с экрана; Взять цвет с экрана; Включить или выключить «Не спать»; Открыть вкладку; В панели";
+"search.shortcuts.labels" = "Открыть или закрыть Deckhand; Снять область; Снять область и изменить; Снять окно; Снять весь экран; Снять экран через 3 секунды; Скопировать текст с экрана; Взять цвет с экрана; Включить или выключить «Не спать»; Перевести выделенный текст; Открыть вкладку; В панели; Закрыть панель; Инструменты редактора";
 "search.permissions.labels" = "Запись экрана; Универсальный доступ; Автоматизация; Файлы и папки; Объекты входа; Ваши данные; Журнал";
 "search.about.labels" = "Исходный код; Все версии; Сообщить о проблеме; Скопировать сведения о системе; Благодарности; Лицензия";
 "search.general.synonyms" = "запуск; автозапуск; объекты входа; значок в строке меню; английский; русский; сброс; буфер обмена";
@@ -898,7 +899,7 @@
 "Permissions" = "Разрешения";
 "Screen Recording" = "Запись экрана";
 "Screenshots and text from the screen" = "Снимки и текст с экрана";
-"Restart Deckhand to finish." = "Перезапустите Deckhand, чтобы применить.";
+"If you allowed it, restart Deckhand to finish." = "Если вы разрешили доступ, перезапустите Deckhand, чтобы применить.";
 "Paste into other apps, read the selected text" = "Вставка в другие приложения, чтение выделенного текста";
 "Files and Folders" = "Файлы и папки";
 "Watched folders in Recents" = "Папки «Недавних»";

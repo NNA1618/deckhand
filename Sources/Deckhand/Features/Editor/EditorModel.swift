@@ -333,7 +333,7 @@ final class EditorModel: ObservableObject {
         .frame(width: size.width, height: size.height)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 1
-        let space = base.colorSpace.flatMap { $0.model == .rgb ? $0 : nil } ?? CGColorSpace(name: CGColorSpace.sRGB)!
+        let space = Self.exportColorSpace(for: base.colorSpace)
         var result: CGImage?
         renderer.render { rendered, draw in
             guard let ctx = CGContext(data: nil, width: Int(rendered.width), height: Int(rendered.height),
@@ -344,6 +344,17 @@ final class EditorModel: ObservableObject {
         }
         if let result { exportCache = (version, result) }
         return result
+    }
+
+    /// The color space for 8-bit rendering: the source's own when it is RGB and an 8-bit context
+    /// supports it, otherwise sRGB. Extended spaces (extendedSRGB, extendedDisplayP3…) can't back
+    /// an 8-bit context, and without this fallback Copy, Save, Pin, Ask, Crop and Done did nothing.
+    nonisolated static func exportColorSpace(for source: CGColorSpace?) -> CGColorSpace {
+        let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
+        guard let source, source.model == .rgb else { return srgb }
+        let probe = CGContext(data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 0, space: source,
+                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        return probe == nil ? srgb : source
     }
 
     /// Draws the base image and all annotations. `scale` maps image pixels to canvas points.
@@ -385,7 +396,7 @@ final class EditorModel: ObservableObject {
         ])
         let blurred = pixelated.applyingGaussianBlur(sigma: block * 0.45).cropped(to: input.extent)
         guard let out = Self.ciContext.createCGImage(blurred, from: input.extent, format: .RGBA8,
-                                                     colorSpace: base.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)) else { return nil }
+                                                     colorSpace: Self.exportColorSpace(for: base.colorSpace)) else { return nil }
         obscureCache[id] = (r, source, out)
         return out
     }
@@ -396,10 +407,16 @@ final class EditorModel: ObservableObject {
                                                   height: CGFloat(cg.height) / pixelScale))
     }
 
-    /// PNG on the clipboard, encoded off the main thread. `then` runs once it is there.
-    func copyToClipboard(then: (@MainActor () -> Void)? = nil) {
+    /// PNG on the clipboard, encoded off the main thread. `then` runs once it is there, or once
+    /// copying failed, and says which.
+    func copyToClipboard(then: (@MainActor (_ copied: Bool) -> Void)? = nil) {
         commitText()
-        guard let cg = renderCGImage() else { return }
+        guard let cg = renderCGImage() else {
+            Log.info("editor render failed")
+            flash(String(localized: "Not copied"))
+            then?(false)
+            return
+        }
         let scale = pixelScale
         Task { @MainActor in
             let png = await Task.detached(priority: .userInitiated) { try? ImageExport.encode(cg, as: .png, pixelScale: scale) }.value
@@ -409,7 +426,7 @@ final class EditorModel: ObservableObject {
             } else {
                 flash(String(localized: "Not copied"))
             }
-            then?()
+            then?(png != nil)
         }
     }
 

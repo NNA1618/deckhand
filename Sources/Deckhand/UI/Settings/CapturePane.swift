@@ -20,7 +20,8 @@ struct CapturePane: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("Open System Settings") { NSWorkspace.shared.open(ScreenRecordingPermission.settingsURL) }
+                        // Asks once first: on macOS 15 Deckhand isn't in the list until it has
+                        Button("Open System Settings") { ScreenRecordingPermission.request(openSettings: true) }
                     }
                 }
             }

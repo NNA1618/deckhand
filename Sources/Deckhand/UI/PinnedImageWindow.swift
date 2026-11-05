@@ -29,6 +29,8 @@ enum PinnedImageWindow {
         panel.isOpaque = false
         panel.aspectRatio = image.size
         panel.isReleasedWhenClosed = false
+        // ⌘H in Settings or the editor hides Deckhand's windows; a pin stays until it is closed
+        panel.canHide = false
         panel.appearance = NSAppearance(named: .darkAqua)
         panel.contentView = NSHostingView(rootView: PinnedImageView(image: image) { [weak panel] in panel?.close() })
 

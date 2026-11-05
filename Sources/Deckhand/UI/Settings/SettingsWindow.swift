@@ -23,7 +23,8 @@ final class SettingsRouter: ObservableObject {
 
     private(set) var backStack: [SettingsSection] = []
     private(set) var forwardStack: [SettingsSection] = []
-    private var navigating = false
+    /// The history after a back or forward step, applied together with the new selection.
+    private var pendingHistory: (back: [SettingsSection], forward: [SettingsSection])?
 
     private init() {
         let last = UserDefaults.standard.string(forKey: Self.lastSectionKey).flatMap(SettingsSection.init(rawValue:))
@@ -38,8 +39,19 @@ final class SettingsRouter: ObservableObject {
     var canGoBack: Bool { !backStack.isEmpty }
     var canGoForward: Bool { !forwardStack.isEmpty }
 
-    func goBack() { step(from: &backStack, to: &forwardStack) }
-    func goForward() { step(from: &forwardStack, to: &backStack) }
+    func goBack() {
+        var back = backStack, forward = forwardStack
+        guard let next = back.popLast() else { return }
+        forward.append(section)
+        step(to: next, back: back, forward: forward)
+    }
+
+    func goForward() {
+        var back = backStack, forward = forwardStack
+        guard let next = forward.popLast() else { return }
+        back.append(section)
+        step(to: next, back: back, forward: forward)
+    }
 
     func windowKeyChanged(_ isKey: Bool) {
         windowIsKey = isKey
@@ -48,19 +60,24 @@ final class SettingsRouter: ObservableObject {
 
     func focusSearch() { searchFocusRequest += 1 }
 
-    private func step(from source: inout [SettingsSection], to target: inout [SettingsSection]) {
-        guard let next = source.popLast() else { return }
-        target.append(section)
-        navigating = true
+    /// The new history is built in local copies and stored in the selection's didSet, so nothing
+    /// that reacts to the change (or reads back and forward meanwhile) sees half of it, and no
+    /// stack is held `inout` while observers run.
+    private func step(to next: SettingsSection, back: [SettingsSection], forward: [SettingsSection]) {
+        pendingHistory = (back, forward)
         selection = next
-        navigating = false
     }
 
     private func selectionChanged(from old: SettingsSection?) {
+        let pending = pendingHistory
+        pendingHistory = nil
         guard let new = selection, new != old else { return }
-        if !navigating, let old {
-            backStack.append(old)
-            forwardStack.removeAll()
+        if let pending {
+            backStack = pending.back
+            forwardStack = pending.forward
+        } else if let old {
+            backStack = backStack + [old]
+            forwardStack = []
         }
         // A snapshot run shares the user's defaults; it must not change them
         if !AppPaths.isSnapshot { UserDefaults.standard.set(new.rawValue, forKey: Self.lastSectionKey) }

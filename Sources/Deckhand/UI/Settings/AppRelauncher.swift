@@ -37,6 +37,9 @@ enum AppRelauncher {
     static func resetAllSettings() {
         guard !AppPaths.isSnapshot else { return }
         UserDefaults.standard.removePersistentDomain(forName: AppPaths.bundleId)
+        // The API key stays, and with no stored backend Settings would take this for a 0.4 install
+        // and switch quick actions to the paid API. The default is Claude Code.
+        UserDefaults.standard.set(ClaudeBackend.claudeCode.rawValue, forKey: "claudeBackend")
         UserDefaults.standard.synchronize()
         relaunch(openSettings: true)
     }

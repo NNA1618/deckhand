@@ -298,6 +298,11 @@ struct EditorView: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { g in
+                        // Take focus from the Ask field or the answer, so tool letters, ⌘Z, ⌘C and ⌫
+                        // go back to the editor. A text being placed on the image keeps it.
+                        if !textFocused, let window = model.window, window.firstResponder is NSText {
+                            window.makeFirstResponder(nil)
+                        }
                         model.dragChanged(start: scaled(g.startLocation, k), current: scaled(g.location, k))
                     }
                     .onEnded { g in
@@ -456,11 +461,16 @@ enum EditorWindow {
     }
 
     /// Done: copy, close, and hand focus back so the next ⌘V lands in the app the user came from.
+    /// The window closes even if copying failed, and the notch says so, since the editor's own notice goes with it.
     private static func done(_ id: ObjectIdentifier) {
         guard let session = sessions[id] else { return }
-        session.model.copyToClipboard {
+        session.model.copyToClipboard { copied in
             let previous = session.previousApp
             session.window.close()
+            if !copied {
+                PanelActions.notch?.showToast(symbol: "exclamationmark.triangle",
+                                              text: String(localized: "Not copied"))
+            }
             guard let previous, !previous.isTerminated else { return }
             NSApp.yieldActivation(to: previous)
             previous.activate()
@@ -520,6 +530,8 @@ final class ColorPanelBridge: NSObject {
         guard self.owner === owner || self.owner == nil else { return }
         onChange = nil
         self.owner = nil
+        // NSColorPanel.shared creates the panel, and with it a saved panel state; only touch one that exists
+        guard NSColorPanel.sharedColorPanelExists else { return }
         let panel = NSColorPanel.shared
         panel.setTarget(nil)
         panel.setAction(nil)

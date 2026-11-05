@@ -46,7 +46,7 @@ struct HomeView: View {
                 .fixedSize()
             Spacer(minLength: 12)
             Text(Self.hint(hover: notchSettings.activation.opensOnHover, click: notchSettings.activation.opensOnClick,
-                           shortcut: hotkeys.shortcuts[.toggle]?.display))
+                           shortcut: hotkeys.activeShortcut(for: .toggle)?.display))
                 .font(Theme.caption)
                 .foregroundColor(Theme.fgMute)
                 .lineLimit(1)
@@ -93,7 +93,7 @@ struct ShortcutsCard: View {
                 .help(Text("All shortcuts in Settings"))
             }
             ForEach(Self.featured) { action in
-                HomeShortcutRow(action: action, shortcut: hotkeys.shortcuts[action]?.display)
+                HomeShortcutRow(action: action, shortcut: hotkeys.activeShortcut(for: action)?.display)
             }
         }
         .padding(.horizontal, 6)
