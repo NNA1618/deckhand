@@ -51,8 +51,17 @@ enum SelectionReader {
     // MARK: - ⌘C
 
     private static func copySelection() async -> String? {
+        // The ⌘C and the restore are Deckhand's, not the user's copies: keep them out of the history
+        let watcher = ClipboardWatcher.shared
+        watcher.suspendCapture()
+        defer { watcher.resumeCapture() }
         let pb = NSPasteboard.general
-        let saved = PasteboardContents(pb)
+        let name = pb.name
+        // Reading every type can make the app that copied render it now (a large image, say),
+        // so it happens off the main thread
+        let saved = await Task.detached(priority: .userInitiated) {
+            PasteboardContents.save(NSPasteboard(name: name))
+        }.value
         let before = pb.changeCount
         // The shortcut's own keys are usually still down; ⌘C with ⌃⌥⇧ held means something else
         await waitForModifierKeysUp()
@@ -76,23 +85,50 @@ enum SelectionReader {
     }
 }
 
-/// A copy of everything on the clipboard, to put it back after reading the selection with ⌘C.
-@MainActor
-private struct PasteboardContents {
-    private let items: [[(NSPasteboard.PasteboardType, Data)]]
+/// A copy of the clipboard, to put it back after reading the selection with ⌘C.
+struct PasteboardContents: Sendable {
+    struct Entry: Sendable {
+        let type: String
+        let data: Data
+    }
 
-    init(_ pb: NSPasteboard) {
-        items = (pb.pasteboardItems ?? []).map { item in
-            item.types.compactMap { type in item.data(forType: type).map { (type, $0) } }
+    let items: [[Entry]]
+    /// False for a password or another copy meant to vanish: putting it back would change the
+    /// change count, and password managers then no longer clear it. The selection stays instead.
+    let restores: Bool
+
+    /// Promised files: reading these makes the app that copied write the file out.
+    nonisolated static let promiseTypes: Set<String> = [
+        "com.apple.NSFilePromiseItemMetaData",
+        "com.apple.pasteboard.promised-file-url",
+        "com.apple.pasteboard.promised-file-content-type",
+        "com.apple.pasteboard.promised-suggested-file-name",
+        "NSPromiseContentsPboardType",
+        "Apple files promise pasteboard type",
+    ]
+
+    /// Reads what can be put back. Safe off the main thread; a password is not read at all.
+    nonisolated static func save(_ pb: NSPasteboard) -> PasteboardContents {
+        let types = Set((pb.types ?? []).map(\.rawValue))
+        if ClipboardWatcher.isPassword(types: types, sourceApp: nil) {
+            return PasteboardContents(items: [], restores: false)
         }
+        let items = (pb.pasteboardItems ?? []).map { item in
+            item.types.compactMap { type -> Entry? in
+                guard !promiseTypes.contains(type.rawValue), let data = item.data(forType: type) else { return nil }
+                return Entry(type: type.rawValue, data: data)
+            }
+        }
+        return PasteboardContents(items: items.filter { !$0.isEmpty }, restores: true)
     }
 
     func restore(to pb: NSPasteboard) {
+        guard restores else { return }
         pb.clearContents()
         guard !items.isEmpty else { return }
-        let restored = items.map { pairs -> NSPasteboardItem in
+        let restored = items.map { entries -> NSPasteboardItem in
             let item = NSPasteboardItem()
-            for (type, data) in pairs { item.setData(data, forType: type) }
+            for entry in entries { item.setData(entry.data, forType: NSPasteboard.PasteboardType(entry.type)) }
             return item
         }
         pb.writeObjects(restored)
