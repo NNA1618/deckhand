@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             ClipboardWatcher.shared.start()
             if Settings.shared.showPlayingInNotch { NowPlayingMonitor.shared.start() }
             UtilityNotices.install(notch: notch)
+            TranslatorCoordinator.install(notch: notch)
             ClaudeNotices.install(notch: notch)
         } else {
             Theme.flatForSnapshot = true

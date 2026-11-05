@@ -338,6 +338,71 @@
 
 
 /* == translate == */
+/* Translate tab */
+"translate.action" = "Перевести";
+"Type or paste text" = "Введите или вставьте текст";
+"Detect Language" = "Определить язык";
+"Detect Language (%@)" = "Определить язык (%@)";
+"%@ (detected)" = "%@ (определён)";
+"Detected automatically. Click to choose the language." = "Определён автоматически. Нажмите, чтобы выбрать язык.";
+"Language of the text" = "Язык текста";
+"Language of the translation" = "Язык перевода";
+"Translate into %@" = "Язык перевода: %@";
+"Swap languages" = "Поменять языки местами";
+"Translate now (%@)" = "Перевести сейчас (%@)";
+"Search languages" = "Поиск языка";
+"Favorites" = "Избранные";
+"Recent" = "Недавние";
+"All Languages" = "Все языки";
+"No languages found" = "Языки не найдены";
+"Add to Favorites" = "Добавить в избранные";
+"Remove from Favorites" = "Убрать из избранных";
+"Speak" = "Прочитать вслух";
+"No voice for this language" = "Нет голоса для этого языка";
+"Copy the translation" = "Скопировать перевод";
+"Paste into %@" = "Вставить в «%@»";
+"Paste into the app you were using" = "Вставить в программу, где вы работали";
+"Translating…" = "Перевод…";
+"Waiting for the download…" = "Ждём загрузку…";
+"%@ → %@ isn't downloaded on this Mac yet." = "Пара %@ → %@ ещё не загружена на этот Mac.";
+"Translation works offline after a one-time download." = "После загрузки перевод работает без интернета.";
+"Download…" = "Загрузить…";
+"Apple Translation can't translate from %@ into %@." = "Apple Translation не поддерживает пару %@ → %@.";
+"Choose two different languages." = "Выберите два разных языка.";
+"Couldn't recognize the language. Choose it above." = "Не удалось определить язык. Выберите его выше.";
+"Translation is taking too long." = "Перевод занимает слишком много времени.";
+"Couldn't translate this text." = "Не удалось перевести этот текст.";
+"Try Again" = "Повторить";
+"Nothing was selected, so this is the copied text." = "Ничего не выделено — взят текст из буфера обмена.";
+"Select text in any app, then press the shortcut." = "Выделите текст в любой программе и нажмите сочетание клавиш.";
+"To read selected text, allow Deckhand in Accessibility." = "Чтобы читать выделенный текст, разрешите Deckhand универсальный доступ.";
+"To paste into other apps, allow Deckhand in Accessibility." = "Чтобы вставлять в другие программы, разрешите Deckhand универсальный доступ.";
+"Allow" = "Разрешить";
+
+/* Download window */
+"Translation Languages" = "Языки перевода";
+"Download languages for translation" = "Загрузка языков для перевода";
+"To translate %@ → %@, macOS needs to download these languages once. Translation then works offline." = "Для пары %@ → %@ macOS один раз загрузит языки. Потом перевод работает без интернета.";
+"Waiting for macOS…" = "Ждём ответа macOS…";
+
+/* Settings → Translate */
+"Languages" = "Языки";
+"Translate into" = "Язык перевода";
+"Second language" = "Второй язык";
+"Text already in the first language goes into this one." = "Текст, который уже на первом языке, переводится на этот.";
+"Detect the language automatically" = "Определять язык автоматически";
+"Source language" = "Исходный язык";
+"On-device translation with Apple Translation. Languages that aren't on this Mac yet download the first time you use them." = "Перевод на самом Mac через Apple Translation. Языки, которых ещё нет на Mac, загрузятся при первом переводе.";
+"Favorite languages" = "Избранные языки";
+"Add Language…" = "Добавить язык…";
+"Favorites come first in the language lists and appear as one-click buttons in the Translate tab." = "Избранные языки идут первыми в списках и видны как кнопки на вкладке «Перевод».";
+"Typing and Shortcut" = "Ввод и сочетание клавиш";
+"Translates a moment after you stop typing. %@ translates right away." = "Перевод появляется, когда вы перестаёте печатать. %@ переводит сразу.";
+"Translate as you type" = "Переводить при вводе";
+"None" = "Нет";
+"Change…" = "Изменить…";
+"Languages on this Mac" = "Языки на этом Mac";
+"Translation Languages…" = "Языки перевода…";
 
 
 /* == clipboard == */
