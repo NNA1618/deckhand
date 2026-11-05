@@ -20,6 +20,7 @@ enum SelfTest {
         translate(check)
         media(check)
         claude(check)
+        codex(check)
         notch(check)
         panel(check)
         utilities(check)

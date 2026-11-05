@@ -60,7 +60,7 @@ extension SelfTest {
             let translated = SettingsSearch.split(term.value(in: ru))
             check(en.count == translated.count && term.value(in: ru) != term.english,
                   "settings search: \(section.rawValue) labels translated, \(en.count) = \(translated.count)")
-            check(section.titleTerm.value(in: ru) != section.titleTerm.english || section == .claude,
+            check(section.titleTerm.value(in: ru) != section.titleTerm.english || section == .claude || section == .codex,
                   "settings: \(section.rawValue) title translated")
         }
         let shortcuts = SettingsSearch.entries(.shortcuts)
