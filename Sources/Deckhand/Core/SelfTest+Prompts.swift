@@ -174,6 +174,16 @@ extension SelfTest {
         ShelfFiles.purgeCopies(keeping: [], in: copies, now: Date().addingTimeInterval(ShelfFiles.purgeGrace + 60))
         check(!fm.fileExists(atPath: fresh.path) && !fm.fileExists(atPath: pending.path), "old unused shelf copies go eventually")
 
+        // Undo puts files back in their places, not by date: one drop's files have increasing dates top to bottom
+        let t0 = Date()
+        let dropped = (0..<3).map { ShelfItem(path: "/tmp/\($0).png", bookmark: nil, addedAt: t0.addingTimeInterval(Double($0))) }
+        let later = ShelfItem(path: "/tmp/later.png", bookmark: nil, addedAt: t0.addingTimeInterval(10))
+        let order = dropped.map(\.id)
+        let undone = ShelfStore.restoring(dropped, into: [later], order: order)
+        check(undone.map(\.id) == [later.id] + order, "shelf Undo keeps the drop order, newer files on top")
+        let partial = ShelfStore.restoring([dropped[1]], into: [dropped[0], dropped[2]], order: order)
+        check(partial.map(\.id) == order, "shelf Undo puts one file back in its place")
+
         let old = Data(#"[{"id":"5D6C7F7E-6C1B-4F77-9B39-1D0B7F1C2E11","path":"/tmp/a.png","addedAt":0}]"#.utf8)
         let decoded = try? JSONDecoder().decode([ShelfItem].self, from: old)
         check(decoded?.first?.bookmark == nil && decoded?.first?.isCopy == false, "0.4 shelf.json still loads")

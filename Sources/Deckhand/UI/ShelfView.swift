@@ -6,7 +6,6 @@ import QuickLookThumbnailing
 /// a drag carries the whole selection, Space shows Quick Look.
 struct ShelfView: View {
     @ObservedObject private var store = ShelfStore.shared
-    @ObservedObject private var settings = ShelfSettings.shared
     @EnvironmentObject private var notch: NotchViewModel
     @State private var targeted = false
     @State private var anchor: UUID?
@@ -88,8 +87,8 @@ struct ShelfView: View {
             Spacer()
             DragAllHandle(title: store.selection.isEmpty ? "Drag All" : "Drag Selected",
                           urls: { store.urls(for: actionIds) },
-                          onDragStart: { store.draggingOut = actionIds },
-                          onDragEnd: { ended(actionIds, $0) })
+                          onDragStart: { store.beginDrag(actionIds) },
+                          onDragEnd: { store.endDrag($0) })
             ShareLink(items: store.urls(for: actionIds)) {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 11, weight: .medium)).foregroundColor(Theme.fg)
@@ -164,11 +163,6 @@ struct ShelfView: View {
     }
 
     // MARK: Actions
-
-    private func ended(_ ids: Set<UUID>, _ operation: NSDragOperation) {
-        store.draggingOut = []
-        if settings.removeAfterDrag, !operation.isEmpty { store.remove(ids) }
-    }
 
     /// Loads every dropped file, then adds them in the order they were dragged.
     private func accept(_ providers: [NSItemProvider]) {
@@ -255,7 +249,6 @@ struct ShelfTile: View {
     let onClick: (NSEvent.ModifierFlags) -> Void
     let menu: () -> NSMenu
     @ObservedObject private var store = ShelfStore.shared
-    @ObservedObject private var settings = ShelfSettings.shared
     @EnvironmentObject private var notch: NotchViewModel
     @State private var thumb: NSImage?
     @State private var hover = false
@@ -296,12 +289,8 @@ struct ShelfTile: View {
                 onDoubleClick: { if reachable { NSWorkspace.shared.open(item.url) } },
                 onHover: { hover = $0 },
                 menu: menu,
-                onDragStart: { store.draggingOut = store.targetIds(for: item) },
-                onDragEnd: { op in
-                    let ids = store.targetIds(for: item)
-                    store.draggingOut = []
-                    if settings.removeAfterDrag, !op.isEmpty { store.remove(ids) }
-                }
+                onDragStart: { store.beginDrag(store.targetIds(for: item)) },
+                onDragEnd: { store.endDrag($0) }
             )
         }
         .overlay(alignment: .topTrailing) {

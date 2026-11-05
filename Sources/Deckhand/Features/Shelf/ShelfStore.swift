@@ -50,6 +50,8 @@ final class ShelfStore: ObservableObject {
 
     private let fileURL = AppPaths.supportDir.appendingPathComponent("shelf.json")
     private var undoTask: Task<Void, Never>?
+    /// The shelf's order just before the last Remove or Clear, so Undo puts files back where they were.
+    private var orderBeforeRemove: [UUID] = []
 
     private init() {
         if AppPaths.isSnapshot {
@@ -90,6 +92,7 @@ final class ShelfStore: ObservableObject {
     func remove(_ ids: Set<UUID>) {
         let removed = items.filter { ids.contains($0.id) }
         guard !removed.isEmpty else { return }
+        orderBeforeRemove = items.map(\.id)
         items.removeAll { ids.contains($0.id) }
         selection.subtract(ids)
         offerUndo(removed)
@@ -99,12 +102,38 @@ final class ShelfStore: ObservableObject {
     func clear() { remove(Set(items.map(\.id))) }
 
     func undoRemove() {
-        let back = lastRemoved.filter { r in !items.contains { $0.id == r.id } }
+        items = Self.restoring(lastRemoved, into: items, order: orderBeforeRemove)
         lastRemoved = []
         undoTask?.cancel()
-        items.insert(contentsOf: back, at: 0)
-        items.sort { $0.addedAt > $1.addedAt }
         save()
+    }
+
+    /// `current` with `removed` put back in `order`, the shelf's order before the removal.
+    /// Files added since stay on top. Dates can't be used: one drop's files get increasing dates
+    /// in drag order but sit on the shelf newest block first, top to bottom in drag order.
+    nonisolated static func restoring(_ removed: [ShelfItem], into current: [ShelfItem], order: [UUID]) -> [ShelfItem] {
+        let present = Set(current.map(\.id))
+        let back = removed.filter { !present.contains($0.id) }
+        let byId = Dictionary((current + back).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let before = Set(order)
+        let added = current.filter { !before.contains($0.id) }
+        let restored = order.compactMap { byId[$0] }
+        let placed = Set((added + restored).map(\.id))
+        return added + restored + back.filter { !placed.contains($0.id) }
+    }
+
+    // MARK: - Dragging out
+
+    /// A drag carries only the files that can be found; greyed-out ones stay behind.
+    func beginDrag(_ ids: Set<UUID>) {
+        draggingOut = ids.subtracting(unreachable)
+    }
+
+    /// With "Remove after drag", takes off the shelf exactly the files the drag carried.
+    func endDrag(_ operation: NSDragOperation) {
+        let dragged = draggingOut
+        draggingOut = []
+        if ShelfSettings.shared.removeAfterDrag, !operation.isEmpty { remove(dragged) }
     }
 
     private func offerUndo(_ removed: [ShelfItem]) {
