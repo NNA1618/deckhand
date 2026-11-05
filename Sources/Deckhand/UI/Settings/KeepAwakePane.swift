@@ -11,13 +11,13 @@ struct KeepAwakePane: View {
     var body: some View {
         SettingsPane(.keepAwake) {
             Section {
-                LabeledContent("Shortcut") { ShortcutRecorder(action: .keepAwake) }
+                ShortcutRow(action: .keepAwake, title: String(localized: "Shortcut"))
                 Picker("Default length", selection: $settings.keepAwakeDefaultDuration) {
                     ForEach(Array(KeepAwake.durations.enumerated()), id: \.offset) { _, d in
                         Text(KeepAwake.title(for: d)).tag(d)
                     }
                 }
-                Toggle("Let the display turn off", isOn: $settings.keepAwakeAllowDisplaySleep)
+                SettingsToggleRow(String(localized: "Let the display turn off"), isOn: $settings.keepAwakeAllowDisplaySleep)
                 if hasBattery {
                     Picker("Turn off below", selection: $utility.keepAwakeBatteryFloor) {
                         ForEach(UtilitySettings.batteryFloors, id: \.self) { floor in
@@ -33,14 +33,13 @@ struct KeepAwakePane: View {
                 Text("Keep Awake")
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("The default length is used by the shortcut and the menu bar.")
-                    Text("Stops the Mac from sleeping when idle. With the lid closed it still sleeps unless an external display, keyboard and power are connected.")
+                    SettingsFooter("The default length is used by the shortcut and the menu bar.")
+                    SettingsFooter("Stops the Mac from sleeping when idle. With the lid closed it still sleeps unless an external display, keyboard and power are connected.")
                 }
-                .font(.caption).foregroundStyle(.secondary)
             }
 
             Section {
-                LabeledContent("Presets") {
+                SettingsRow(String(localized: "Presets")) {
                     HStack(spacing: 6) {
                         ForEach(0..<utility.timerPresets.count, id: \.self) { i in
                             TextField("", value: presetBinding(i), format: .number)
@@ -50,32 +49,20 @@ struct KeepAwakePane: View {
                                 .frame(width: 44)
                                 .accessibilityLabel(Text("Preset \(i + 1)"))
                         }
-                        Text("min").foregroundStyle(.secondary)
+                        Text("min").foregroundStyle(Theme.fgDim).fixedSize()
                     }
                 }
-                Toggle(isOn: $utility.timerAlertUntilDismissed) {
-                    Text("Alert until I dismiss it")
-                    Text("Keeps “Time is up” at the notch and repeats the sound.")
-                }
+                SettingsToggleRow(String(localized: "Alert until I dismiss it"),
+                                  detail: String(localized: "Keeps “Time is up” at the notch and repeats the sound."),
+                                  isOn: $utility.timerAlertUntilDismissed)
             } header: {
                 Text("Timer")
             }
 
             Section {
-                Button {
-                    SettingsRouter.shared.section = .closedNotch
-                } label: {
-                    HStack {
-                        Text("Sound, badge and notices").foregroundStyle(.primary)
-                        Spacer()
-                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                SettingsLinkRow(String(localized: "Sound, badge and notices"), to: .section(.closedNotch))
             } footer: {
-                Text("The timer sound, the badge at the notch, and the Keep Awake and battery notices.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("The timer sound, the badge at the notch, and the Keep Awake and battery notices.")
             }
         }
     }
