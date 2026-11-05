@@ -2,13 +2,14 @@
 # Builds Deckhand.app from the SwiftPM output, installs it to /Applications and launches it.
 # Usage: ./scripts/bundle.sh [debug|release]
 # Set NO_LAUNCH=1 to skip launching, NO_INSTALL=1 to only build the bundle.
+# BUNDLE_ID overrides the bundle id; check.sh uses its own so test runs never share settings with the installed app.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG="${1:-debug}"
 APP_NAME="Deckhand"
-BUNDLE_ID="com.nna1618.deckhand"
+BUNDLE_ID="${BUNDLE_ID:-com.nna1618.deckhand}"
 VERSION="0.5.0"
 BUILD="6"
 

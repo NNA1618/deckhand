@@ -1,7 +1,9 @@
 import Foundation
 
 enum AppPaths {
-    static let bundleId = "com.nna1618.deckhand"
+    /// The running bundle's id: `com.nna1618.deckhand`, or the separate id check builds use so their
+    /// settings and Keychain items stay apart from the installed app's.
+    static let bundleId = Bundle.main.bundleIdentifier ?? "com.nna1618.deckhand"
 
     /// `--snapshot` runs keep their data in a fresh temporary folder, apart from the user's.
     static let isSnapshot = CommandLine.arguments.contains("--snapshot")
