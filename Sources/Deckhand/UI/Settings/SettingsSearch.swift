@@ -46,7 +46,7 @@ enum SettingsSearch {
         case .keepAwake:
             return LocalizedTerm(key, "Default length; Let the display turn off; Turn off below; Timer presets; Alert until I dismiss it; Battery")
         case .shortcuts:
-            return LocalizedTerm(key, "Open or close Deckhand; Capture area to clipboard; Copy text from screen; Pick a color from screen; Turn Keep Awake on or off; Open a tab; In the panel")
+            return LocalizedTerm(key, "Open or close Deckhand; Capture an area; Capture an area and edit; Capture a window; Capture the whole screen; Capture the screen in 3 seconds; Copy text from the screen; Pick a color on the screen; Turn Keep Awake on or off; Translate selected text; Open a Tab; In the Panel; Close the panel; Editor tools")
         case .permissions:
             return LocalizedTerm(key, "Screen Recording; Accessibility; Automation; Files and Folders; Login Items; Your data; Logs")
         case .about:

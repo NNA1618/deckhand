@@ -329,6 +329,11 @@ extension SelfTest {
         check(removed[HotkeyAction.clipboard] == nil && removed[HotkeyAction.toggle] == HotkeyAction.toggle.defaultShortcut,
               "a removed shortcut stays removed and missing ones get defaults")
 
+        // Settings search finds Shortcuts by the 0.5 action names
+        for query in ["capture an area", "capture a window", "translate selected"] {
+            check(SettingsSearch.results(for: query).contains { $0.section == .shortcuts }, "settings search: “\(query)” finds Shortcuts")
+        }
+
         // Display
         check(Shortcut(kVK_ANSI_D, c | o | s).modifierSymbols == "⌃⌥⇧", "modifier order ⌃⌥⇧⌘")
         check(Shortcut(kVK_Space, c | o).display == "⌃⌥" + String(localized: "Space"), "space is named in the app's language")
