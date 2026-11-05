@@ -129,7 +129,12 @@ struct SettingsIcon: View {
     var size: CGFloat = 20
 
     var body: some View {
-        SettingsSymbolTile(symbol: section.symbol, color: section.color, size: size)
+        if section == .claude, AgentProvider.claudeCode.appIcon != nil {
+            // Claude's own icon from the installed Claude app, like System Settings shows app icons
+            AgentIcon(provider: .claudeCode, size: size)
+        } else {
+            SettingsSymbolTile(symbol: section.symbol, color: section.color, size: size)
+        }
     }
 }
 
