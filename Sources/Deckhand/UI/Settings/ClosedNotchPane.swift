@@ -17,12 +17,10 @@ struct ClosedNotchPane: View {
                 row("Claude Code", "While a session works or waits for you", isOn: $settings.claudeInNotch)
                     .disabled(!claude.hooksInstalled)
                 if !claude.hooksInstalled {
-                    HStack {
-                        Text("Claude Code isn't connected.").font(.caption).foregroundStyle(.secondary)
-                        Spacer()
+                    SettingsRow(String(localized: "Claude Code isn't connected."),
+                                icon: .symbol("exclamationmark.triangle.fill", .orange)) {
                         Button("Connect in Claude") { SettingsRouter.shared.section = .claude }
-                            .buttonStyle(.link)
-                            .font(.caption)
+                            .buttonStyle(.settings)
                     }
                 }
                 row("Timer", "Time left", isOn: $settings.badgeTimer)
@@ -31,59 +29,52 @@ struct ClosedNotchPane: View {
                         if on { NowPlayingMonitor.shared.start() }
                     }
                 row("Keep Awake", "A cup and the time left", isOn: $settings.keepAwakeIndicator)
-                Toggle("Hide in full screen", isOn: $settings.hideBadgesInFullScreen)
-                Toggle("Open the panel when pointing at a badge", isOn: $notch.badgeHoverOpens)
+                SettingsToggleRow(String(localized: "Hide in full screen"), isOn: $settings.hideBadgesInFullScreen)
+                SettingsToggleRow(String(localized: "Open the panel when pointing at a badge"), isOn: $notch.badgeHoverOpens)
             } header: {
                 Text("Badges")
             } footer: {
-                Text("One badge shows at a time, in this order. Badges sit over menu-bar items, so pointing at them opens nothing unless you turn that on.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("One badge shows at a time, in this order. Badges sit over menu-bar items, so pointing at them opens nothing unless you turn that on.")
             }
 
             Section {
-                Toggle("Screenshot copied", isOn: $settings.screenshotToast)
+                SettingsToggleRow(String(localized: "Screenshot copied"), isOn: $settings.screenshotToast)
                 row("Text from screen", "Copied or not found", isOn: $settings.noticeTextCapture)
-                Toggle("Color copied", isOn: $settings.noticeColor)
-                Toggle("Keep Awake on or off", isOn: $settings.noticeKeepAwake)
-                Toggle("Timer finished", isOn: $settings.noticeTimer)
+                SettingsToggleRow(String(localized: "Color copied"), isOn: $settings.noticeColor)
+                SettingsToggleRow(String(localized: "Keep Awake on or off"), isOn: $settings.noticeKeepAwake)
+                SettingsToggleRow(String(localized: "Timer finished"), isOn: $settings.noticeTimer)
                 if Self.hasBattery {
-                    Toggle("Charger connected", isOn: $settings.noticeCharging)
+                    SettingsToggleRow(String(localized: "Charger connected"), isOn: $settings.noticeCharging)
                     row("Low battery", "At 20% and 10%", isOn: $settings.noticeLowBattery)
                 }
-                Toggle("Claude finished a task", isOn: $settings.claudeDoneNotice)
-                Toggle("Claude needs you", isOn: $settings.noticeClaudeNeedsYou)
+                SettingsToggleRow(String(localized: "Claude finished a task"), isOn: $settings.claudeDoneNotice)
+                SettingsToggleRow(String(localized: "Claude needs you"), isOn: $settings.noticeClaudeNeedsYou)
                 Picker("Duration", selection: $settings.toastDuration) {
                     ForEach(Self.durations, id: \.self) { Text(verbatim: SettingsFormat.seconds($0, wide: true)).tag($0) }
                 }
             } header: {
                 Text("Notices")
             } footer: {
-                Text("Notices that need you — Claude is waiting, the timer is up — stay until you point at them or open the panel.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("Notices that need you — Claude is waiting, the timer is up — stay until you point at them or open the panel.")
             }
 
             Section {
-                SoundPicker(title: "Claude needs you", selection: $settings.soundClaudeNeedsYou)
-                SoundPicker(title: "Timer finished", selection: $settings.soundTimer)
+                SoundPicker(title: String(localized: "Claude needs you"), selection: $settings.soundClaudeNeedsYou)
+                SoundPicker(title: String(localized: "Timer finished"), selection: $settings.soundTimer)
             } header: {
                 Text("Sounds")
             }
         }
     }
 
-    private func row(_ title: LocalizedStringKey, _ caption: LocalizedStringKey, isOn: Binding<Bool>) -> some View {
-        Toggle(isOn: isOn) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                Text(caption).font(.caption).foregroundStyle(.secondary)
-            }
-        }
+    private func row(_ title: String.LocalizationValue, _ caption: String.LocalizationValue, isOn: Binding<Bool>) -> some View {
+        SettingsToggleRow(String(localized: title), detail: String(localized: caption), isOn: isOn)
     }
 }
 
 /// A system sound menu with a play button. An empty name means no sound.
 private struct SoundPicker: View {
-    let title: LocalizedStringKey
+    let title: String
     @Binding var selection: String
 
     /// The alert sounds that come with macOS, read once.
@@ -93,7 +84,7 @@ private struct SoundPicker: View {
     }()
 
     var body: some View {
-        LabeledContent {
+        SettingsRow(title) {
             HStack(spacing: 6) {
                 Picker(title, selection: $selection) {
                     Text("None").tag("")
@@ -112,8 +103,6 @@ private struct SoundPicker: View {
                 .help(Text("Play"))
                 .accessibilityLabel(Text("Play"))
             }
-        } label: {
-            Text(title)
         }
     }
 }
