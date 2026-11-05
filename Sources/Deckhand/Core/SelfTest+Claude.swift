@@ -10,6 +10,7 @@ extension SelfTest {
         claudeQuickActions(check)
         claudeHookPaths(check)
         claudeOwnerUpgrade(check)
+        claudeProcessRunner(check)
     }
 
     private static func claudeStateMachine(_ check: Check) {
@@ -394,6 +395,35 @@ extension SelfTest {
         let removedJSON = (try? JSONSerialization.jsonObject(with: Data(removed.utf8))) as? [String: Any]
         check(removedJSON?["hooks"] == nil && removedJSON?["agentPushNotifEnabled"] as? Bool == true && removedJSON?.count == 2,
               "claude upgrade: Disconnect afterwards leaves only the user's keys")
+    }
+
+    private static func claudeProcessRunner(_ check: Check) {
+        // A tool that leaves a background child holding its pipes still answers promptly
+        var started = Date()
+        let detached = try? ProcessRunner.runSync("/bin/sh", ["-c", "echo hi; sleep 20 &"], timeout: 5)
+        check(detached?.stdout == "hi\n" && detached?.status == 0 && detached?.stopped == false && Date().timeIntervalSince(started) < 2,
+              "claude: a backgrounded grandchild doesn't hold up the answer")
+        started = Date()
+        let semaphore = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var asyncOut: ProcessRunner.Output?
+        Task.detached {
+            asyncOut = try? await ProcessRunner.run("/bin/sh", ["-c", "echo hi; sleep 20 &"], timeout: 5)
+            semaphore.signal()
+        }
+        _ = semaphore.wait(timeout: .now() + 6)
+        check(asyncOut?.stdout == "hi\n" && asyncOut?.stopped == false && Date().timeIntervalSince(started) < 2,
+              "claude: the async runner returns promptly too")
+        // Stopping ends the background children as well, through the process group
+        let stopped = try? ProcessRunner.runSync("/bin/sh", ["-c", "sleep 30 & echo $!; wait"], timeout: 0.5)
+        let child = Int32((stopped?.stdout ?? "").trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+        var gone = false
+        for _ in 0..<40 where !gone {
+            gone = child > 0 && kill(child, 0) != 0
+            if !gone { usleep(50_000) }
+        }
+        check(stopped?.stopped == true && child > 0 && gone, "claude: stopping a tool ends its background children")
+        if child > 0 && !gone { kill(child, SIGKILL) }
+
     }
 
     private static func claudeQuickActions(_ check: Check) {
