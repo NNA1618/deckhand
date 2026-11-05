@@ -456,11 +456,16 @@ enum EditorWindow {
     }
 
     /// Done: copy, close, and hand focus back so the next ⌘V lands in the app the user came from.
+    /// The window closes even if copying failed, and the notch says so, since the editor's own notice goes with it.
     private static func done(_ id: ObjectIdentifier) {
         guard let session = sessions[id] else { return }
-        session.model.copyToClipboard {
+        session.model.copyToClipboard { copied in
             let previous = session.previousApp
             session.window.close()
+            if !copied {
+                PanelActions.notch?.showToast(symbol: "exclamationmark.triangle",
+                                              text: String(localized: "Not copied"))
+            }
             guard let previous, !previous.isTerminated else { return }
             NSApp.yieldActivation(to: previous)
             previous.activate()

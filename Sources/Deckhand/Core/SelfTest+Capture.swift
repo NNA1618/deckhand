@@ -125,6 +125,28 @@ extension SelfTest {
             check(rep.pixelsWide == 2576 && rep.pixelsHigh == 429, "upload image downscaled to 2576: \(rep.pixelsWide)x\(rep.pixelsHigh)")
         }
 
+        // Extended color spaces can't back an 8-bit context; rendering falls back to sRGB
+        let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
+        if let p3 = CGColorSpace(name: CGColorSpace.displayP3) {
+            check(EditorModel.exportColorSpace(for: p3).name == CGColorSpace.displayP3, "editor keeps Display P3")
+        }
+        for name in [CGColorSpace.extendedSRGB, CGColorSpace.extendedLinearSRGB, CGColorSpace.extendedDisplayP3] {
+            guard let space = CGColorSpace(name: name) else { continue }
+            check(EditorModel.exportColorSpace(for: space).name == srgb.name, "editor renders \(name) as sRGB")
+        }
+        if let extended = CGColorSpace(name: CGColorSpace.extendedSRGB),
+           let ctx = CGContext(data: nil, width: 40, height: 20, bitsPerComponent: 16, bytesPerRow: 0, space: extended,
+                               bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.floatComponents.rawValue
+                                   | CGBitmapInfo.byteOrder16Little.rawValue) {
+            ctx.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+            ctx.fill(CGRect(x: 0, y: 0, width: 40, height: 20))
+            if let cg = ctx.makeImage(), let model = EditorModel(image: NSImage(cgImage: cg, size: NSSize(width: 20, height: 10))) {
+                check(model.renderCGImage() != nil, "editor renders an extended-sRGB image")
+            } else {
+                check(false, "extended-sRGB editor fixture")
+            }
+        }
+
         // PNG keeps the Retina size and the color space
         if let p3 = CGColorSpace(name: CGColorSpace.displayP3),
            let ctx = CGContext(data: nil, width: 40, height: 20, bitsPerComponent: 8, bytesPerRow: 0, space: p3,
