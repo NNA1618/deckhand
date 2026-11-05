@@ -136,6 +136,17 @@ final class ClipboardViewModel: ObservableObject {
         PasteService.pasteIntoFrontApp()
     }
 
+    /// Opens a link item. Uses the full address: the preview is cut at 300 characters.
+    func openLink(_ item: ClipboardItem) {
+        guard let url = Self.linkURL(store.text(id: item.id)) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    static func linkURL(_ text: String?) -> URL? {
+        guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), ClipboardText.isLink(text) else { return nil }
+        return URL(string: text)
+    }
+
     func togglePin(_ item: ClipboardItem) {
         store.togglePin(id: item.id)
         reload()

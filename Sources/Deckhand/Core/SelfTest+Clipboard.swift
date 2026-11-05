@@ -119,6 +119,14 @@ extension SelfTest {
         check(found("safari") == ["https://example.com/docs"], "search finds the source app")
         check(found("москве встреча") == ["Встреча в Москве"] && found("москве nothing").isEmpty, "every word must match")
         check(found("", .links) == ["https://example.com/docs"] && found("", .files).count == 1, "filters by kind")
+        let longLink = "https://example.com/search?q=" + String(repeating: "a", count: 400)
+        if case let .inserted(longId) = store.insert(entry(longLink), limit: 0, maxAgeDays: 0), let long = store.item(id: longId) {
+            check(long.preview.count < longLink.count && ClipboardViewModel.linkURL(store.text(id: longId))?.absoluteString == longLink,
+                  "Open Link uses the whole address, not the preview")
+            store.delete(id: longId)
+        } else {
+            check(false, "Open Link uses the whole address")
+        }
 
         // Copying the same content again updates what the search sees
         store.insert(entry("https://example.com/docs", app: "com.google.Chrome", name: "Chrome"), limit: 0, maxAgeDays: 0)

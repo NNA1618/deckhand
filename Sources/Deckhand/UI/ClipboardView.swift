@@ -169,6 +169,7 @@ struct ClipboardView: View {
                     vm.togglePreview(item)
                 },
                 edit: { edit(item) },
+                openLink: { vm.openLink(item) },
                 pin: { vm.togglePin(item) },
                 delete: { vm.delete(item) },
                 notify: { vm.show($0) }
@@ -374,6 +375,7 @@ struct ClipboardRowActions {
     let paste: (_ plain: Bool) -> Void
     let preview: () -> Void
     let edit: () -> Void
+    let openLink: () -> Void
     let pin: () -> Void
     let delete: () -> Void
     let notify: (ClipboardNotice) -> Void
@@ -480,7 +482,7 @@ struct ClipboardRow: View {
                 rowButton("text.viewfinder", "Copy Text from Image") { copyImageText() }
                 rowButton("pip", "Pin on Screen") { pinOnScreen() }
             case .link:
-                rowButton("safari", "Open Link") { openLink() }
+                rowButton("safari", "Open Link") { actions.openLink() }
             case .file:
                 rowButton("folder", "Show in Finder") { showInFinder() }
             case .text:
@@ -507,7 +509,7 @@ struct ClipboardRow: View {
             Button("Pin on Screen") { pinOnScreen() }
         case .link:
             Divider()
-            Button("Open Link") { openLink() }
+            Button("Open Link") { actions.openLink() }
         case .file:
             Divider()
             Button("Show in Finder") { showInFinder() }
@@ -554,10 +556,6 @@ struct ClipboardRow: View {
             return
         }
         PinnedImageWindow.show(image)
-    }
-
-    private func openLink() {
-        if let url = URL(string: item.preview), ClipboardText.isLink(item.preview) { NSWorkspace.shared.open(url) }
     }
 
     private func showInFinder() {
