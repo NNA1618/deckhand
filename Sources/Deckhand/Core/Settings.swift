@@ -70,6 +70,8 @@ final class Settings: ObservableObject {
     /// System sound names; empty means no sound.
     @Published var soundClaudeNeedsYou: String { didSet { d.set(soundClaudeNeedsYou, forKey: "soundClaudeNeedsYou") } }
     @Published var soundTimer: String { didSet { d.set(soundTimer, forKey: "soundTimer") } }
+    /// The menu bar icon. Without it, opening Deckhand again from Finder shows Settings.
+    @Published var showMenuBarIcon: Bool { didSet { d.set(showMenuBarIcon, forKey: "showMenuBarIcon") } }
     /// Translate, Claude and the Recents prompt start with copied text when it looks like ordinary text.
     @Published var prefillFromClipboard: Bool { didSet { d.set(prefillFromClipboard, forKey: "prefillFromClipboard") } }
 
@@ -127,6 +129,7 @@ final class Settings: ObservableObject {
             "toastDuration": 2.0,
             "soundTimer": "Glass",
             "prefillFromClipboard": true,
+            "showMenuBarIcon": true,
         ])
         savePasswordsToHistory = d.bool(forKey: "savePasswordsToHistory")
         historyLimit = d.integer(forKey: "historyLimit")
@@ -169,5 +172,6 @@ final class Settings: ObservableObject {
         soundClaudeNeedsYou = d.string(forKey: "soundClaudeNeedsYou") ?? (d.bool(forKey: "claudeSound") ? "Ping" : "")
         soundTimer = d.string(forKey: "soundTimer") ?? "Glass"
         prefillFromClipboard = d.bool(forKey: "prefillFromClipboard")
+        showMenuBarIcon = d.bool(forKey: "showMenuBarIcon")
     }
 }

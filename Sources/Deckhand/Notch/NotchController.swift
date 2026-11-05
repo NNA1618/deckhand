@@ -8,8 +8,10 @@ enum NotchTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// The tabs shown in the panel, in order.
-    @MainActor static var visible: [NotchTab] {
-        allCases.filter { $0 == .home || !Settings.shared.hiddenTabs.contains($0.rawValue) }
+    @MainActor static var visible: [NotchTab] { visible(hidden: Settings.shared.hiddenTabs) }
+
+    static func visible(hidden: [String]) -> [NotchTab] {
+        allCases.filter { $0 == .home || !hidden.contains($0.rawValue) }
     }
 
     var title: String {
@@ -196,6 +198,13 @@ final class NotchController {
     }
 
     // MARK: - Public
+
+    /// Stops hover from opening the panel, e.g. while an area capture or the color picker runs.
+    /// The notch workstream implements it; callers turn it off when they finish.
+    func suspendHover(_ suspended: Bool) {}
+
+    /// Stops hover from opening the panel for a while, e.g. "Pause hover for 1 hour" in the menu bar.
+    func pauseHover(for duration: TimeInterval) {}
 
     /// For `--snapshot`: the notch window and the notch cutout in window coordinates.
     var snapshotTarget: (NSWindow, CGRect)? {
