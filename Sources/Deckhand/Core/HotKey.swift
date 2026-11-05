@@ -172,15 +172,7 @@ final class HotkeyManager: ObservableObject {
         if needsMigration {
             stored = HotkeyMigration.migrate(stored)
         }
-        var loaded: [HotkeyAction: Shortcut] = [:]
-        for action in HotkeyAction.allCases {
-            if let entry = stored[action.rawValue] {
-                if let sc = entry { loaded[action] = sc }
-            } else if let sc = action.defaultShortcut {
-                loaded[action] = sc
-            }
-        }
-        shortcuts = loaded
+        shortcuts = HotkeyMigration.resolve(stored)
         if needsMigration {
             save()
             Log.info("hotkeys migrated to the 0.5 defaults where they were unchanged")
@@ -328,6 +320,22 @@ enum HotkeyMigration {
             if takenByKept { result[action.rawValue] = .some(action.legacyDefaultShortcut) }
         }
         return result
+    }
+
+    /// The shortcuts to use for a stored dictionary. An action missing from it (one added in a
+    /// later version, like `translateSelection` for a 0.4 store) gets its default, unless a stored
+    /// shortcut already uses those keys: then it starts without one rather than duplicating it.
+    static func resolve(_ stored: [String: Shortcut?]) -> [HotkeyAction: Shortcut] {
+        let taken = Set(stored.values.compactMap { $0 })
+        var loaded: [HotkeyAction: Shortcut] = [:]
+        for action in HotkeyAction.allCases {
+            if let entry = stored[action.rawValue] {
+                if let sc = entry { loaded[action] = sc }
+            } else if let sc = action.defaultShortcut, !taken.contains(sc) {
+                loaded[action] = sc
+            }
+        }
+        return loaded
     }
 }
 

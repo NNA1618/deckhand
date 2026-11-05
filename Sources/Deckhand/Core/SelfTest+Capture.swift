@@ -268,13 +268,15 @@ extension SelfTest {
         check(ShortcutRules.verdict(for: Shortcut(kVK_F5, 0)) == .ok, "F5 alone allowed")
         check(ShortcutRules.verdict(for: Shortcut(kVK_ANSI_S, c | o | s)) == .ok, "⌃⌥⇧S allowed")
 
-        // Migration from 0.4 defaults
+
+        // Migration from 0.4 defaults. A real 0.4 store has exactly the 12 actions 0.4 knew.
+        let actions04: [HotkeyAction] = [.toggle, .screenshot, .captureText, .colorPicker, .keepAwake, .clipboard,
+                                         .translator, .claude, .prompts, .media, .shelf, .recents]
         var legacy: [String: Shortcut?] = [:]
-        for action in HotkeyAction.allCases where action.legacyDefaultShortcut != nil {
-            legacy[action.rawValue] = .some(action.legacyDefaultShortcut)
-        }
+        for action in actions04 { legacy[action.rawValue] = .some(action.legacyDefaultShortcut) }
+        check(legacy.count == 12 && legacy.values.allSatisfy { $0 != nil }, "0.4 store fixture has 12 shortcuts")
         let migrated = HotkeyMigration.migrate(legacy)
-        check(HotkeyAction.allCases.allSatisfy { action in
+        check(actions04.allSatisfy { action in
             guard let new = action.defaultShortcut else { return true }
             return migrated[action.rawValue] == .some(new)
         }, "old defaults move to the new family")
@@ -288,6 +290,20 @@ extension SelfTest {
         check(kept[HotkeyAction.screenshot.rawValue] == .some(HotkeyAction.screenshot.legacyDefaultShortcut),
               "migration never duplicates a shortcut the user took")
         check(kept[HotkeyAction.captureText.rawValue] == .some(HotkeyAction.captureText.defaultShortcut), "others still migrate")
+
+        // Loading: an action 0.4 didn't have gets its default only if no stored shortcut uses it
+        let fresh = HotkeyMigration.resolve(HotkeyMigration.migrate(legacy))
+        check(HotkeyAction.allCases.allSatisfy { fresh[$0] == $0.defaultShortcut }, "an untouched 0.4 store loads every 0.5 default")
+        var rectangleUser = legacy
+        rectangleUser[HotkeyAction.translator.rawValue] = .some(Shortcut(kVK_ANSI_T, c | o | s))
+        let moved = HotkeyMigration.resolve(HotkeyMigration.migrate(rectangleUser))
+        check(moved[.translator] == Shortcut(kVK_ANSI_T, c | o | s), "a custom ⌃⌥⇧T stays on Translate")
+        check(moved[.translateSelection] == nil, "a new action doesn't get a default the user already uses")
+        check(Set(moved.values).count == moved.count, "loading never gives two actions the same shortcut")
+        let removedStore: [String: Shortcut?] = [HotkeyAction.clipboard.rawValue: Shortcut?.none]
+        let removed = HotkeyMigration.resolve(removedStore)
+        check(removed[HotkeyAction.clipboard] == nil && removed[HotkeyAction.toggle] == HotkeyAction.toggle.defaultShortcut,
+              "a removed shortcut stays removed and missing ones get defaults")
 
         // Display
         check(Shortcut(kVK_ANSI_D, c | o | s).modifierSymbols == "⌃⌥⇧", "modifier order ⌃⌥⇧⌘")
