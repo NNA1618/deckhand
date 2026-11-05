@@ -282,7 +282,7 @@ enum ClaudeErrors {
         }
         if has("usage limit", "rate limit", "rate_limit", "limit reached", "429") {
             if let reset = text.range(of: #"resets? (at )?[^.\n|]+"#, options: [.regularExpression, .caseInsensitive]) {
-                return String(localized: "You've reached your Claude usage limit. It \(String(text[reset]).lowercased()).")
+                return String(localized: "You've reached your Claude usage limit (\(String(text[reset]).trimmingCharacters(in: .whitespaces))).")
             }
             return String(localized: "You've reached your Claude usage limit. Try again later.")
         }

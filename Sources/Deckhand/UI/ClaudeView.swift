@@ -72,7 +72,7 @@ struct ClaudeView: View {
                             .keyboardShortcut(.return, modifiers: .command)
                             .disabled(!vm.canRun)
                             .opacity(vm.canRun ? 1 : 0.5)
-                            .help(Text("Run (⌘↩)"))
+                            .help(Text("Run") + Text(verbatim: " (⌘↩)"))
                     }
                 }
 
@@ -228,9 +228,12 @@ struct ClaudeSessionRow: View {
             if request != nil {
                 HStack(spacing: 6) {
                     Spacer(minLength: 0)
-                    Button("Terminal") { ClaudeCodeMonitor.shared.answer(session, allow: nil); ClaudeCodeMonitor.shared.reveal(session) }
-                        .buttonStyle(.plain).font(Theme.label).foregroundColor(Theme.fgDim)
-                        .help(Text("Answer in Claude Code instead"))
+                    Button { ClaudeCodeMonitor.shared.answer(session, allow: nil); ClaudeCodeMonitor.shared.reveal(session) } label: {
+                        Image(systemName: "terminal").font(.system(size: 12, weight: .medium)).foregroundColor(Theme.fgDim)
+                            .frame(width: 24, height: 24).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(Text("Answer in Claude Code instead"))
                     GlassButton(title: "Deny") { ClaudeCodeMonitor.shared.answer(session, allow: false) }
                     PrimaryButton(title: "Allow") { ClaudeCodeMonitor.shared.answer(session, allow: true) }
                 }

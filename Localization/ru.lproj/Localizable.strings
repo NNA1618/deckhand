@@ -291,6 +291,64 @@
 
 
 /* == claude == */
+"%dh %02dm" = "%d ч %02d мин";
+"Actions in the panel" = "Действия в панели";
+"Allow" = "Разрешить";
+"Deny" = "Отклонить";
+"Answer in Claude Code instead" = "Ответить в самом Claude Code";
+"Approve from the notch" = "Разрешения из чёлки";
+"Allow or deny Claude Code's permission requests in the panel" = "Разрешать или отклонять запросы Claude Code в панели";
+"Wait for an answer" = "Ждать ответа";
+"While this is on, Claude Code waits for the notch first and shows its own prompt if you don't answer in time. The panel shows only the tool and file or command name; check the terminal when in doubt." = "Пока это включено, Claude Code сначала ждёт ответа из чёлки и показывает свой запрос, если вы не ответили вовремя. В панели видны только инструмент и имя файла или команды — если сомневаетесь, посмотрите в терминал.";
+"Asks you to fill in a form" = "Просит заполнить форму";
+"Asks you to open a link" = "Просит открыть ссылку";
+"Waits for your input" = "Ждёт вашего ответа";
+"Needs your permission" = "Нужно ваше разрешение";
+"Usage limit reached" = "Лимит исчерпан";
+"Claude is overloaded" = "Claude перегружен";
+"Billing problem" = "Проблема с оплатой";
+"Reply too long" = "Слишком длинный ответ";
+"Stopped with an error" = "Остановлен с ошибкой";
+"Claude needs you" = "Claude ждёт вас";
+"Claude is working" = "Claude работает";
+"Badge, notices and sound" = "Значок, уведомления и звук";
+"Connection" = "Подключение";
+"Disconnect…" = "Отключить…";
+"Disconnect Claude Code?" = "Отключить Claude Code?";
+"Deckhand removes only its own entries from %@. Sessions stop showing in the notch." = "Deckhand удалит из %@ только свои записи. Сессии перестанут показываться у чёлки.";
+"Connect adds a small hook to %@ and keeps a copy of the original file next to it. While Deckhand runs, the hook passes the project folder, the tool and the file or command name to it. Prompts, code and command output are never saved. Works for Claude Code in Terminal, editors and the Claude app." = "«Подключить» добавляет небольшой хук в %@ и сохраняет рядом копию исходного файла. Пока Deckhand запущен, хук передаёт ему папку проекта, инструмент и имя файла или команды. Промпты, код и вывод команд не сохраняются. Работает для Claude Code в Терминале, редакторах и приложении Claude.";
+"Check Again" = "Проверить снова";
+"Install…" = "Установить…";
+"Signed in · %@" = "Вход выполнен · %@";
+"Location" = "Расположение";
+"Automatic" = "Автоматически";
+"Choose…" = "Выбрать…";
+"Choose the claude program" = "Выберите программу claude";
+"Model" = "Модель";
+"Per action" = "Своя для каждого действия";
+"Haiku 5.5 (fastest)" = "Haiku 5.5 (самая быстрая)";
+"Opus 5.5 (smartest)" = "Opus 5.5 (самая умная)";
+"Rewrite, translate, Ask Claude in the editor and prompt help run through Claude Code with your Claude subscription. No API key needed. They run without your hooks, plugins and CLAUDE.md." = "Переписать, перевести, «Спросить Claude» в редакторе и помощь с промптами работают через Claude Code по вашей подписке Claude. Ключ API не нужен. Ваши хуки, плагины и CLAUDE.md при этом не используются.";
+"Remove…" = "Удалить…";
+"Remove the API key?" = "Удалить ключ API?";
+"The key is deleted from your Keychain." = "Ключ будет удалён из связки ключей.";
+"This doesn't look like an Anthropic key. Keys start with sk-ant-." = "Это не похоже на ключ Anthropic. Ключ начинается с sk-ant-.";
+"Move up" = "Выше";
+"Move down" = "Ниже";
+"The Claude Code settings file has an unexpected layout, so it was left as is." = "Файл настроек Claude Code устроен необычно, поэтому он не тронут.";
+"The Claude Code settings file is not valid JSON, so it was left as is." = "Файл настроек Claude Code — некорректный JSON, поэтому он не тронут.";
+"Can't reach Claude. Check your internet connection." = "Нет связи с Claude. Проверьте подключение к интернету.";
+"Claude Code could not start: Node.js was not found." = "Claude Code не запустился: не найден Node.js.";
+"Claude is overloaded right now. Try again in a minute." = "Claude сейчас перегружен. Попробуйте через минуту.";
+"You've reached your Claude usage limit (%@)." = "Лимит Claude исчерпан (%@).";
+"You've reached your Claude usage limit. Try again later." = "Лимит Claude исчерпан. Попробуйте позже.";
+"You've reached your API rate limit. Try again in a minute." = "Превышен лимит запросов к API. Попробуйте через минуту.";
+"The API key was not accepted. Check it in Settings → Claude." = "Ключ API не принят. Проверьте его: Настройки → Claude.";
+"This API key may not use this model." = "С этим ключом API нельзя использовать эту модель.";
+"Claude declined to answer this." = "Claude отказался отвечать на это.";
+"Claude returned an empty answer." = "Claude вернул пустой ответ.";
+"The answer was too long and got cut off." = "Ответ оказался слишком длинным и был обрезан.";
+"[The answer was cut off]" = "[Ответ обрезан]";
 
 
 /* == settings == */
