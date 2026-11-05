@@ -153,8 +153,22 @@ extension SelfTest {
             check(ClipboardCapture.prepare(PasteboardSnapshot(types: [NSPasteboard.PasteboardType.png.rawValue], imageData: png,
                                                               imageType: NSPasteboard.PasteboardType.png.rawValue),
                                            imagesDir: images, maxImageBytes: 10) == nil, "images over the size limit are skipped")
+            // A 0.4 row with the same picture under another name: the new copy's file is dropped
+            var again = image
+            again.imageName = "img-duplicate.png"
+            try? png.write(to: images.appendingPathComponent("img-duplicate.png"))
+            store.insert(again, limit: 0, maxAgeDays: 0)
+            check(!FileManager.default.fileExists(atPath: images.appendingPathComponent("img-duplicate.png").path),
+                  "a repeated image leaves no extra file")
             store.delete(id: id)
             check(!FileManager.default.fileExists(atPath: url.path), "deleting an image removes its file")
+
+            let orphan = images.appendingPathComponent("img-orphan.png")
+            try? png.write(to: orphan)
+            try? FileManager.default.setAttributes([.creationDate: Date(timeIntervalSinceNow: -3600)], ofItemAtPath: orphan.path)
+            store.removeOrphanImages()
+            for _ in 0..<50 where FileManager.default.fileExists(atPath: orphan.path) { Thread.sleep(forTimeInterval: 0.02) }
+            check(!FileManager.default.fileExists(atPath: orphan.path), "image files without an item are cleaned up")
         } else {
             check(false, "images are stored as PNG")
         }

@@ -119,8 +119,12 @@ final class ClipboardStore {
     @discardableResult
     func insert(_ entry: ClipboardEntry, limit: Int, maxAgeDays: Int, now: Date = Date()) -> InsertResult {
         let time = now.timeIntervalSince1970
-        if let existing = try? db.pluck(S.table.select(S.id).filter(S.hash == entry.hash)) {
+        if let existing = try? db.pluck(S.table.select(S.id, S.imagePath).filter(S.hash == entry.hash)) {
             let id = existing[S.id]
+            // Rows from 0.4 name their image differently; drop the copy just written for this one
+            if let name = entry.imageName, existing[S.imagePath].map({ URL(fileURLWithPath: $0).lastPathComponent }) != name {
+                try? FileManager.default.removeItem(at: imagesDir.appendingPathComponent(name))
+            }
             _ = try? db.run(S.table.filter(S.id == id).update(
                 S.lastUsedAt <- time,
                 S.sourceApp <- entry.sourceApp,
@@ -152,6 +156,7 @@ final class ClipboardStore {
             return .inserted(id)
         } catch {
             Log.info("clipboard: insert failed: \(error)")
+            if let name = entry.imageName { try? FileManager.default.removeItem(at: imagesDir.appendingPathComponent(name)) }
             return .failed
         }
     }
@@ -300,6 +305,22 @@ final class ClipboardStore {
 
     private var secrets: Table {
         S.table.filter(S.isSecret == 1 || Array(ClipboardWatcher.passwordApps).contains(S.sourceApp))
+    }
+
+    /// Deletes image files no item refers to, e.g. left by a crash between saving and inserting.
+    /// Files younger than a minute are skipped: a capture may be on its way in.
+    func removeOrphanImages() {
+        guard let rows = try? db.prepare(S.table.select(S.imagePath).filter(S.imagePath != nil)) else { return }
+        let known = Set(rows.compactMap { $0[S.imagePath].map { URL(fileURLWithPath: $0).lastPathComponent } })
+        let dir = imagesDir
+        DispatchQueue.global(qos: .utility).async {
+            let fm = FileManager.default
+            let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.creationDateKey])) ?? []
+            for url in files where !known.contains(url.lastPathComponent) {
+                let created = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
+                if created < Date().addingTimeInterval(-60) { try? fm.removeItem(at: url) }
+            }
+        }
     }
 
     // MARK: - Private

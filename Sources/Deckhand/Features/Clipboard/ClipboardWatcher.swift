@@ -30,6 +30,7 @@ final class ClipboardWatcher: ObservableObject {
             MainActor.assumeIsolated { self?.tick() }
         }
         RunLoop.main.add(timer!, forMode: .common)
+        ClipboardStore.shared.removeOrphanImages()
 
         // Lowering the limit or the age trims right away, not on the next copy
         Settings.shared.$historyLimit.combineLatest(ClipboardSettings.shared.$historyMaxAgeDays)
