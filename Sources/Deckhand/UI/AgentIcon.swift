@@ -44,34 +44,80 @@ struct AgentIcon: View {
 
 /// A short arc that turns around the icon while the agent works.
 ///
-/// It sits in the always-visible closed-notch badge, so it turns in steps a dozen times a second
-/// (smooth enough for a ring this small) instead of redrawing every display frame, and stands
-/// still with Reduce Motion on.
+/// It sits in the always-visible closed-notch badge, so the turning is a Core Animation layer: the window
+/// server spins it and the app redraws nothing. It stands still with Reduce Motion on, and in snapshot
+/// runs, which can't capture a running layer animation.
 private struct WorkingRing: View {
     let size: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// One turn takes this long, as before.
+    /// One turn takes this long.
     static let period: TimeInterval = 1.4
-    static let framesPerSecond: Double = 12
+    /// The arc's share of the circle.
+    static let arc: CGFloat = 0.28
 
     var body: some View {
-        if reduceMotion {
-            ring(angle: -90)
-        } else {
-            TimelineView(.periodic(from: .now, by: 1 / Self.framesPerSecond)) { context in
-                let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period
-                ring(angle: phase * 360)
+        Group {
+            if reduceMotion || AppPaths.isSnapshot {
+                Circle()
+                    .trim(from: 0, to: Self.arc)
+                    .stroke(Theme.fg, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            } else {
+                SpinningArc(lineWidth: lineWidth, color: NSColor(Theme.fg))
             }
         }
+        .frame(width: size * 1.32, height: size * 1.32)
+        .allowsHitTesting(false)
     }
 
-    private func ring(angle: Double) -> some View {
-        Circle()
-            .trim(from: 0, to: 0.28)
-            .stroke(Theme.fg, style: StrokeStyle(lineWidth: max(1.5, size * 0.1), lineCap: .round))
-            .frame(width: size * 1.32, height: size * 1.32)
-            .rotationEffect(.degrees(angle))
-            .allowsHitTesting(false)
+    private var lineWidth: CGFloat { max(1.5, size * 0.1) }
+}
+
+/// The turning arc as a shape layer with a repeating rotation, run by Core Animation outside the app.
+private struct SpinningArc: NSViewRepresentable {
+    let lineWidth: CGFloat
+    let color: NSColor
+
+    func makeNSView(context: Context) -> ArcView { ArcView() }
+
+    func updateNSView(_ view: ArcView, context: Context) {
+        view.arc.lineWidth = lineWidth
+        view.arc.strokeColor = color.cgColor
+        view.needsLayout = true
+    }
+
+    final class ArcView: NSView {
+        let arc = CAShapeLayer()
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            arc.fillColor = nil
+            arc.lineCap = .round
+            arc.strokeEnd = WorkingRing.arc
+            layer?.addSublayer(arc)
+            let spin = CABasicAnimation(keyPath: "transform.rotation.z")
+            spin.fromValue = 0
+            spin.toValue = -2 * Double.pi   // clockwise
+            spin.duration = WorkingRing.period
+            spin.repeatCount = .infinity
+            spin.isRemovedOnCompletion = false
+            arc.add(spin, forKey: "spin")
+        }
+
+        required init?(coder: NSCoder) { nil }
+
+        override func layout() {
+            super.layout()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            arc.frame = bounds
+            let inset = arc.lineWidth / 2
+            arc.path = CGPath(ellipseIn: bounds.insetBy(dx: inset, dy: inset), transform: nil)
+            CATransaction.commit()
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }
