@@ -20,7 +20,7 @@ struct ClipboardView: View {
                 if let item = vm.previewItem {
                     ClipboardPreview(item: item, store: vm.store,
                                      onPaste: { vm.paste(item, notch: notch) },
-                                     onCopy: { if vm.copy(item) { vm.show(ClipboardNotice(kind: .info, text: String(localized: "Copied"))) } },
+                                     onCopy: { vm.copy(item) { if $0 { vm.show(ClipboardNotice(kind: .info, text: String(localized: "Copied"))) } } },
                                      onClose: { vm.previewItem = nil })
                         .transition(.opacity)
                 }
@@ -162,13 +162,14 @@ struct ClipboardView: View {
                     vm.selectedId = item.id
                     vm.choose(item, plain: plain, notch: notch)
                 },
-                copy: { vm.copy(item) },
+                copy: { vm.copy(item, then: $0) },
                 paste: { plain in vm.paste(item, plain: plain, notch: notch) },
                 preview: {
                     vm.selectedId = item.id
                     vm.togglePreview(item)
                 },
                 edit: { edit(item) },
+                openLink: { vm.openLink(item) },
                 pin: { vm.togglePin(item) },
                 delete: { vm.delete(item) },
                 notify: { vm.show($0) }
@@ -373,10 +374,12 @@ private struct NoticeBar: View {
 
 struct ClipboardRowActions {
     let choose: (_ plain: Bool) -> Void
-    let copy: () -> Bool
+    /// Copies, then reports whether it worked.
+    let copy: (_ done: @escaping @MainActor (Bool) -> Void) -> Void
     let paste: (_ plain: Bool) -> Void
     let preview: () -> Void
     let edit: () -> Void
+    let openLink: () -> Void
     let pin: () -> Void
     let delete: () -> Void
     let notify: (ClipboardNotice) -> Void
@@ -483,7 +486,7 @@ struct ClipboardRow: View {
                 rowButton("text.viewfinder", "Copy Text from Image") { copyImageText() }
                 rowButton("pip", "Pin on Screen") { pinOnScreen() }
             case .link:
-                rowButton("safari", "Open Link") { openLink() }
+                rowButton("safari", "Open Link") { actions.openLink() }
             case .file:
                 rowButton("folder", "Show in Finder") { showInFinder() }
             case .text:
@@ -510,7 +513,7 @@ struct ClipboardRow: View {
             Button("Pin on Screen") { pinOnScreen() }
         case .link:
             Divider()
-            Button("Open Link") { openLink() }
+            Button("Open Link") { actions.openLink() }
         case .file:
             Divider()
             Button("Show in Finder") { showInFinder() }
@@ -534,9 +537,11 @@ struct ClipboardRow: View {
     }
 
     private func copy() {
-        guard actions.copy() else { return }
-        copied = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
+        actions.copy { ok in
+            guard ok else { return }
+            copied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
+        }
     }
 
     private func copyImageText() {
@@ -557,10 +562,6 @@ struct ClipboardRow: View {
             return
         }
         PinnedImageWindow.show(image)
-    }
-
-    private func openLink() {
-        if let url = URL(string: item.preview), ClipboardText.isLink(item.preview) { NSWorkspace.shared.open(url) }
     }
 
     private func showInFinder() {

@@ -104,8 +104,13 @@ final class TileInteractionView: NSView, NSDraggingSource {
     // MARK: NSDraggingSource
 
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-        // Copy, never move: dragging off the shelf must not take the file away from where it lives
-        context == .outsideApplication ? [.copy, .link, .generic] : [.copy, .generic]
+        Self.operations(for: context)
+    }
+
+    /// Copy, never move: dragging off the shelf must not take the file away from where it lives.
+    /// No .generic: Finder may treat it as a move on the same disk, and the Dock's Trash as "trash it".
+    nonisolated static func operations(for context: NSDraggingContext) -> NSDragOperation {
+        context == .outsideApplication ? [.copy, .link] : [.copy]
     }
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {

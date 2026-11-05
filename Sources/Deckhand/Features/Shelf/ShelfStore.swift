@@ -14,7 +14,8 @@ struct ShelfItem: Identifiable, Codable, Hashable {
     var isCopy: Bool
 
     var url: URL { URL(fileURLWithPath: path) }
-    var name: String { url.lastPathComponent }
+    /// From the path alone: `url` asks the disk whether the path is a folder.
+    var name: String { (path as NSString).lastPathComponent }
 
     init(id: UUID = UUID(), path: String, bookmark: Data?, addedAt: Date = Date(), isCopy: Bool = false) {
         self.id = id
@@ -50,6 +51,8 @@ final class ShelfStore: ObservableObject {
 
     private let fileURL = AppPaths.supportDir.appendingPathComponent("shelf.json")
     private var undoTask: Task<Void, Never>?
+    /// The shelf's order just before the last Remove or Clear, so Undo puts files back where they were.
+    private var orderBeforeRemove: [UUID] = []
 
     private init() {
         if AppPaths.isSnapshot {
@@ -90,6 +93,7 @@ final class ShelfStore: ObservableObject {
     func remove(_ ids: Set<UUID>) {
         let removed = items.filter { ids.contains($0.id) }
         guard !removed.isEmpty else { return }
+        orderBeforeRemove = items.map(\.id)
         items.removeAll { ids.contains($0.id) }
         selection.subtract(ids)
         offerUndo(removed)
@@ -99,12 +103,38 @@ final class ShelfStore: ObservableObject {
     func clear() { remove(Set(items.map(\.id))) }
 
     func undoRemove() {
-        let back = lastRemoved.filter { r in !items.contains { $0.id == r.id } }
+        items = Self.restoring(lastRemoved, into: items, order: orderBeforeRemove)
         lastRemoved = []
         undoTask?.cancel()
-        items.insert(contentsOf: back, at: 0)
-        items.sort { $0.addedAt > $1.addedAt }
         save()
+    }
+
+    /// `current` with `removed` put back in `order`, the shelf's order before the removal.
+    /// Files added since stay on top. Dates can't be used: one drop's files get increasing dates
+    /// in drag order but sit on the shelf newest block first, top to bottom in drag order.
+    nonisolated static func restoring(_ removed: [ShelfItem], into current: [ShelfItem], order: [UUID]) -> [ShelfItem] {
+        let present = Set(current.map(\.id))
+        let back = removed.filter { !present.contains($0.id) }
+        let byId = Dictionary((current + back).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let before = Set(order)
+        let added = current.filter { !before.contains($0.id) }
+        let restored = order.compactMap { byId[$0] }
+        let placed = Set((added + restored).map(\.id))
+        return added + restored + back.filter { !placed.contains($0.id) }
+    }
+
+    // MARK: - Dragging out
+
+    /// A drag carries only the files that can be found; greyed-out ones stay behind.
+    func beginDrag(_ ids: Set<UUID>) {
+        draggingOut = ids.subtracting(unreachable)
+    }
+
+    /// With "Remove after drag", takes off the shelf exactly the files the drag carried.
+    func endDrag(_ operation: NSDragOperation) {
+        let dragged = draggingOut
+        draggingOut = []
+        if ShelfSettings.shared.removeAfterDrag, !operation.isEmpty { remove(dragged) }
     }
 
     private func offerUndo(_ removed: [ShelfItem]) {
@@ -204,8 +234,10 @@ enum ShelfFiles {
             let folder = (dir ?? copiesDir).appendingPathComponent(UUID().uuidString, isDirectory: true)
             let target = folder.appendingPathComponent(source.lastPathComponent)
             do {
-                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                try FileManager.default.copyItem(at: source, to: target)
+                try whileCopying(folder) {
+                    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                    try FileManager.default.copyItem(at: source, to: target)
+                }
                 source = target
                 isCopy = true
             } catch {
@@ -239,13 +271,41 @@ enum ShelfFiles {
         return Resolution(path: item.path, bookmark: bookmark, reachable: exists)
     }
 
-    /// Deletes Deckhand's copies that no shelf item uses.
-    static func purgeCopies(keeping referenced: Set<String>, in dir: URL? = nil) {
+    /// How long a new copy is safe from the purge. A drop is copied off the main thread and joins
+    /// the list only afterwards, so a purge that runs meanwhile doesn't see it in the list yet.
+    static let purgeGrace: TimeInterval = 10 * 60
+
+    /// Deletes Deckhand's copies that no shelf item uses. Skips folders still being copied into
+    /// and folders made in the last `purgeGrace` seconds, whose item may not be on the list yet.
+    static func purgeCopies(keeping referenced: Set<String>, in dir: URL? = nil, now: Date = Date()) {
         let fm = FileManager.default
-        guard let folders = try? fm.contentsOfDirectory(at: dir ?? copiesDir, includingPropertiesForKeys: nil) else { return }
+        guard let folders = try? fm.contentsOfDirectory(at: dir ?? copiesDir, includingPropertiesForKeys: [.creationDateKey])
+        else { return }
         let keep = Set(referenced.map { URL(fileURLWithPath: $0).deletingLastPathComponent().standardizedFileURL.path })
-        for folder in folders where !keep.contains(folder.standardizedFileURL.path) {
+        for folder in folders {
+            let path = folder.standardizedFileURL.path
+            guard !keep.contains(path), !copying.contains(path) else { continue }
+            let created = (try? folder.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
+            guard created < now.addingTimeInterval(-purgeGrace) else { continue }
             try? fm.removeItem(at: folder)
         }
+    }
+
+    /// Marks `folder` as being copied into while `body` runs, so a purge on another thread leaves it alone.
+    static func whileCopying<T>(_ folder: URL, _ body: () throws -> T) rethrows -> T {
+        let path = folder.standardizedFileURL.path
+        copying.insert(path)
+        defer { copying.remove(path) }
+        return try body()
+    }
+
+    private static let copying = LockedPaths()
+
+    private final class LockedPaths: @unchecked Sendable {   // every access goes through the lock
+        private var paths: Set<String> = []
+        private let lock = NSLock()
+        func insert(_ path: String) { lock.withLock { _ = paths.insert(path) } }
+        func remove(_ path: String) { lock.withLock { _ = paths.remove(path) } }
+        func contains(_ path: String) -> Bool { lock.withLock { paths.contains(path) } }
     }
 }

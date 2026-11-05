@@ -9,6 +9,7 @@ extension SelfTest {
         promptSeeding(check)
         promptCategoriesAndSort(check)
         promptArchive(check)
+        promptSearchOrder(check)
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("deckhand-selftest-prompts-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -93,6 +94,34 @@ extension SelfTest {
         check(PromptLibrary.title(fromBody: "  First line here\nsecond") == "First line here", "title from the first line")
     }
 
+    /// Narrowing a search and clearing it again shows the library in the chosen order.
+    private static func promptSearchOrder(_ check: Check) {
+        guard let db = try? Connection(.inMemory) else { return }
+        let store = PromptStore(db: db)
+        store.deleteAll()
+        for (title, body) in [("Alpha", "first"), ("Bravo", "second"), ("Charlie", "third")] {
+            store.create(title: title, body: body, category: "Code", tags: [])
+        }
+        let vm = PromptsViewModel(store: store)
+        let sorted = vm.prompts.map(\.id)
+        guard sorted.count == 3, let last = vm.prompts.last else { check(false, "search order library: \(sorted)"); return }
+        vm.searchChanged(to: last.title)
+        let narrowed = vm.prompts.map(\.id)
+        vm.searchChanged(to: "")
+        check(narrowed == [last.id] && vm.prompts.map(\.id) == sorted,
+              "clearing a search restores the chosen order: \(vm.prompts.map(\.title))")
+
+        // "Save as Prompt" from Recents never replaces a draft that has content
+        vm.newDraft()
+        check(vm.newDraft(body: "from recents") && vm.draft?.body == "from recents", "a blank draft takes the new text")
+        vm.draft?.title = "Half written"
+        check(!vm.newDraft(body: "another text") && vm.draft?.title == "Half written" && vm.draft?.body == "from recents"
+              && vm.pendingDraftBody == "another text", "a draft with content is kept and the new text waits")
+        vm.replaceDraftWithPending()
+        check(vm.draft?.body == "another text" && vm.draft?.title == "" && vm.pendingDraftBody == nil, "replacing the draft is a choice")
+        vm.cancelDraft()
+    }
+
     private static func promptArchive(_ check: Check) {
         guard let a = try? Connection(.inMemory), let b = try? Connection(.inMemory) else { return }
         let source = PromptStore(db: a)
@@ -135,10 +164,37 @@ extension SelfTest {
 
         let keep = copies.appendingPathComponent("keep", isDirectory: true)
         let drop = copies.appendingPathComponent("drop", isDirectory: true)
-        try? fm.createDirectory(at: keep, withIntermediateDirectories: true)
-        try? fm.createDirectory(at: drop, withIntermediateDirectories: true)
-        ShelfFiles.purgeCopies(keeping: [keep.appendingPathComponent("a.png").path], in: copies)
+        let fresh = copies.appendingPathComponent("fresh", isDirectory: true)
+        let pending = copies.appendingPathComponent("pending", isDirectory: true)
+        let hourAgo = Date().addingTimeInterval(-3600)
+        for folder in [keep, drop, fresh, pending] { try? fm.createDirectory(at: folder, withIntermediateDirectories: true) }
+        for folder in [keep, drop, pending] { try? fm.setAttributes([.creationDate: hourAgo], ofItemAtPath: folder.path) }
+        let oldEnough = (try? drop.resourceValues(forKeys: [.creationDateKey]))?.creationDate.map { $0 < Date().addingTimeInterval(-600) }
+        check(oldEnough == true, "test folders can be dated back")
+        // The purge runs while a drop is still being copied into "pending"; "fresh" was just made
+        // and its item isn't on the list yet. Neither may be deleted.
+        ShelfFiles.whileCopying(pending) {
+            ShelfFiles.purgeCopies(keeping: [keep.appendingPathComponent("a.png").path], in: copies)
+        }
         check(fm.fileExists(atPath: keep.path) && !fm.fileExists(atPath: drop.path), "unused shelf copies are purged")
+        check(fm.fileExists(atPath: pending.path), "a shelf copy in progress survives a purge")
+        check(fm.fileExists(atPath: fresh.path), "a new shelf copy not yet on the list survives a purge")
+        ShelfFiles.purgeCopies(keeping: [], in: copies, now: Date().addingTimeInterval(ShelfFiles.purgeGrace + 60))
+        check(!fm.fileExists(atPath: fresh.path) && !fm.fileExists(atPath: pending.path), "old unused shelf copies go eventually")
+
+        // Undo puts files back in their places, not by date: one drop's files have increasing dates top to bottom
+        let t0 = Date()
+        let dropped = (0..<3).map { ShelfItem(path: "/tmp/\($0).png", bookmark: nil, addedAt: t0.addingTimeInterval(Double($0))) }
+        let later = ShelfItem(path: "/tmp/later.png", bookmark: nil, addedAt: t0.addingTimeInterval(10))
+        let order = dropped.map(\.id)
+        let undone = ShelfStore.restoring(dropped, into: [later], order: order)
+        check(undone.map(\.id) == [later.id] + order, "shelf Undo keeps the drop order, newer files on top")
+        let partial = ShelfStore.restoring([dropped[1]], into: [dropped[0], dropped[2]], order: order)
+        check(partial.map(\.id) == order, "shelf Undo puts one file back in its place")
+
+        let outside = TileInteractionView.operations(for: .outsideApplication)
+        let inside = TileInteractionView.operations(for: .withinApplication)
+        check(outside == [.copy, .link] && inside == [.copy], "shelf drags offer copy (and link outside), never move or generic")
 
         let old = Data(#"[{"id":"5D6C7F7E-6C1B-4F77-9B39-1D0B7F1C2E11","path":"/tmp/a.png","addedAt":0}]"#.utf8)
         let decoded = try? JSONDecoder().decode([ShelfItem].self, from: old)

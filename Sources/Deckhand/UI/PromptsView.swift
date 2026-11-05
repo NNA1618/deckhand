@@ -325,6 +325,10 @@ private struct PromptEditor: View {
                 .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .focused($focus, equals: .body)
                 .frame(maxHeight: .infinity)
+            if vm.pendingDraftBody != nil {
+                StatusBar(text: String(localized: "Your unsaved prompt is kept. Replace it with the new text?"),
+                          buttonTitle: "Replace") { vm.replaceDraftWithPending() } onDismiss: { vm.keepDraft() }
+            }
             HStack(spacing: 10) {
                 Toggle(isOn: draft.favorite) { Text("Favorite").font(Theme.label).foregroundColor(Theme.fgDim) }
                     .toggleStyle(.checkbox)
