@@ -656,7 +656,7 @@ private struct ClipboardPreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Text(item.title).font(Theme.label).foregroundColor(Theme.fg).lineLimit(1).truncationMode(.middle)
+                Text(heading).font(Theme.label).foregroundColor(Theme.fg).lineLimit(1).truncationMode(.middle)
                 if let name = item.sourceAppName {
                     Text(verbatim: "· \(name)").font(Theme.caption).foregroundColor(Theme.fgMute).lineLimit(1)
                 }
@@ -711,9 +711,20 @@ private struct ClipboardPreview: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(white: 0.09).opacity(0.97)))
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(white: 0.09)))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Theme.border, lineWidth: 1))
         .task(id: item.id) { await load() }
+    }
+
+    /// The body already shows the text, so the heading names the kind instead.
+    private var heading: String {
+        if item.isSecret { return String(localized: "Password") }
+        switch item.kind {
+        case .text: return String(localized: "Text")
+        case .link: return String(localized: "Link")
+        case .image: return item.preview.isEmpty ? item.title : "\(item.title) · \(item.preview)"
+        case .file: return item.title
+        }
     }
 
     private func load() async {
