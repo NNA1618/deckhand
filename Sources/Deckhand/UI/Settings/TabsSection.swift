@@ -26,8 +26,7 @@ struct TabsSection: View {
         } header: {
             Text("Tabs")
         } footer: {
-            Text("Drag to reorder. Hidden tabs leave the panel and the menu bar; their shortcuts still open them.")
-                .font(.caption).foregroundStyle(.secondary)
+            SettingsFooter("Drag to reorder. Hidden tabs leave the panel and the menu bar; their shortcuts still open them.")
         }
     }
 
@@ -36,12 +35,14 @@ struct TabsSection: View {
     private func row(_ tab: NotchTab, locked: Bool) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "line.3.horizontal")
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Theme.fgMute)
                 .opacity(locked ? 0 : 1)
                 .accessibilityHidden(true)
             TabIcon(tab: tab)
-                .foregroundStyle(.secondary)
-            Toggle(isOn: binding(for: tab)) { Text(tab.title) }
+                .foregroundStyle(Theme.fgDim)
+                .frame(width: 24, height: 24)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Theme.surface2))
+            SettingsToggleRow(tab.title, isOn: binding(for: tab))
                 .disabled(locked)
         }
         .help(locked ? Text("Home is always first and can't be hidden.") : Text(tab.title))

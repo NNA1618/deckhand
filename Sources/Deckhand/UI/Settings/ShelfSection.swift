@@ -6,12 +6,11 @@ struct ShelfSection: View {
 
     var body: some View {
         Section {
-            Toggle("Remove files after dragging them out", isOn: $settings.removeAfterDrag)
+            SettingsToggleRow(String(localized: "Remove files after dragging them out"), isOn: $settings.removeAfterDrag)
         } header: {
             Text("Shelf")
         } footer: {
-            Text("The shelf keeps a link to each file, so files stay where they are. Files dragged from a browser or Mail are copied first, because macOS deletes those soon.")
-                .font(.caption).foregroundStyle(.secondary)
+            SettingsFooter("The shelf keeps a link to each file, so files stay where they are. Files dragged from a browser or Mail are copied first, because macOS deletes those soon.")
         }
     }
 }

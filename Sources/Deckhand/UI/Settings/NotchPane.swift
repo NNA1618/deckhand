@@ -5,7 +5,6 @@ import SwiftUI
 struct NotchPane: View {
     @ObservedObject private var settings = Settings.shared
     @ObservedObject private var notch = NotchSettings.shared
-    @State private var confirmRestore = false
 
     var body: some View {
         SettingsPane(.notch) {
@@ -22,23 +21,21 @@ struct NotchPane: View {
                     }
                 }
                 if notch.activation != .shortcut {
-                    Picker("Hover area", selection: $notch.hoverArea) {
-                        Text(String(localized: "hoverArea.narrow", defaultValue: "Narrow")).tag(HoverArea.narrow)
-                        Text(String(localized: "hoverArea.standard", defaultValue: "Standard")).tag(HoverArea.standard)
-                        Text(String(localized: "hoverArea.wide", defaultValue: "Wide")).tag(HoverArea.wide)
-                    }
-                    .pickerStyle(.segmented)
+                    ChipPicker(String(localized: "Hover area"), selection: $notch.hoverArea, options: [
+                        (HoverArea.narrow, String(localized: "hoverArea.narrow", defaultValue: "Narrow")),
+                        (HoverArea.standard, String(localized: "hoverArea.standard", defaultValue: "Standard")),
+                        (HoverArea.wide, String(localized: "hoverArea.wide", defaultValue: "Wide")),
+                    ])
                 }
                 if notch.activation.opensOnHover {
-                    Toggle("Haptic feedback", isOn: $notch.hapticOnOpen)
+                    SettingsToggleRow(String(localized: "Haptic feedback"), isOn: $notch.hapticOnOpen)
                 }
-                Toggle("Don't open over full-screen apps", isOn: $settings.hideInFullScreen)
-                Toggle("Open the Shelf when files are dragged to the notch", isOn: $notch.dragOpensShelf)
+                SettingsToggleRow(String(localized: "Don't open over full-screen apps"), isOn: $settings.hideInFullScreen)
+                SettingsToggleRow(String(localized: "Open the Shelf when files are dragged to the notch"), isOn: $notch.dragOpensShelf)
             } header: {
                 Text("Opening")
             } footer: {
-                Text("The panel opens when the pointer stops on the notch, not when it passes by. The shortcut opens it in any mode.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("The panel opens when the pointer stops on the notch, not when it passes by. The shortcut opens it in any mode.")
             }
 
             Section {
@@ -54,49 +51,44 @@ struct NotchPane: View {
             } header: {
                 Text("Closing")
             } footer: {
-                Text("Esc, the shortcut and a click outside always close it.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("Esc, the shortcut and a click outside always close it.")
             }
 
             Section {
-                Picker("Style", selection: $settings.panelStyle) {
-                    Text(String(localized: "panelStyle.clear", defaultValue: "Clear")).tag(PanelStyle.clear)
-                    Text("Tinted").tag(PanelStyle.tinted)
+                ChipPicker(String(localized: "Style"), selection: $settings.panelStyle, options: [
                     // Own keys: the shared "Clear" and "Solid" entries mean other things in Russian
-                    Text(String(localized: "panelStyle.solid", defaultValue: "Solid")).tag(PanelStyle.solid)
-                }
-                .pickerStyle(.segmented)
+                    (PanelStyle.clear, String(localized: "panelStyle.clear", defaultValue: "Clear")),
+                    (PanelStyle.tinted, String(localized: "Tinted")),
+                    (PanelStyle.solid, String(localized: "panelStyle.solid", defaultValue: "Solid")),
+                ])
                 if settings.panelStyle != .solid {
-                    LabeledContent("Tint") {
+                    SettingsRow(String(localized: "Tint")) {
                         HStack(spacing: 8) {
-                            Image(systemName: "circle").foregroundStyle(.secondary)
+                            Image(systemName: "circle").foregroundStyle(Theme.fgMute)
                             Slider(value: $settings.glassTint, in: 0...0.8)
                                 .frame(width: 200)
-                            Image(systemName: "circle.fill").foregroundStyle(.secondary)
+                            Image(systemName: "circle.fill").foregroundStyle(Theme.fgMute)
                         }
                         .accessibilityElement(children: .contain)
                     }
                 }
-                Picker("Size", selection: $settings.panelSize) {
-                    Text("Compact").tag(PanelSize.compact)
-                    Text("Standard").tag(PanelSize.standard)
-                    Text("Large").tag(PanelSize.large)
-                }
-                .pickerStyle(.segmented)
-                LabeledContent {
+                ChipPicker(String(localized: "Size"), selection: $settings.panelSize, options: [
+                    (PanelSize.compact, String(localized: "Compact")),
+                    (PanelSize.standard, String(localized: "Standard")),
+                    (PanelSize.large, String(localized: "Large")),
+                ])
+                SettingsRow(String(localized: "Preview")) {
                     Button("Preview on Screen") {
                         NotificationCenter.default.post(name: .previewNotchPanel, object: nil)
                     }
-                } label: {
-                    Text("Preview")
+                    .buttonStyle(.settings)
                 }
             } header: {
                 Text("Look")
             } footer: {
-                Text(Self.liquidGlass
+                SettingsFooter(Self.liquidGlass
                      ? LocalizedStringKey("Clear shows more of what is behind the panel. Solid turns glass off.")
                      : LocalizedStringKey("Liquid Glass needs macOS 26. On this Mac the panel uses a blur."))
-                    .font(.caption).foregroundStyle(.secondary)
             }
 
             TabsSection()
@@ -115,21 +107,14 @@ struct NotchPane: View {
             } header: {
                 Text("Displays")
             } footer: {
-                Text("Used when the lid is closed or a display has no notch.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SettingsFooter("Used when the lid is closed or a display has no notch.")
             }
 
-            Section {
-                HStack {
-                    Spacer()
-                    Button("Restore Defaults…") { confirmRestore = true }
+            SettingsPaneActions {
+                RestoreDefaultsButton(section: .notch,
+                                      message: String(localized: "Opening, closing, look and displays go back to the defaults. Tabs stay as they are.")) {
+                    notch.restoreDefaults()
                 }
-            }
-            .confirmationDialog("Restore the default notch and panel settings?", isPresented: $confirmRestore) {
-                Button("Restore") { notch.restoreDefaults() }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Opening, closing, look and displays go back to the defaults. Tabs stay as they are.")
             }
         }
     }
