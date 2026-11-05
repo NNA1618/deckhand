@@ -25,45 +25,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Log.info("launch")
-        if CommandLine.arguments.contains("--snapshot") { Theme.flatForSnapshot = true }
+        MainMenu.install(settingsTarget: self, settingsAction: #selector(openSettings))
         notch.start()
-        setupMenuBar()
-        setupHotkeys()
-        if !Settings.shared.savePasswordsToHistory {
-            // Older versions kept copies from password apps that set no concealed type
-            ClipboardStore.shared.deleteItems(fromApps: ClipboardWatcher.passwordApps)
-        }
-        ClipboardWatcher.shared.start()
-        if Settings.shared.showPlayingInNotch { NowPlayingMonitor.shared.start() }
-        BatteryMonitor.shared.onEvent = { [weak self] event in
-            guard Settings.shared.batteryNotices else { return }
-            switch event {
-            case .pluggedIn(let percent):
-                self?.notch.showToast(symbol: "bolt.fill", text: String(localized: "Charging, \(percent)%"))
-            case .low(let percent):
-                self?.notch.showToast(symbol: "battery.25percent", text: String(localized: "Battery \(percent)%"))
+        // A snapshot run is a second copy next to the user's own: it must not watch the clipboard,
+        // take hotkeys, read Claude Code events or add a menu bar icon. Its data lives in a temporary folder.
+        if !AppPaths.isSnapshot {
+            setupMenuBar()
+            setupHotkeys()
+            if !Settings.shared.savePasswordsToHistory {
+                // Older versions kept copies from password apps that set no concealed type
+                ClipboardStore.shared.deleteItems(fromApps: ClipboardWatcher.passwordApps)
             }
+            ClipboardWatcher.shared.start()
+            if Settings.shared.showPlayingInNotch { NowPlayingMonitor.shared.start() }
+            UtilityNotices.install(notch: notch)
+            ClaudeNotices.install(notch: notch)
+        } else {
+            Theme.flatForSnapshot = true
+            Task.detached(priority: .utility) { ClaudeCLI.resolve() }
         }
-        BatteryMonitor.shared.start()
-
-        Countdown.shared.onFinish = { [weak self] in
-            self?.notch.showToast(symbol: "timer", text: String(localized: "Time is up"))
-        }
-        let claude = ClaudeCodeMonitor.shared
-        claude.onSignal = { [weak self] _, signal in
-            let settings = Settings.shared
-            switch signal {
-            case .finished(let project, _):
-                guard settings.claudeDoneNotice else { return }
-                self?.notch.showToast(symbol: "checkmark.circle", text: String(localized: "Done · \(project)"))
-            case .needsYou(let project):
-                if settings.claudeSound { NSSound(named: "Ping")?.play() }
-                self?.notch.showToast(symbol: "hand.raised.fill", text: String(localized: "Needs you · \(project)"))
-            }
-        }
-        claude.start()
-        // Finding the claude binary may ask the login shell; do it before the first quick action
-        Task.detached(priority: .utility) { _ = ClaudeCLI.path }
 
         // For testing: `Deckhand --open clipboard` opens a tab on launch
         let args = CommandLine.arguments
@@ -163,6 +143,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hk.setHandler(.captureText) { [weak self] in self?.captureText() }
         hk.setHandler(.colorPicker) { [weak self] in self?.pickColor() }
         hk.setHandler(.keepAwake) { [weak self] in self?.toggleKeepAwake() }
+        hk.setHandler(.translateSelection) { [weak self] in
+            guard let self else { return }
+            TranslatorCoordinator.translateSelection(notch: self.notch)
+        }
         let tabs: [(HotkeyAction, NotchTab)] = [
             (.clipboard, .clipboard), (.translator, .translator), (.claude, .claude),
             (.prompts, .prompts), (.media, .media), (.shelf, .shelf), (.recents, .recents),
@@ -175,50 +159,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Actions
 
-    @objc private func takeScreenshot() {
-        notch.close()
-        ScreenshotService.captureRegion { [weak self] in
-            guard Settings.shared.screenshotToast else { return }
-            self?.notch.showToast(symbol: "camera.viewfinder", text: String(localized: "Copied to clipboard"))
-        }
-    }
+    @objc private func takeScreenshot() { CaptureActions.captureArea(notch: notch) }
+    @objc private func captureText() { CaptureActions.captureText(notch: notch) }
+    @objc private func pickColor() { CaptureActions.pickColor(notch: notch) }
 
-    @objc private func captureText() {
-        notch.close()
-        ScreenshotService.captureText { [weak self] text in
-            guard let text else {
-                self?.notch.showToast(symbol: "text.viewfinder", text: String(localized: "No text found"))
-                return
-            }
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-            self?.notch.showToast(symbol: "text.viewfinder", text: String(localized: "Text copied"))
-        }
-    }
-
-    @objc private func pickColor() {
-        notch.close()
-        NSColorSampler().show { [weak self] color in
-            guard let color, let rgb = color.usingColorSpace(.sRGB) else { return }
-            let hex = String(format: "#%02X%02X%02X",
-                             Int((rgb.redComponent * 255).rounded()),
-                             Int((rgb.greenComponent * 255).rounded()),
-                             Int((rgb.blueComponent * 255).rounded()))
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(hex, forType: .string)
-            MainActor.assumeIsolated { self?.notch.showToast(symbol: "eyedropper", text: hex) }
-        }
-    }
-
-    private func toggleKeepAwake() {
-        let awake = KeepAwake.shared
-        awake.toggle()
-        let text = awake.isActive
-            ? (awake.endsAt == nil ? String(localized: "Awake until turned off")
-                                   : String(localized: "Awake for \(KeepAwake.title(for: awake.duration))"))
-            : String(localized: "Sleep as usual")
-        notch.showToast(symbol: awake.isActive ? "cup.and.saucer.fill" : "moon.zzz", text: text)
-    }
+    private func toggleKeepAwake() { UtilityNotices.toggleKeepAwake(notch: notch) }
 
     @objc private func keepAwakeOff() { KeepAwake.shared.stop() }
 

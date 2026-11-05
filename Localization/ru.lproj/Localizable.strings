@@ -246,3 +246,53 @@
 "Copy Text from Image" = "Скопировать текст с картинки";
 "Tabs" = "Вкладки";
 "Hidden tabs leave the panel and the menu bar. Their shortcuts still open them." = "Скрытые вкладки пропадают из панели и строки меню. Сочетания клавиш по-прежнему их открывают.";
+
+/* Foundation for 0.5 */
+"About Deckhand" = "О Deckhand";
+"Hide Deckhand" = "Скрыть Deckhand";
+"Undo" = "Отменить";
+"Redo" = "Повторить";
+"Cut" = "Вырезать";
+"Paste" = "Вставить";
+"Paste and Match Style" = "Вставить и согласовать стиль";
+"Select All" = "Выбрать все";
+"Window" = "Окно";
+"Minimize" = "Свернуть";
+"Notch & Panel" = "Чёлка и панель";
+"Closed Notch" = "Закрытая чёлка";
+"Screenshots & Text" = "Снимки и текст";
+"Keep Awake & Timer" = "«Не спать» и таймер";
+"Privacy & Permissions" = "Конфиденциальность";
+"About" = "О программе";
+"Coming soon" = "Скоро";
+"Translate selected text" = "Перевести выделенный текст";
+
+/* ===== Workstream sections for 0.5. Add new strings only under your own marker, keep the blank lines. ===== */
+
+/* == notch == */
+
+
+/* == panel == */
+
+
+/* == media == */
+
+
+/* == translate == */
+
+
+/* == clipboard == */
+
+
+/* == prompts == */
+
+
+/* == capture == */
+
+
+/* == claude == */
+
+
+/* == settings == */
+
+/* == end == */

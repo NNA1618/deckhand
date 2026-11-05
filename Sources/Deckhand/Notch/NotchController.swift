@@ -158,12 +158,16 @@ final class NotchController {
                 if !rect.contains(NSEvent.mouseLocation) { self.close() }
             }
         }
+        // Esc closes the open panel only; other windows (Settings, the editor, pinned images) keep their Esc
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53 {
-                MainActor.assumeIsolated { self?.close() }
-                return nil
+            guard event.keyCode == 53 else { return event }
+            let windowNumber = event.windowNumber
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard let self, self.viewModel.isOpen, windowNumber == self.window?.windowNumber else { return false }
+                self.close()
+                return true
             }
-            return event
+            return handled ? nil : event
         }
     }
 

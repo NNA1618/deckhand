@@ -8,6 +8,9 @@ final class NowPlayingMonitor: ObservableObject {
 
     @Published private(set) var now: NowPlaying = .empty
 
+    /// Whether the closed notch shows the track. The notch only reads this.
+    var showsInNotch: Bool { now.isPlaying && !now.title.isEmpty }
+
     private let queue = DispatchQueue(label: "deckhand.nowplaying", qos: .utility)
     private var busy = false
     private var loop: Task<Void, Never>?

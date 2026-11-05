@@ -6,19 +6,37 @@ import SwiftUI
 /// Glass cannot be captured this way, so panels are composited over a neutral backdrop.
 @MainActor
 enum Snapshot {
+    /// Parts of a run, so `--snapshot DIR --only panels,closed` can render just what changed.
+    enum Part: String, CaseIterable { case panels, closed, settings, editor }
+
     static func run(dir: URL, notch: NotchController) async {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let args = CommandLine.arguments
+        var parts = Set(Part.allCases)
+        if let i = args.firstIndex(of: "--only"), i + 1 < args.count {
+            parts = Set(args[i + 1].split(separator: ",").compactMap { Part(rawValue: String($0)) })
+        }
+        if parts.contains(.panels) { await panels(dir: dir, notch: notch) }
+        if parts.contains(.closed) { await closedStates(dir: dir, notch: notch) }
+        if parts.contains(.settings) { await settingsWindow(dir: dir) }
+        if parts.contains(.editor) { await editorWindow(dir: dir) }
+        Log.info("snapshot written to \(dir.path)")
+    }
 
-        let now = Date()
-        let working = ClaudeSession(id: "a", cwd: "/Users/me/deckhand", app: "com.apple.Terminal", state: .working,
-                                    detail: "Edit · NotchRootView.swift", workStarted: now.addingTimeInterval(-247), updated: now)
-        ClaudeCodeMonitor.shared.showForSnapshot([
+    /// Sample Claude Code sessions shown on Home, in the Claude tab and around the closed notch.
+    static func sampleSessions(now: Date = Date()) -> [ClaudeSession] {
+        [
             ClaudeSession(id: "a", cwd: "/Users/me/deckhand", app: "com.apple.Terminal", state: .working,
                           detail: "Edit · NotchRootView.swift", workStarted: now.addingTimeInterval(-247), updated: now),
             ClaudeSession(id: "b", cwd: "/Users/me/site", app: "com.anthropic.claudefordesktop", state: .waiting,
                           detail: "Claude needs your permission to use Bash", updated: now.addingTimeInterval(-30)),
             ClaudeSession(id: "c", cwd: "/Users/me/notes", state: .idle, updated: now.addingTimeInterval(-600)),
-        ])
+        ]
+    }
+
+    /// Every panel tab, open. Owned by the panel workstream.
+    static func panels(dir: URL, notch: NotchController) async {
+        ClaudeCodeMonitor.shared.showForSnapshot(sampleSessions())
         for tab in NotchTab.allCases {
             if notch.viewModel.isOpen { notch.viewModel.tab = tab } else { notch.open(tab: tab) }
             try? await Task.sleep(for: .milliseconds(900))
@@ -27,6 +45,14 @@ enum Snapshot {
             }
         }
         notch.close()
+        ClaudeCodeMonitor.shared.showForSnapshot([])
+    }
+
+    /// Badges around the closed notch. Owned by the notch workstream.
+    static func closedStates(dir: URL, notch: NotchController) async {
+        let now = Date()
+        let working = sampleSessions(now: now)[0]
+        ClaudeCodeMonitor.shared.showForSnapshot(sampleSessions(now: now))
 
         try? await Task.sleep(for: .milliseconds(1200))
         if let (window, cutout) = notch.snapshotTarget {
@@ -60,23 +86,28 @@ enum Snapshot {
             save(window, cutout: cutout, to: dir.appendingPathComponent("closed-keep-awake.png"))
         }
         if !wasAwake { KeepAwake.shared.stop() }
+    }
 
+    /// Every Settings section. Owned by the Settings workstream.
+    static func settingsWindow(dir: URL) async {
         SettingsWindow.show()
-        for tab in SettingsTab.allCases {
-            SettingsRouter.shared.tab = tab
+        for tab in SettingsSection.allCases {
+            SettingsRouter.shared.section = tab
             try? await Task.sleep(for: .milliseconds(700))
             if let window = SettingsWindow.window {
                 save(window, cutout: nil, to: dir.appendingPathComponent("settings-\(tab.rawValue).png"))
             }
         }
         SettingsWindow.window?.close()
+    }
 
+    /// The image editor. Owned by the capture workstream.
+    static func editorWindow(dir: URL) async {
         if let editor = EditorWindow.open(image: sampleImage()) {
             try? await Task.sleep(for: .milliseconds(900))
             save(editor, cutout: nil, to: dir.appendingPathComponent("editor.png"))
             editor.close()
         }
-        Log.info("snapshot written to \(dir.path)")
     }
 
     private static func save(_ window: NSWindow, cutout: CGRect?, to url: URL) {

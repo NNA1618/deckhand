@@ -55,6 +55,24 @@ final class Settings: ObservableObject {
 
     @Published var batteryNotices: Bool { didSet { d.set(batteryNotices, forKey: "batteryNotices") } }
 
+    // Badges and notices around the closed notch. Shared by several areas, shown in Settings → Closed Notch.
+    @Published var badgeTimer: Bool { didSet { d.set(badgeTimer, forKey: "badgeTimer") } }
+    @Published var hideBadgesInFullScreen: Bool { didSet { d.set(hideBadgesInFullScreen, forKey: "hideBadgesInFullScreen") } }
+    @Published var noticeTextCapture: Bool { didSet { d.set(noticeTextCapture, forKey: "noticeTextCapture") } }
+    @Published var noticeColor: Bool { didSet { d.set(noticeColor, forKey: "noticeColor") } }
+    @Published var noticeKeepAwake: Bool { didSet { d.set(noticeKeepAwake, forKey: "noticeKeepAwake") } }
+    @Published var noticeTimer: Bool { didSet { d.set(noticeTimer, forKey: "noticeTimer") } }
+    @Published var noticeCharging: Bool { didSet { d.set(noticeCharging, forKey: "noticeCharging") } }
+    @Published var noticeLowBattery: Bool { didSet { d.set(noticeLowBattery, forKey: "noticeLowBattery") } }
+    @Published var noticeClaudeNeedsYou: Bool { didSet { d.set(noticeClaudeNeedsYou, forKey: "noticeClaudeNeedsYou") } }
+    /// Seconds a notice stays in the notch.
+    @Published var toastDuration: Double { didSet { d.set(toastDuration, forKey: "toastDuration") } }
+    /// System sound names; empty means no sound.
+    @Published var soundClaudeNeedsYou: String { didSet { d.set(soundClaudeNeedsYou, forKey: "soundClaudeNeedsYou") } }
+    @Published var soundTimer: String { didSet { d.set(soundTimer, forKey: "soundTimer") } }
+    /// Translate, Claude and the Recents prompt start with copied text when it looks like ordinary text.
+    @Published var prefillFromClipboard: Bool { didSet { d.set(prefillFromClipboard, forKey: "prefillFromClipboard") } }
+
     // Claude
     @Published var claudeBackend: ClaudeBackend { didSet { d.set(claudeBackend.rawValue, forKey: "claudeBackend") } }
     @Published var claudeInNotch: Bool { didSet { d.set(claudeInNotch, forKey: "claudeInNotch") } }
@@ -99,6 +117,16 @@ final class Settings: ObservableObject {
             "claudeDoneNotice": true,
             "claudeSound": true,
             "appLanguage": "system",
+            "badgeTimer": true,
+            "hideBadgesInFullScreen": true,
+            "noticeTextCapture": true,
+            "noticeColor": true,
+            "noticeKeepAwake": true,
+            "noticeTimer": true,
+            "noticeClaudeNeedsYou": true,
+            "toastDuration": 2.0,
+            "soundTimer": "Glass",
+            "prefillFromClipboard": true,
         ])
         savePasswordsToHistory = d.bool(forKey: "savePasswordsToHistory")
         historyLimit = d.integer(forKey: "historyLimit")
@@ -127,5 +155,19 @@ final class Settings: ObservableObject {
         claudeDoneNotice = d.bool(forKey: "claudeDoneNotice")
         claudeSound = d.bool(forKey: "claudeSound")
         appLanguage = d.string(forKey: "appLanguage") ?? "system"
+        badgeTimer = d.bool(forKey: "badgeTimer")
+        hideBadgesInFullScreen = d.bool(forKey: "hideBadgesInFullScreen")
+        noticeTextCapture = d.bool(forKey: "noticeTextCapture")
+        noticeColor = d.bool(forKey: "noticeColor")
+        noticeKeepAwake = d.bool(forKey: "noticeKeepAwake")
+        noticeTimer = d.bool(forKey: "noticeTimer")
+        // Earlier versions had one switch for both battery notices and one for the Claude sound
+        noticeCharging = d.object(forKey: "noticeCharging") as? Bool ?? d.bool(forKey: "batteryNotices")
+        noticeLowBattery = d.object(forKey: "noticeLowBattery") as? Bool ?? d.bool(forKey: "batteryNotices")
+        noticeClaudeNeedsYou = d.bool(forKey: "noticeClaudeNeedsYou")
+        toastDuration = d.double(forKey: "toastDuration")
+        soundClaudeNeedsYou = d.string(forKey: "soundClaudeNeedsYou") ?? (d.bool(forKey: "claudeSound") ? "Ping" : "")
+        soundTimer = d.string(forKey: "soundTimer") ?? "Glass"
+        prefillFromClipboard = d.bool(forKey: "prefillFromClipboard")
     }
 }

@@ -111,7 +111,7 @@ struct ClaudeView: View {
             HStack(spacing: 8) {
                 PrimaryButton(title: "Open Settings") {
                     notch.requestClose()
-                    SettingsRouter.shared.tab = .claude
+                    SettingsRouter.shared.section = .claude
                     SettingsWindow.show()
                 }
                 GlassButton(title: "Open Claude", symbol: "arrow.up.forward.app") { ClaudeEngine.openClaudeApp() }

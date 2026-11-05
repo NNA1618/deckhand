@@ -1,0 +1,93 @@
+import AppKit
+
+extension SelfTest {
+    /// Editor, blur, image upload size, text recognition and shortcut display. Owned by the capture and hotkeys workstream.
+    static func capture(_ check: Check) {
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 400, pixelsHigh: 300,
+                                   bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                   colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        let image = NSImage(size: NSSize(width: 200, height: 150))
+        image.addRepresentation(rep)
+
+        guard let model = EditorModel(image: image) else {
+            check(false, "editor model init")
+            return
+        }
+        check(model.pixelScale == 2, "retina scale = 2")
+
+        model.tool = .arrow
+        model.dragChanged(start: CGPoint(x: 10, y: 10), current: CGPoint(x: 200, y: 150))
+        model.dragEnded(start: CGPoint(x: 10, y: 10), end: CGPoint(x: 200, y: 150))
+        check(model.annotations.count == 1, "arrow added")
+
+        model.tool = .text
+        model.dragEnded(start: CGPoint(x: 30, y: 30), end: CGPoint(x: 30, y: 30))
+        model.pendingText = "привет"
+        model.commitText()
+        check(model.annotations.count == 2, "text added")
+
+        let flat = model.renderCGImage()
+        check(flat?.width == 400 && flat?.height == 300, "export keeps pixel size")
+
+        model.tool = .crop
+        model.dragChanged(start: CGPoint(x: 50, y: 50), current: CGPoint(x: 250, y: 150))
+        model.applyCrop()
+        check(model.imageSize == CGSize(width: 200, height: 100), "crop size")
+        check(model.annotations.isEmpty, "crop flattens annotations")
+
+        model.undo()
+        check(model.imageSize == CGSize(width: 400, height: 300), "undo crop size")
+        check(model.annotations.count == 2, "undo restores annotations")
+
+        model.redo()
+        check(model.imageSize == CGSize(width: 200, height: 100), "redo crop")
+
+        let out = model.renderNSImage()
+        check(out?.size == NSSize(width: 100, height: 50), "nsimage point size after crop")
+
+        // Blur: pixelating a striped image must change pixels inside the region
+        let stripes = NSImage(size: NSSize(width: 200, height: 100))
+        stripes.lockFocus()
+        for x in stride(from: 0, to: 200, by: 4) {
+            (x % 8 == 0 ? NSColor.black : NSColor.white).setFill()
+            NSRect(x: x, y: 0, width: 4, height: 100).fill()
+        }
+        stripes.unlockFocus()
+        if let blurModel = EditorModel(image: stripes), let before = blurModel.renderCGImage() {
+            blurModel.tool = .blur
+            let w = CGFloat(before.width), h = CGFloat(before.height)
+            blurModel.dragChanged(start: CGPoint(x: 0, y: 0), current: CGPoint(x: w / 2, y: h))
+            blurModel.dragEnded(start: CGPoint(x: 0, y: 0), end: CGPoint(x: w / 2, y: h))
+            let after = blurModel.renderCGImage()
+            check(after.map { !pixelsEqual($0, before) } ?? false, "blur changes pixels")
+        }
+
+        if let big = CGContext(data: nil, width: 4000, height: 1000, bitsPerComponent: 8, bytesPerRow: 0,
+                               space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage(),
+           let png = EditorModel.pngForUpload(big), let rep = NSBitmapImageRep(data: png) {
+            check(rep.pixelsWide == 1568 && rep.pixelsHigh == 392, "upload image downscaled to 1568")
+        }
+
+        let ocrImage = NSImage(size: NSSize(width: 600, height: 160))
+        ocrImage.lockFocus()
+        NSColor.white.setFill(); NSRect(x: 0, y: 0, width: 600, height: 160).fill()
+        ("Deckhand reads text" as NSString).draw(at: NSPoint(x: 30, y: 60), withAttributes: [
+            .font: NSFont.systemFont(ofSize: 40, weight: .medium), .foregroundColor: NSColor.black,
+        ])
+        ocrImage.unlockFocus()
+        let ocrFile = FileManager.default.temporaryDirectory.appendingPathComponent("deckhand-selftest-ocr.png")
+        if let tiff = ocrImage.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+            try? png.write(to: ocrFile)
+        }
+        let recognized = TextRecognizer.recognize(at: ocrFile) ?? ""
+        check(recognized.contains("Deckhand reads text"), "text recognition: \(recognized)")
+
+        let sc = Shortcut(keyCode: 1, modifiers: UInt32(1 << 8 | 1 << 9)) // ⌘⇧S
+        check(sc.display == "⇧⌘S", "shortcut display \(sc.display)")
+    }
+
+    static func pixelsEqual(_ a: CGImage, _ b: CGImage) -> Bool {
+        guard let da = a.dataProvider?.data, let db = b.dataProvider?.data else { return false }
+        return (da as Data) == (db as Data)
+    }
+}

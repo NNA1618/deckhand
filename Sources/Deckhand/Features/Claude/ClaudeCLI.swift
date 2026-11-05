@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 /// Runs quick actions through the Claude Code command line tool, so they use the
 /// user's Claude subscription and need no API key.
@@ -11,10 +12,18 @@ enum ClaudeCLI {
         var errorDescription: String? { message }
     }
 
-    /// Where the `claude` binary is, resolved through symlinks.
-    /// Apps started from Finder get a short PATH, so common install places are checked first,
-    /// then the login shell is asked once.
-    static let path: String? = {
+    /// Where the `claude` binary is, resolved through symlinks; nil until `resolve()` has run or when it is missing.
+    /// Never looked up on the main thread: asking the login shell can take seconds.
+    static var path: String? { cache.withLock { $0 ?? nil } }
+    private static let cache = OSAllocatedUnfairLock<String??>(initialState: nil)
+
+    static var isInstalled: Bool { path != nil }
+
+    /// Finds the binary once. Apps started from Finder get a short PATH, so common install places
+    /// are checked first, then the login shell is asked. Blocks for up to 5 s: call it off the main thread.
+    @discardableResult
+    nonisolated static func resolve() -> String? {
+        if let known = cache.withLock({ $0 }) { return known }
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         var candidates = [
             "\(home)/.local/bin/claude",
@@ -26,16 +35,14 @@ enum ClaudeCLI {
             "\(home)/.bun/bin/claude",
         ]
         if let shellPath = shellLookup() { candidates.insert(shellPath, at: 0) }
-        for c in candidates {
-            let resolved = (c as NSString).resolvingSymlinksInPath
-            if FileManager.default.isExecutableFile(atPath: resolved) { return resolved }
-        }
-        return nil
-    }()
+        let found = candidates.lazy
+            .map { ($0 as NSString).resolvingSymlinksInPath }
+            .first { FileManager.default.isExecutableFile(atPath: $0) }
+        cache.withLock { $0 = .some(found) }
+        return found
+    }
 
-    static var isInstalled: Bool { path != nil }
-
-    private static func shellLookup() -> String? {
+    nonisolated private static func shellLookup() -> String? {
         let out = try? run(executable: "/bin/zsh", arguments: ["-lc", "command -v claude"], input: nil, timeout: 5)
         // Shell startup files may print something first; the path is the last line
         let line = out?.stdout.split(separator: "\n").last.map(String.init) ?? ""
@@ -44,8 +51,8 @@ enum ClaudeCLI {
 
     /// Whether Claude Code is signed in. Runs `claude auth status`.
     static func isSignedIn() async -> Bool {
-        guard let path else { return false }
         return await Task.detached {
+            guard let path = resolve() else { return false }
             guard let out = try? run(executable: path, arguments: ["auth", "status", "--json"], input: nil, timeout: 15),
                   let data = out.stdout.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
@@ -95,7 +102,7 @@ enum ClaudeCLI {
     }
 
     private static func call(system: String?, input: String, model: ClaudeModel, files: [String: Data]) async throws -> String {
-        guard let path else {
+        guard let path = await Task.detached(operation: { resolve() }).value else {
             throw Failure(message: String(localized: "Claude Code is not installed. Install it or add an API key in Settings → Claude."))
         }
         let args = arguments(system: system, model: model, allowRead: !files.isEmpty)

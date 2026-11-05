@@ -3,8 +3,17 @@ import Foundation
 enum AppPaths {
     static let bundleId = "com.nna1618.deckhand"
 
+    /// `--snapshot` runs keep their data in a fresh temporary folder, apart from the user's.
+    static let isSnapshot = CommandLine.arguments.contains("--snapshot")
+
     static let supportDir: URL = {
         let fm = FileManager.default
+        if isSnapshot {
+            let dir = fm.temporaryDirectory.appendingPathComponent("deckhand-snapshot-\(ProcessInfo.processInfo.processIdentifier)")
+            try? fm.removeItem(at: dir)
+            try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            return dir
+        }
         let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let dir = base.appendingPathComponent("Deckhand", isDirectory: true)
         migrateFromFringe(base: base, to: dir)

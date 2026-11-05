@@ -4,7 +4,7 @@
 # Briefly opens the panel on screen. Uses the installed /Applications/Deckhand.app.
 set -euo pipefail
 DIR="${1:-$(pwd)/.build/snapshots}"
-rm -rf "$DIR"
+mkdir -p "$DIR" && find "$DIR" -maxdepth 1 -name '*.png' -delete
 pkill -x Deckhand 2>/dev/null || true
 sleep 0.5
 /Applications/Deckhand.app/Contents/MacOS/Deckhand --snapshot "$DIR" ${2:-}
