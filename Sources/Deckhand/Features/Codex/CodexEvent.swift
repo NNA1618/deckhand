@@ -60,7 +60,8 @@ struct CodexHookEvent: Equatable, Sendable {
         case "SessionEnd": kind = .sessionEnded
         default: kind = .other
         }
-        return AgentEvent(provider: .codex, session: session, kind: kind, time: time, cwd: cwd, app: app,
+        // Codex reports the session's folder, which a command's `cd` doesn't change
+        return AgentEvent(provider: .codex, session: session, kind: kind, time: time, cwd: cwd, project: cwd.isEmpty ? nil : cwd, app: app,
                           subagent: subagent, tool: tool, summary: summary, requestId: fileId)
     }
 }

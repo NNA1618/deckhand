@@ -19,7 +19,7 @@ struct ClaudeHookFiles: Sendable {
 /// What Deckhand adds to Claude Code: a shell script and one entry per hook event.
 ///
 /// Privacy: the script pipes the event through `/usr/bin/jq` (part of macOS since 15) and keeps
-/// only the session id, event name, project folder, tool name with the file name or the first word
+/// only the session id, event name, project folder and current folder, tool name with the file name or the first word
 /// of a command, the notification type, the error type, the permission mode, the app and the
 /// process id. Prompts, file contents, commands, tool output and Claude's messages never reach the disk.
 enum ClaudeHook {
@@ -82,6 +82,7 @@ enum ClaudeHook {
       session_id: (.session_id | clip(128)),
       hook_event_name: (.hook_event_name | clip(64)),
       cwd: (.cwd | clip(1024)),
+      project: ((($ENV.CLAUDE_PROJECT_DIR // "") | select(. != "")) // .cwd | clip(1024)),
       subagent: ((.agent_id // "") != ""),
       tool: (.tool_name | clip(96)),
       target: ((.tool_input.file_path // .tool_input.notebook_path // .tool_input.path | base)

@@ -65,6 +65,45 @@ extension SelfTest {
         event("SessionEnd", at: 80)
         check(sessions.isEmpty, "claude: session end removes it")
 
+        // A denial or Esc at the terminal prompt sends nothing; idle_prompt a minute later ends the wait
+        event("UserPromptSubmit", at: 100)
+        event("PreToolUse", ["tool": "Bash", "target": "rm"], at: 101)
+        event("PermissionRequest", ["tool": "Bash", "target": "rm"], at: 101.2)
+        event("Notification", ["notification_type": "idle_prompt"], at: 161)
+        check(s1()?.state == .idle && s1()?.request == nil && s1()?.waitingSince == nil && s1()?.waitingTool == nil,
+              "claude: idle_prompt ends a wait nobody answered in the notch")
+        // "No" with feedback: Claude goes on with other tools; one started well after the request ends the wait
+        event("UserPromptSubmit", at: 200)
+        event("PreToolUse", ["tool": "Bash", "target": "rm"], at: 201)
+        event("PermissionRequest", ["tool": "Bash", "target": "rm"], at: 201.1)
+        event("PreToolUse", ["tool": "Read", "target": "a.swift"], at: 201.3)
+        check(s1()?.state == .waiting, "claude: a tool started alongside the request doesn't end the wait")
+        event("PostToolUse", ["tool": "Bash", "subagent": true], at: 205)
+        check(s1()?.state == .waiting, "claude: a subagent finishing a tool of the same name doesn't end the main wait")
+        event("PreToolUse", ["tool": "Read", "target": "b.swift", "subagent": true], at: 206)
+        check(s1()?.state == .waiting, "claude: a subagent's tool doesn't end the main wait")
+        event("PreToolUse", ["tool": "Edit", "target": "c.swift"], at: 215)
+        check(s1()?.state == .working && s1()?.detail == "Edit · c.swift" && s1()?.request == nil,
+              "claude: a main-agent tool well after the request means it was answered")
+        // A subagent's own permission request: only that subagent's events end it
+        event("PermissionRequest", ["tool": "Bash", "target": "make", "subagent": true], at: 220)
+        event("PreToolUse", ["tool": "Grep"], at: 230)
+        check(s1()?.state == .waiting, "claude: the main agent working on doesn't end a subagent's wait")
+        event("PostToolUse", ["tool": "Bash", "subagent": true], at: 240)
+        check(s1()?.state == .working, "claude: the subagent's tool result ends its wait")
+        event("SessionEnd", at: 250)
+
+        // The project follows CLAUDE_PROJECT_DIR, not the shell's `cd`
+        event("SessionStart", ["project": "/Users/me/repo", "cwd": "/Users/me/repo"], at: 300)
+        event("PreToolUse", ["tool": "Bash", "target": "npm", "project": "/Users/me/repo", "cwd": "/Users/me/repo/packages/web"], at: 301)
+        check(s1()?.project == "repo" && s1()?.cwd == "/Users/me/repo", "claude: cd inside the session keeps the project name")
+        event("SessionEnd", at: 302)
+        // Event files from before 0.5 have no project: the first folder seen names it
+        event("SessionStart", ["cwd": "/Users/me/app"], at: 310)
+        event("PreToolUse", ["tool": "Bash", "cwd": "/Users/me/app/sub"], at: 311)
+        check(s1()?.project == "app", "claude: without a project folder the first cwd names the session")
+        event("SessionEnd", at: 312)
+
         // Older Deckhand versions saved the whole payload; only the same few fields are taken from it
         let legacy = ClaudeHookEvent(json: ["session_id": "s", "hook_event_name": "PreToolUse", "tool_name": "Bash",
                                             "tool_input": ["command": "API_KEY=sk-1 /usr/bin/git push"], "prompt": "secret"],
@@ -212,6 +251,12 @@ extension SelfTest {
         check(run(payload, env: ["DECKHAND_INTERNAL": "1"])?.status == 0 && inbox().isEmpty, "claude: Deckhand's own calls are ignored")
         try? "999999".write(to: files.pidFile, atomically: true, encoding: .utf8)
         check(run(payload)?.status == 0 && inbox().isEmpty, "claude: a stale pid file stops the hook")
+        // After a crash the id may belong to another program: a live process that isn't Deckhand
+        if let other = try? Process.run(URL(fileURLWithPath: "/bin/sleep"), arguments: ["10"]) {
+            try? String(other.processIdentifier).write(to: files.pidFile, atomically: true, encoding: .utf8)
+            check(run(payload)?.status == 0 && inbox().isEmpty, "claude: a reused pid of another program stops the hook")
+            other.terminate()
+        }
         try? String(getpid()).write(to: files.pidFile, atomically: true, encoding: .utf8)
         check(run("not json")?.status == 0 && run("[1]")?.status == 0 && inbox().isEmpty
               && ((try? fm.contentsOfDirectory(atPath: files.inbox.path)) ?? []).isEmpty, "claude: bad input leaves no file")
