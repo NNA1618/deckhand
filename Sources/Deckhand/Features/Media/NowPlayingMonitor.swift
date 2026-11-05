@@ -60,7 +60,9 @@ final class NowPlayingMonitor: ObservableObject {
     private var graceTask: Task<Void, Never>?
     private var wanted = false
     private var viewers = 0
-    private var asleep = false
+    /// Why the monitor is paused, if it is.
+    private var pauses = Set<Pause>()
+    private var lockListeners: [DistributedListener] = []
     private var frozen = false
     private var fetching = Set<MediaApp>()
     private var fetchAgain = Set<MediaApp>()
@@ -114,7 +116,7 @@ final class NowPlayingMonitor: ObservableObject {
     func viewerDisappeared() { viewers = max(0, viewers - 1); update() }
 
     private var shouldRun: Bool {
-        !AppPaths.isSnapshot && !frozen && media.enabled && !asleep
+        !AppPaths.isSnapshot && !frozen && media.enabled && pauses.isEmpty
             && ((wanted && settings.showPlayingInNotch) || viewers > 0)
     }
 
@@ -525,13 +527,13 @@ final class NowPlayingMonitor: ObservableObject {
 
     private func observeSleep() {
         let workspace = NSWorkspace.shared.notificationCenter
-        let pairs: [(Notification.Name, Bool)] = [
-            (NSWorkspace.willSleepNotification, true), (NSWorkspace.didWakeNotification, false),
-            (NSWorkspace.screensDidSleepNotification, true), (NSWorkspace.screensDidWakeNotification, false),
+        let events: [(Notification.Name, Pause, Bool)] = [
+            (NSWorkspace.willSleepNotification, .system, true), (NSWorkspace.didWakeNotification, .system, false),
+            (NSWorkspace.screensDidSleepNotification, .screens, true), (NSWorkspace.screensDidWakeNotification, .screens, false),
         ]
-        for (name, sleeping) in pairs {
+        for (name, reason, on) in events {
             workspaceObservers.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.setAsleep(sleeping) }
+                MainActor.assumeIsolated { self?.setPause(reason, on) }
             })
         }
         for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
@@ -542,45 +544,60 @@ final class NowPlayingMonitor: ObservableObject {
                 }
             })
         }
-        let distributed = DistributedNotificationCenter.default()
-        for (name, locked) in [("com.apple.screenIsLocked", true), ("com.apple.screenIsUnlocked", false)] {
-            workspaceObservers.append(distributed.addObserver(forName: .init(name), object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.setAsleep(locked) }
-            })
-        }
+        lockListeners = [
+            DistributedListener("com.apple.screenIsLocked") { [weak self] _ in self?.setPause(.locked, true) },
+            DistributedListener("com.apple.screenIsUnlocked") { [weak self] _ in self?.setPause(.locked, false) },
+        ]
     }
 
-    private func setAsleep(_ value: Bool) {
-        guard asleep != value else { return }
-        asleep = value
-        update()
+    private enum Pause { case system, screens, locked }
+
+    /// Sleep, display sleep and the lock screen each pause the monitor until that same reason ends.
+    private func setPause(_ reason: Pause, _ on: Bool) {
+        let before = pauses
+        if on { pauses.insert(reason) } else { pauses.remove(reason) }
+        // Waking up the system also wakes the displays
+        if reason == .system, !on { pauses.remove(.screens) }
+        if pauses != before { update() }
     }
 }
 
-/// Listens to the players' own announcements. Delivered immediately even while Deckhand is in the background.
+/// One distributed notification, registered with `.deliverImmediately` so it still arrives
+/// if delivery to Deckhand is suspended while it sits in the background.
 @MainActor
-private final class PlayerNotifications: NSObject {
+private final class DistributedListener: NSObject {
+    private let handler: (Notification) -> Void
+
+    init(_ name: String, handler: @escaping (Notification) -> Void) {
+        self.handler = handler
+        super.init()
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(fire(_:)), name: .init(name),
+                                                            object: nil, suspensionBehavior: .deliverImmediately)
+    }
+
+    func cancel() { DistributedNotificationCenter.default().removeObserver(self) }
+
+    @objc private func fire(_ note: Notification) { handler(note) }
+}
+
+/// The players' own announcements of what they play.
+@MainActor
+private final class PlayerNotifications {
     var onReport: ((MediaApp, [String: Any]) -> Void)?
-    private var listening = false
+    private var listeners: [DistributedListener] = []
 
     func start() {
-        guard !listening else { return }
-        listening = true
-        let center = DistributedNotificationCenter.default()
-        center.addObserver(self, selector: #selector(music(_:)), name: .init("com.apple.Music.playerInfo"),
-                           object: nil, suspensionBehavior: .deliverImmediately)
-        center.addObserver(self, selector: #selector(spotify(_:)), name: .init("com.spotify.client.PlaybackStateChanged"),
-                           object: nil, suspensionBehavior: .deliverImmediately)
+        guard listeners.isEmpty else { return }
+        listeners = [
+            DistributedListener("com.apple.Music.playerInfo") { [weak self] in self?.forward(.music, $0) },
+            DistributedListener("com.spotify.client.PlaybackStateChanged") { [weak self] in self?.forward(.spotify, $0) },
+        ]
     }
 
     func stop() {
-        guard listening else { return }
-        listening = false
-        DistributedNotificationCenter.default().removeObserver(self)
+        listeners.forEach { $0.cancel() }
+        listeners = []
     }
-
-    @objc private func music(_ note: Notification) { forward(.music, note) }
-    @objc private func spotify(_ note: Notification) { forward(.spotify, note) }
 
     private func forward(_ app: MediaApp, _ note: Notification) {
         var info: [String: Any] = [:]
