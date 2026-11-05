@@ -78,11 +78,14 @@ struct PermissionsPane: View {
     private var screenRecording: some View {
         SettingsRow(String(localized: "Screen Recording"),
                     detail: model.screenRecordingNeedsRestart
-                        ? String(localized: "Restart Deckhand to finish.")
+                        ? String(localized: "If you allowed it, restart Deckhand to finish.")
                         : String(localized: "Screenshots and text from the screen"),
                     icon: .symbol("record.circle", .red)) {
             Self.chip(allowed: model.screenRecording)
             if model.screenRecordingNeedsRestart {
+                // macOS doesn't say what the user chose, so both ways on stay open
+                Button("Open Settings…") { SystemSettingsLink.open(SystemSettingsLink.screenRecording) }
+                    .buttonStyle(.settings)
                 Button("Restart Now") { AppRelauncher.relaunch(openSettings: true) }
                     .buttonStyle(.settings(.prominent))
             } else if !model.screenRecording {
@@ -203,14 +206,11 @@ final class PermissionsModel: ObservableObject {
     }
 
     /// The first click shows macOS's own prompt, which adds Deckhand to the list; later clicks
-    /// open the pane, because macOS shows that prompt only once.
+    /// open the pane, because macOS shows that prompt only once. The flag is shared with the
+    /// capture alert and the Screenshots pane.
     func requestScreenRecording() {
         screenRecordingRequested = true
-        if askedBefore("screen") {
-            SystemSettingsLink.open(SystemSettingsLink.screenRecording)
-        } else {
-            screenRecording = CGRequestScreenCaptureAccess()
-        }
+        screenRecording = ScreenRecordingPermission.request(openSettings: false)
     }
 
     func requestAccessibility() {

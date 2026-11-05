@@ -898,7 +898,7 @@
 "Permissions" = "Разрешения";
 "Screen Recording" = "Запись экрана";
 "Screenshots and text from the screen" = "Снимки и текст с экрана";
-"Restart Deckhand to finish." = "Перезапустите Deckhand, чтобы применить.";
+"If you allowed it, restart Deckhand to finish." = "Если вы разрешили доступ, перезапустите Deckhand, чтобы применить.";
 "Paste into other apps, read the selected text" = "Вставка в другие приложения, чтение выделенного текста";
 "Files and Folders" = "Файлы и папки";
 "Watched folders in Recents" = "Папки «Недавних»";
