@@ -51,7 +51,7 @@ struct MusicPane: View {
                     Text("From Apple Music and Spotify, when they allow it")
                 }
             } header: {
-                Text("Display")
+                Text(String(localized: "music.display", defaultValue: "Display"))
             }
             .disabled(!media.enabled)
 
