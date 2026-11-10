@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // A snapshot run is a second copy next to the user's own: it must not watch the clipboard,
         // take hotkeys, read Claude Code events or add a menu bar icon. Its data lives in a temporary folder.
         if !AppPaths.isSnapshot {
+            setupLidSleepSafety()
             notch.viewModel.tab = PanelSettings.shared.tabWhenOpened
             setupMenuBar()
             setupHotkeys()
@@ -77,6 +78,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         KeepAwake.shared.stop()
+        // Also when no session is running: the Mac must never be left unable to sleep
+        LidSleep.shared.turnOff()
         DesktopCover.shared.hide()
     }
 
@@ -84,6 +87,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         SettingsWindow.show()
         return false
+    }
+
+    // MARK: - Closed-lid sleep
+
+    /// A crash or force quit may have left closed-lid sleep off; turn it back on now. Shutting down or logging out
+    /// turns it back on too, in case quitting is cut short.
+    private func setupLidSleepSafety() {
+        let lid = LidSleep.shared
+        lid.recoverAfterLaunch(keepAwakeActive: KeepAwake.shared.isActive)
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willPowerOffNotification,
+                                                          object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { LidSleep.shared.turnOff() }
+        }
     }
 
     // MARK: - Menu bar
@@ -189,6 +205,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let sub = NSMenu()
         sub.addItem(item(awake.isActive ? String(localized: "Turn Off") : String(localized: "Turn On"),
                          #selector(menuToggleKeepAwake), hotkey: .keepAwake))
+        if awake.isActive && UtilitySettings.shared.keepAwakeLidClosed {
+            // A status line, not a switch: the setting lives in Settings → Keep Awake
+            let lid = NSMenuItem(title: awake.lid.isOn ? String(localized: "Lid closed: on") : String(localized: "Lid closed: off"),
+                                 action: nil, keyEquivalent: "")
+            lid.isEnabled = false
+            sub.addItem(lid)
+        }
         sub.addItem(.separator())
         for (i, d) in KeepAwake.durations.enumerated() {
             let mi = item(KeepAwake.title(for: d), #selector(keepAwakeFor(_:)))

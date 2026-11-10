@@ -7,6 +7,7 @@ extension SelfTest {
         battery(check)
         timer(check)
         keepAwake(check)
+        lidSleep(check)
         toggles(check)
     }
 

@@ -20,16 +20,27 @@ final class UtilitySettings: ObservableObject {
     }
     /// Keep Awake turns itself off on battery below this percentage; 0 means never.
     @Published var keepAwakeBatteryFloor: Int { didSet { d.set(keepAwakeBatteryFloor, forKey: "keepAwakeBatteryFloor") } }
+    /// Keep Awake also stops sleep with the lid closed, through `LidSleep`. Needs its helper.
+    @Published var keepAwakeLidClosed: Bool { didSet { d.set(keepAwakeLidClosed, forKey: "keepAwakeLidClosed") } }
+    /// On battery below this percentage the Mac may sleep with the lid closed again.
+    @Published var keepAwakeLidBatteryFloor: Int {
+        didSet { d.set(keepAwakeLidBatteryFloor, forKey: "keepAwakeLidBatteryFloor") }
+    }
 
     private init() {
         d.register(defaults: [
             "timerPresets": Self.defaultPresets,
             "timerAlertUntilDismissed": false,
             "keepAwakeBatteryFloor": 0,
+            "keepAwakeLidClosed": false,
+            "keepAwakeLidBatteryFloor": 20,
         ])
         timerPresets = Self.sanitized(presets: (d.array(forKey: "timerPresets") as? [Int]) ?? Self.defaultPresets)
         timerAlertUntilDismissed = d.bool(forKey: "timerAlertUntilDismissed")
         keepAwakeBatteryFloor = d.integer(forKey: "keepAwakeBatteryFloor")
+        keepAwakeLidClosed = d.bool(forKey: "keepAwakeLidClosed")
+        let lidFloor = d.integer(forKey: "keepAwakeLidBatteryFloor")
+        keepAwakeLidBatteryFloor = LidSleep.batteryFloors.contains(lidFloor) ? lidFloor : 20
     }
 
     /// Four presets between 1 and `Countdown.maxMinutes`, falling back to the defaults for anything broken.
