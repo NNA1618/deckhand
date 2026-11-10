@@ -840,7 +840,7 @@
 "search.keepAwake.labels" = "Длительность по умолчанию; Разрешить выключать дисплей; Выключать при заряде ниже; Варианты таймера; Напоминать, пока не закрою; Аккумулятор";
 "search.shortcuts.labels" = "Открыть или закрыть Deckhand; Снять область; Снять область и изменить; Снять окно; Снять весь экран; Снять экран через 3 секунды; Скопировать текст с экрана; Взять цвет с экрана; Включить или выключить «Не спать»; Перевести выделенный текст; Открыть вкладку; В панели; Закрыть панель; Инструменты редактора";
 "search.permissions.labels" = "Запись экрана; Универсальный доступ; Автоматизация; Файлы и папки; Объекты входа; Ваши данные; Журнал";
-"search.about.labels" = "Исходный код; Все версии; Сообщить о проблеме; Скопировать сведения о системе; Благодарности; Лицензия";
+"search.about.labels" = "Обновление ПО; Проверять обновления автоматически; Устанавливать обновления автоматически; Исходный код; Все версии; Сообщить о проблеме; Скопировать сведения о системе; Благодарности; Лицензия";
 "search.general.synonyms" = "запуск; автозапуск; объекты входа; значок в строке меню; английский; русский; сброс; буфер обмена";
 "search.notch.synonyms" = "наведение; щелчок; стекло; прозрачность; оформление; внешний вид; полка; перетаскивание; монитор; внешний дисплей; полноэкранный";
 "search.closedNotch.synonyms" = "значок; уведомление; звук; сигнал; батарея; аккумулятор; зарядка; музыка; таймер";
@@ -854,7 +854,7 @@
 "search.keepAwake.synonyms" = "сон; не спать; кофеин; Amphetamine; таймер; обратный отсчёт; помодоро";
 "search.shortcuts.synonyms" = "хоткей; горячие клавиши; клавиатура; сочетание";
 "search.permissions.synonyms" = "конфиденциальность; разрешения; безопасность; данные; хранилище";
-"search.about.synonyms" = "GitHub; ошибка; баг; лицензия; обновления; версия";
+"search.about.synonyms" = "GitHub; ошибка; баг; лицензия; обновления; автообновление; версия";
 "menu.about" = "О программе Deckhand";
 "menu.settings" = "Настройки…";
 "menu.hide" = "Скрыть Deckhand";
@@ -977,3 +977,26 @@
 "Waiting for approval" = "Ждёт одобрения";
 
 /* == end == */
+
+/* Updates */
+"Software update" = "Обновление ПО";
+"Check for updates automatically" = "Проверять обновления автоматически";
+"Install updates automatically" = "Устанавливать обновления автоматически";
+"Deckhand relaunches by itself when nothing is open, running or timing." = "Deckhand перезапустится сам, когда ничего не открыто, не запущено и не идёт таймер.";
+"Updates" = "Обновления";
+"Deckhand is up to date." = "Установлена последняя версия Deckhand.";
+"Deckhand %@ is available." = "Доступен Deckhand %@.";
+"Deckhand %@ is available" = "Доступен Deckhand %@";
+"Installing %@…" = "Установка %@…";
+"Not checked yet." = "Ещё не проверялось.";
+"Last checked %@." = "Последняя проверка: %@.";
+"Install and Relaunch" = "Установить и перезапустить";
+"Check Now" = "Проверить";
+"Install Deckhand %@…" = "Установить Deckhand %@…";
+"Check for Updates…" = "Проверить обновления…";
+"Couldn’t check for updates. Check your connection and try again." = "Не удалось проверить обновления. Проверьте подключение и попробуйте ещё раз.";
+"Couldn’t download the update. Try again later." = "Не удалось скачать обновление. Попробуйте позже.";
+"The update’s signature doesn’t match, so it wasn’t installed." = "Подпись обновления не совпала, поэтому оно не установлено.";
+"The downloaded update is damaged, so it wasn’t installed." = "Скачанное обновление повреждено, поэтому оно не установлено.";
+"Deckhand can’t replace itself in this folder. Move Deckhand to Applications and try again." = "Deckhand не может заменить себя в этой папке. Перенесите Deckhand в «Программы» и попробуйте ещё раз.";
+"Move Deckhand to Applications, open it from there, and try again." = "Перенесите Deckhand в «Программы», откройте его оттуда и попробуйте ещё раз.";

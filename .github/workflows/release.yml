@@ -18,15 +18,52 @@ jobs:
           sudo xcode-select -s "$XCODE"
           SDK=$(xcrun --sdk macosx --show-sdk-version)
           [ "${SDK%%.*}" -ge 26 ] || { echo "error: macOS 26 SDK or newer required, got $SDK"; exit 1; }
+      - name: Import the release signing identity
+        env:
+          RELEASE_P12: ${{ secrets.RELEASE_P12 }}
+          RELEASE_P12_PASSWORD: ${{ secrets.RELEASE_P12_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/release.keychain-db"
+          security create-keychain -p "" "$KEYCHAIN"
+          security set-keychain-settings "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+          printf '%s' "$RELEASE_P12" | base64 -D > "$RUNNER_TEMP/release.p12"
+          security import "$RUNNER_TEMP/release.p12" -k "$KEYCHAIN" -P "$RELEASE_P12_PASSWORD" -T /usr/bin/codesign >/dev/null
+          rm "$RUNNER_TEMP/release.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
       - name: Build
-        run: NO_INSTALL=1 SIGN_ID=- ./scripts/bundle.sh release
+        run: NO_INSTALL=1 SIGN_ID="Deckhand Release Signing" ./scripts/bundle.sh release
+      - name: Check the version matches the tag
+        run: |
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" .build/release/Deckhand.app/Contents/Info.plist)
+          [ "v$VERSION" = "$GITHUB_REF_NAME" ] || { echo "error: bundle.sh says $VERSION, tag is $GITHUB_REF_NAME"; exit 1; }
       - name: Self-test
         run: .build/release/Deckhand.app/Contents/MacOS/Deckhand --selftest
       - name: Package
-        run: ditto -c -k --keepParent .build/release/Deckhand.app Deckhand.zip
+        env:
+          UPDATE_KEY: ${{ secrets.UPDATE_KEY }}
+        run: |
+          APP=.build/release/Deckhand.app
+          ditto -c -k --keepParent "$APP" Deckhand.zip
+          SIGN_ID="Deckhand Release Signing" ./scripts/make-dmg.sh "$APP" Deckhand.dmg
+          SIGNATURE=$(swift scripts/update-key.swift sign Deckhand.zip)
+          PUBLIC=$(sed -n 's/.*publicKey = "\(.*\)".*/\1/p' Sources/Deckhand/Features/Updates/Updater.swift)
+          swift scripts/update-key.swift verify Deckhand.zip "$SIGNATURE" "$PUBLIC" \
+            || { echo "error: UPDATE_KEY doesn't match the public key in Updater.swift"; exit 1; }
+          VERSION="${GITHUB_REF_NAME#v}"
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP/Contents/Info.plist")
+          MINIMUM=$(/usr/libexec/PlistBuddy -c "Print LSMinimumSystemVersion" "$APP/Contents/Info.plist")
+          python3 scripts/update-manifest.py "$VERSION" "$BUILD" "$MINIMUM" "$SIGNATURE" \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/Deckhand.zip" > update.json
+          cat update.json
       - name: Upload to the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" Deckhand.zip --clobber
+          NOTES="release-notes/$GITHUB_REF_NAME.md"
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            if [ -f "$NOTES" ]; then gh release create "$GITHUB_REF_NAME" --notes-file "$NOTES"
+            else gh release create "$GITHUB_REF_NAME" --generate-notes; fi
+          fi
+          gh release upload "$GITHUB_REF_NAME" Deckhand.dmg Deckhand.zip update.json --clobber

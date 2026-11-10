@@ -26,6 +26,7 @@ enum SelfTest {
         utilities(check)
         settings(check)
         localization(check)
+        updates(check)
         return ok
     }
 }

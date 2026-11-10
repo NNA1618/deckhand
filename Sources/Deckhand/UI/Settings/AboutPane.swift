@@ -4,6 +4,7 @@ import AppKit
 /// Version, links, system info for bug reports and acknowledgements. Owned by the Settings workstream.
 struct AboutPane: View {
     @State private var copied = false
+    @ObservedObject private var updater = Updater.shared
 
     var body: some View {
         SettingsPane(.about, showsHeader: false) {
@@ -27,6 +28,27 @@ struct AboutPane: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .accessibilityElement(children: .combine)
+            }
+
+            Section {
+                SettingsRow(String(localized: "Software update"), detail: updateDetail,
+                            icon: .symbol("arrow.down.circle.fill", .blue)) {
+                    updateButton
+                }
+                SettingsToggleRow(String(localized: "Check for updates automatically"), isOn: $updater.checksAutomatically)
+                SettingsToggleRow(String(localized: "Install updates automatically"),
+                                  detail: String(localized: "Deckhand relaunches by itself when nothing is open, running or timing."),
+                                  isOn: $updater.installsAutomatically)
+                    .disabled(!updater.checksAutomatically)
+                if let notes = updateNotes {
+                    Text(notes)
+                        .font(Theme.caption)
+                        .foregroundStyle(Theme.fgDim)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+            } header: {
+                Text("Updates")
             }
 
             Section {
@@ -63,6 +85,40 @@ struct AboutPane: View {
             try? await Task.sleep(for: .seconds(2))
             copied = false
         }
+    }
+}
+
+extension AboutPane {
+    private var updateDetail: String {
+        switch updater.state {
+        case .checking: return String(localized: "Checking…")
+        case .upToDate: return String(localized: "Deckhand is up to date.")
+        case .available(let m): return String(localized: "Deckhand \(m.version) is available.")
+        case .installing(let m): return String(localized: "Installing \(m.version)…")
+        case .failed(let message): return message
+        case .idle:
+            guard let date = updater.lastChecked else { return String(localized: "Not checked yet.") }
+            return String(localized: "Last checked \(date.formatted(.relative(presentation: .named))).")
+        }
+    }
+
+    @ViewBuilder private var updateButton: some View {
+        switch updater.state {
+        case .available(let m):
+            Button(String(localized: "Install and Relaunch")) { updater.install(m) }
+                .buttonStyle(.settings)
+        case .checking, .installing:
+            ProgressView().controlSize(.small)
+        default:
+            Button(String(localized: "Check Now")) { updater.check(userInitiated: true) }
+                .buttonStyle(.settings)
+        }
+    }
+
+    private var updateNotes: String? {
+        guard case .available(let m) = updater.state, let notes = m.notes else { return nil }
+        let language = Bundle.main.preferredLocalizations.first ?? "en"
+        return notes[language] ?? notes["en"]
     }
 }
 

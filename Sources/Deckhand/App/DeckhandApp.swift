@@ -54,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             TranslatorCoordinator.install(notch: notch)
             ClaudeNotices.install(notch: notch)
             CodexNotices.install(notch: notch)
+            Updater.shared.start(notch: notch)
         } else {
             Theme.flatForSnapshot = true
             Task.detached(priority: .utility) { ClaudeCLI.resolve() }
@@ -143,6 +144,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if NotchSettings.shared.activation.opensOnHover { menu.addItem(hoverMenuItem()) }
         menu.addItem(item(String(localized: "Settings…"), #selector(openSettings), key: ","))
         menu.addItem(item(String(localized: "About Deckhand"), #selector(openAbout)))
+        if let update = Updater.shared.available {
+            menu.addItem(item(String(localized: "Install Deckhand \(update.version)…"), #selector(menuInstallUpdate)))
+        } else {
+            menu.addItem(item(String(localized: "Check for Updates…"), #selector(menuCheckForUpdates)))
+        }
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: String(localized: "Quit Deckhand"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
@@ -310,6 +316,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openSettings() {
         SettingsWindow.show()
+    }
+
+    @objc private func menuInstallUpdate() {
+        afterMenuCloses {
+            if let update = Updater.shared.available { Updater.shared.install(update) }
+        }
+    }
+
+    @objc private func menuCheckForUpdates() {
+        afterMenuCloses {
+            SettingsWindow.show(.about)
+            Updater.shared.check(userInitiated: true)
+        }
     }
 
     @objc private func openAbout() {

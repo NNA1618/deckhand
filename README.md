@@ -87,14 +87,20 @@ English and Russian. Pick the language in Settings → General, or let it follow
 
 ## Install
 
-1. Download `Deckhand.zip` from [Releases](https://github.com/NNA1618/deckhand/releases) and move `Deckhand.app` to Applications.
-2. Deckhand is not notarized yet, so macOS blocks the first launch. Run this once in Terminal:
+1. Download `Deckhand.dmg` from [Releases](https://github.com/NNA1618/deckhand/releases/latest), open it and drag Deckhand to Applications.
+2. Open Deckhand. Deckhand isn't signed by Apple, so the first time macOS says it can't check the app: click Done,
+   then open System Settings → Privacy & Security, scroll down and click **Open Anyway** next to Deckhand.
+   Or run this once in Terminal instead:
 
    ```bash
    xattr -dr com.apple.quarantine /Applications/Deckhand.app
    ```
 
-3. Open Deckhand. Its icon appears in the menu bar.
+3. Deckhand's icon appears in the menu bar.
+
+Deckhand updates itself: it checks GitHub every few hours and installs a new version when nothing is open or running
+(Settings → About → Updates). Updates are verified with Deckhand's own Ed25519 signature, and they keep the
+permissions you gave Deckhand.
 
 ## Shortcuts
 

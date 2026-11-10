@@ -10,8 +10,8 @@ cd "$(dirname "$0")/.."
 CONFIG="${1:-debug}"
 APP_NAME="Deckhand"
 BUNDLE_ID="${BUNDLE_ID:-com.nna1618.deckhand}"
-VERSION="0.5.0"
-BUILD="6"
+VERSION="0.6.0"
+BUILD="7"
 
 echo "==> swift build ($CONFIG)"
 swift build -c "$CONFIG"
@@ -55,12 +55,16 @@ cat > "$APP_PATH/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
-# Sign with the stable local identity if it exists (keeps macOS permissions across rebuilds),
-# otherwise ad-hoc. Create the identity once with ./scripts/setup-signing.sh
+# Sign with a stable identity if there is one, otherwise ad-hoc. macOS ties permissions to the signature,
+# so a stable one keeps them across rebuilds and updates. Releases use "Deckhand Release Signing"
+# (./scripts/setup-release-keys.sh, maintainer only); contributors make "Deckhand Local Signing"
+# with ./scripts/setup-signing.sh.
 SIGN_ID="${SIGN_ID:-}"
-if [ -z "$SIGN_ID" ] && security find-certificate -c "Deckhand Local Signing" >/dev/null 2>&1; then
-    SIGN_ID="Deckhand Local Signing"
-fi
+for NAME in "Deckhand Release Signing" "Deckhand Local Signing"; do
+    if [ -z "$SIGN_ID" ] && security find-certificate -c "$NAME" >/dev/null 2>&1; then
+        SIGN_ID="$NAME"
+    fi
+done
 codesign --force --deep --sign "${SIGN_ID:--}" "$APP_PATH"
 echo "==> signed with ${SIGN_ID:-ad-hoc}"
 echo "==> built $APP_PATH"

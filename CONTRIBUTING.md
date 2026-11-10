@@ -36,3 +36,14 @@ Liquid Glass needs the macOS 26 SDK. On older SDKs the app falls back to a regul
 ## Pull requests
 
 One change per pull request, with a short description of what and why. Screenshots help for UI changes.
+
+## Releases (maintainer)
+
+- Once per Mac: `./scripts/setup-release-keys.sh` makes the release signing identity and the update key, keeps them
+  in the login keychain and sets the Actions secrets `RELEASE_P12`, `RELEASE_P12_PASSWORD` and `UPDATE_KEY`.
+  Don't run it again unless you mean to rotate the keys: installed copies only accept updates signed with the
+  current key and certificate.
+- Bump `VERSION` and `BUILD` in `scripts/bundle.sh`, add `release-notes/vX.Y.Z.md` (the GitHub release text) and
+  `release-notes/vX.Y.Z.update.json` (`{"en": "...", "ru": "..."}`, a short plain-text summary for Settings → About),
+  then push a `vX.Y.Z` tag. The Release workflow publishes `Deckhand.dmg`, `Deckhand.zip` and `update.json`.
+- `./scripts/make-dmg.sh` builds the disk image locally from `.build/release/Deckhand.app`.

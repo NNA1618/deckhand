@@ -52,7 +52,7 @@ enum SettingsSearch {
         case .permissions:
             return LocalizedTerm(key, "Screen Recording; Accessibility; Automation; Files and Folders; Login Items; Your data; Logs")
         case .about:
-            return LocalizedTerm(key, "Source code; Releases; Report a Problem; Copy System Info; Acknowledgements; License")
+            return LocalizedTerm(key, "Software update; Check for updates automatically; Install updates automatically; Source code; Releases; Report a Problem; Copy System Info; Acknowledgements; License")
         }
     }
 
@@ -74,7 +74,7 @@ enum SettingsSearch {
         case .keepAwake: return LocalizedTerm(key, "caffeinate; sleep; awake; Amphetamine; timer; countdown; pomodoro")
         case .shortcuts: return LocalizedTerm(key, "hotkey; keyboard; global shortcut; key binding")
         case .permissions: return LocalizedTerm(key, "privacy; permission; security; data; storage; TCC")
-        case .about: return LocalizedTerm(key, "GitHub; bug; issue; MIT; NNA1618; update; version")
+        case .about: return LocalizedTerm(key, "GitHub; bug; issue; MIT; NNA1618; update; updates; automatic; version")
         }
     }
 
