@@ -179,6 +179,9 @@ final class MediaRemoteAdapter {
         guard let library = Bundle.main.url(forResource: "DeckhandNowPlaying", withExtension: "dylib"),
               let script = Bundle.main.url(forResource: "now-playing", withExtension: "pl"),
               FileManager.default.isExecutableFile(atPath: PerlAdapterProcess.perl) else { return nil }
+        // A copy downloaded in a browser carries the quarantine flag on every file, and opening the app with
+        // "Open Anyway" clears it only for the app itself. Perl would then refuse to load the library.
+        for file in [library, script] { removexattr(file.path, "com.apple.quarantine", 0) }
         return MediaRemoteAdapter(makeProcess: { PerlAdapterProcess(script: script, library: library) })
     }
 
