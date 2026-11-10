@@ -80,12 +80,14 @@ final class Updater: ObservableObject {
         check(userInitiated: false)
     }
 
-    /// Nothing the user would lose by a relaunch: no open panel, timer, Keep Awake, capture or picker.
+    /// Nothing the user would lose by a relaunch: no open panel, timer, Keep Awake, capture or picker,
+    /// and no window besides the notch's own and the menu bar icon (Settings, the editor, pinned images,
+    /// the desktop cover).
     static var isIdle: Bool {
         guard let notch = shared.notch else { return false }
         return !notch.viewModel.isOpen && !Countdown.shared.isActive && !KeepAwake.shared.isActive
             && !ScreenshotService.isRunning && !ScreenColorPicker.isRunning
-            && NSApp.windows.allSatisfy { !($0.isVisible && $0.styleMask.contains(.titled)) }
+            && NSApp.windows.allSatisfy { !$0.isVisible || $0 is NotchWindow || $0.className.contains("StatusBar") }
     }
 
     func check(userInitiated: Bool) {
