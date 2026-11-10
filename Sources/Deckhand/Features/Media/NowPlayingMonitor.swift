@@ -4,6 +4,10 @@ import ImageIO
 
 /// Knows what is playing, for the Music tab and the badge at the closed notch.
 ///
+/// - First choice is the system's Now Playing, read through `MediaRemoteAdapter`: it covers every app
+///   that reports to macOS (music sites in any browser, Podcasts, VLC, IINA, Telegram…) and needs no
+///   permissions. The adapter is idle until something changes.
+/// - When the adapter can't run, or the system has nothing to show, the apps are asked directly:
 /// - Playing or not comes from facts, never guesses: Music and Spotify announce their state with
 ///   distributed notifications; for browsers and the Yandex Music app, CoreAudio says whether the app
 ///   is outputting sound (polled once a second while the monitor runs).
@@ -28,6 +32,8 @@ final class NowPlayingMonitor: ObservableObject {
     @Published private(set) var blocked: [MediaApp: Blocker] = [:]
     /// Set when the last control press couldn't be delivered.
     @Published private(set) var controlProblem: MediaController.Outcome?
+    /// Where the track comes from right now, for Settings → Music.
+    @Published private(set) var feed: NowPlayingRules.Feed = .off
 
     enum Blocker: Equatable { case automationNotAsked, automationDenied, accessibility }
 
@@ -37,7 +43,10 @@ final class NowPlayingMonitor: ObservableObject {
         return now
     }
 
-    var isRunning: Bool { loop != nil }
+    /// Whether anything watches: the system Now Playing, the apps, or both.
+    private(set) var isRunning = false
+    /// Whether the apps are being asked directly.
+    private var fallbackRunning: Bool { loop != nil }
 
     private struct Session {
         var info: NowPlaying
@@ -52,6 +61,8 @@ final class NowPlayingMonitor: ObservableObject {
         var trackKey = ""
         var tabURL: String?
         var lastTitleFetch: Date?
+        /// Reported by the system Now Playing, not found by asking the app.
+        var fromSystem = false
     }
 
     private var sessions: [MediaApp: Session] = [:]
@@ -75,6 +86,14 @@ final class NowPlayingMonitor: ObservableObject {
     private var subscriptions = Set<AnyCancellable>()
     private var workspaceObservers: [NSObjectProtocol] = []
     private let players = PlayerNotifications()
+    private lazy var adapter: MediaRemoteAdapter? = makeAdapter()
+    /// The system's latest track, playing or paused; nil when it has none.
+    private var systemTrack: SystemTrack?
+    private var adapterEverRan = false
+    /// The system track's artwork, decoded; it outlives a short gap between tracks.
+    private var systemImage: NSImage?
+    private var systemArtworkGeneration = 0
+    private var appNames: [String: String] = [:]
 
     private let settings = Settings.shared
     private let media = MediaSettings.shared
@@ -91,6 +110,9 @@ final class NowPlayingMonitor: ObservableObject {
             .store(in: &subscriptions)
         media.$hideDelay.dropFirst().receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.recompute() }
+            .store(in: &subscriptions)
+        media.$showArtwork.dropFirst().receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.showSystemArtwork() }
             .store(in: &subscriptions)
         observeSleep()
         players.onReport = { [weak self] app, info in self?.handle(app: app, info: info) }
@@ -123,12 +145,51 @@ final class NowPlayingMonitor: ObservableObject {
     private func settingsChanged() {
         if settings.showPlayingInNotch { wanted = true }
         for app in sessions.keys where !media.isOn(app) { sessions[app] = nil; clearArtwork(app); setBlocked(app, nil) }
+        // A source turned back on shows the system's track again without waiting for its next change
+        if isRunning, let track = shownSystemTrack, !sessions.values.contains(where: \.fromSystem) {
+            applySystem(track, artwork: .unchanged)
+        }
         update()
         recompute()
     }
 
     private func update() {
-        if shouldRun, loop == nil {
+        let run = shouldRun
+        if run != isRunning {
+            isRunning = run
+            if run {
+                adapter?.start()
+            } else {
+                adapter?.stop()
+                systemTrack = nil
+                systemImage = nil
+                systemArtworkGeneration += 1
+                removeSystemSession()
+            }
+        }
+        updateFallback()
+        recompute()
+    }
+
+    private var adapterAvailability: NowPlayingRules.AdapterAvailability {
+        switch adapter?.state {
+        case .running?: return .live
+        // The first start gets a moment before the apps are asked; later restarts don't hold the fallback up
+        case .launching? where !adapterEverRan: return .starting
+        default: return .unavailable
+        }
+    }
+
+    /// The system's track, if it is one to show (its app's source isn't turned off).
+    private var shownSystemTrack: SystemTrack? {
+        systemTrack.flatMap { media.isOn($0.app) ? $0 : nil }
+    }
+
+    /// Starts or stops asking the apps directly, the fallback for when the system Now Playing can't help.
+    private func updateFallback() {
+        let needed = isRunning && NowPlayingRules.usesFallback(adapter: adapterAvailability,
+                                                               systemHasTrack: shownSystemTrack != nil)
+        if needed, loop == nil {
             refreshRunningApps()
             players.start()
             primePlayers()
@@ -140,22 +201,23 @@ final class NowPlayingMonitor: ObservableObject {
                     try? await Task.sleep(for: .seconds(1), tolerance: .milliseconds(250))
                 }
             }
-        } else if !shouldRun, loop != nil {
+        } else if !needed, loop != nil {
             loop?.cancel()
             loop = nil
             players.stop()
             // Missed notifications would leave stale states behind, so start over next time
-            sessions = [:]
-            artwork = [:]
+            for (app, session) in sessions where !session.fromSystem {
+                sessions[app] = nil
+                clearArtwork(app)
+            }
             artworkRequested = [:]
-            blocked = [:]
-            recompute()
+            if !blocked.isEmpty { blocked = [:] }
         }
     }
 
     /// Asks for an immediate update, e.g. after Automation was allowed.
     func refresh() {
-        guard isRunning else { return }
+        guard fallbackRunning else { return }
         permissions = [:]
         backoff = [:]
         for app in sessions.keys { sessions[app]?.lastTitleFetch = nil }
@@ -241,7 +303,7 @@ final class NowPlayingMonitor: ObservableObject {
     }
 
     private func handle(app: MediaApp, info: [String: Any]) {
-        guard isRunning, media.isOn(app), let report = PlayerReport.parse(info, app: app, at: Date()) else { return }
+        guard fallbackRunning, media.isOn(app), let report = PlayerReport.parse(info, app: app, at: Date()) else { return }
         guard report.state != .stopped else {
             sessions[app] = nil
             clearArtwork(app)
@@ -268,15 +330,9 @@ final class NowPlayingMonitor: ObservableObject {
         session.info = info
         session.stateFromPlayer = true
         session.holdUntil = nil
-        if info.isPlaying {
-            if !wasPlaying { session.startedAt = date }
-            session.stoppedAt = nil
-        } else if wasPlaying {
-            session.stoppedAt = date
-        } else if session.stoppedAt == nil {
-            // Found paused: it never played while Deckhand watched, so there is no badge to keep
-            session.stoppedAt = .distantPast
-        }
+        if info.isPlaying, !wasPlaying { session.startedAt = date }
+        session.stoppedAt = NowPlayingRules.stoppedAt(wasPlaying: wasPlaying, isPlaying: info.isPlaying,
+                                                      stoppedAt: session.stoppedAt, now: date)
         if session.trackKey != report.key {
             session.trackKey = report.key
             clearArtwork(app)
@@ -284,6 +340,111 @@ final class NowPlayingMonitor: ObservableObject {
         sessions[app] = session
         if artwork[app] == nil { fetchArtwork(app, key: report.key, url: report.artworkURL) }
         recompute()
+    }
+
+    // MARK: - System Now Playing
+
+    private func makeAdapter() -> MediaRemoteAdapter? {
+        guard !AppPaths.isSnapshot, let adapter = MediaRemoteAdapter.bundled() else { return nil }
+        adapter.onLine = { [weak self] line in self?.handle(line: line) }
+        adapter.onStateChange = { [weak self] state in self?.adapterChanged(state) }
+        return adapter
+    }
+
+    private func adapterChanged(_ state: MediaRemoteAdapter.State) {
+        if state == .running { adapterEverRan = true }
+        if state != .running, systemTrack != nil {
+            // A dead adapter says nothing more: its last track would go stale
+            systemTrack = nil
+            removeSystemSession()
+        }
+        updateFallback()
+        recompute()
+    }
+
+    private func handle(line: AdapterLine) {
+        guard isRunning else { return }
+        switch line {
+        case .hello, .error:
+            return
+        case .idle:
+            systemTrack = nil
+            systemArtworkGeneration += 1
+            systemImage = nil
+            removeSystemSession()
+        case .track(let track, let artwork):
+            systemTrack = track
+            if media.isOn(track.app) {
+                applySystem(track, artwork: artwork)
+            } else {
+                removeSystemSession()
+            }
+        }
+        updateFallback()
+        recompute()
+    }
+
+    private func applySystem(_ track: SystemTrack, artwork update: AdapterLine.Artwork) {
+        let date = Date()
+        let app = track.app
+        // One system session at a time: the app that plays may have changed
+        for (other, session) in sessions where session.fromSystem && other != app {
+            sessions[other] = nil
+            clearArtwork(other)
+        }
+        let previous = sessions[app].flatMap { $0.fromSystem ? $0 : nil }
+        var session = previous ?? Session(info: .empty, startedAt: date)
+        session.fromSystem = true
+        session.info = track.nowPlaying(appName: appName(of: track.bundleID))
+        session.stoppedAt = NowPlayingRules.stoppedAt(wasPlaying: previous?.info.isPlaying, isPlaying: track.isPlaying,
+                                                      stoppedAt: previous?.stoppedAt, now: date)
+        if track.isPlaying, previous?.info.isPlaying != true { session.startedAt = date }
+        session.trackKey = track.key
+        sessions[app] = session
+
+        // The adapter sends artwork only when it changes (two songs of one album share it), so the
+        // last image stays until it says otherwise
+        switch update {
+        case .unchanged:
+            break
+        case .none:
+            systemArtworkGeneration += 1
+            systemImage = nil
+        case .image(let data):
+            systemArtworkGeneration += 1
+            let generation = systemArtworkGeneration
+            Task {
+                guard let thumb = await Task.detached(priority: .utility, operation: { Artwork.thumbnail(data) }).value,
+                      systemArtworkGeneration == generation else { return }
+                systemImage = NSImage(cgImage: thumb.image, size: NSSize(width: thumb.image.width, height: thumb.image.height))
+                showSystemArtwork()
+            }
+        }
+        showSystemArtwork()
+    }
+
+    private func showSystemArtwork() {
+        guard let (app, _) = sessions.first(where: { $0.value.fromSystem }) else { return }
+        let image = media.showArtwork ? systemImage : nil
+        if artwork[app] !== image { artwork[app] = image }
+    }
+
+    private func removeSystemSession() {
+        for (app, session) in sessions where session.fromSystem {
+            sessions[app] = nil
+            clearArtwork(app)
+        }
+    }
+
+    /// The name an app shows in Finder, for apps Deckhand has no source of its own for.
+    private func appName(of bundleID: String) -> String? {
+        guard !bundleID.isEmpty else { return nil }
+        if let cached = appNames[bundleID] { return cached }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return nil }
+        var name = FileManager.default.displayName(atPath: url.path)
+        if name.hasSuffix(".app") { name.removeLast(4) }
+        appNames[bundleID] = name
+        return name
     }
 
     // MARK: - Asking apps
@@ -306,10 +467,10 @@ final class NowPlayingMonitor: ObservableObject {
         Task {
             defer {
                 fetching.remove(app)
-                if fetchAgain.remove(app) != nil, isRunning { fetchPlayerDetails(app) }
+                if fetchAgain.remove(app) != nil, fallbackRunning { fetchPlayerDetails(app) }
             }
-            guard await permission(app) == .allowed, isRunning,
-                  let report = await MediaScripts.playerDetails(app), isRunning,
+            guard await permission(app) == .allowed, fallbackRunning,
+                  let report = await MediaScripts.playerDetails(app), fallbackRunning,
                   // A notification that arrived meanwhile is newer than this answer
                   reports[app, default: 0] == seen else { return }
             if report.state == .stopped {
@@ -426,6 +587,27 @@ final class NowPlayingMonitor: ObservableObject {
     private func control(_ command: MediaScripts.Command) {
         let app = selected.app
         let saved = app.flatMap { sessions[$0] }
+        if let adapter, adapter.isRunning, saved?.fromSystem == true {
+            // The system Now Playing app gets the command; its next report shows the new state
+            switch command {
+            case .playPause: adapter.send(.toggle)
+            case .next: adapter.send(.next)
+            case .previous: adapter.send(.previous)
+            }
+            controlProblem = nil
+            if command == .playPause, let app, var session = saved {
+                let date = Date()
+                let wasPlaying = session.info.isPlaying
+                session.info.position = session.info.position(at: date)
+                session.info.positionDate = session.info.position == nil ? nil : date
+                session.info.isPlaying.toggle()
+                session.stoppedAt = NowPlayingRules.stoppedAt(wasPlaying: wasPlaying, isPlaying: session.info.isPlaying,
+                                                              stoppedAt: session.stoppedAt, now: date)
+                sessions[app] = session
+                recompute()
+            }
+            return
+        }
         if command == .playPause, let app, var session = saved {
             let date = Date()
             session.info.isPlaying.toggle()
@@ -495,6 +677,10 @@ final class NowPlayingMonitor: ObservableObject {
         if sources != list { sources = list }
         if let pinned, sessions[pinned] == nil { self.pinned = nil }
 
+        let feed = NowPlayingRules.feed(running: isRunning, adapter: adapterAvailability,
+                                        showsFallbackTrack: current.map { !$0.fromSystem && $0.info.isDisplayable } ?? false)
+        if self.feed != feed { self.feed = feed }
+
         let shows = media.enabled && settings.showPlayingInNotch && isRunning && info.isDisplayable
             && NowPlayingRules.showsBadge(isPlaying: info.isPlaying, stoppedAt: current?.stoppedAt, now: date,
                                           hideDelay: media.hideDelay)
@@ -539,7 +725,7 @@ final class NowPlayingMonitor: ObservableObject {
         for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
             workspaceObservers.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
-                    guard let self, self.isRunning else { return }
+                    guard let self, self.fallbackRunning else { return }
                     self.refreshRunningApps()
                 }
             })

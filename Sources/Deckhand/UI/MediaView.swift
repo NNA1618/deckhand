@@ -64,7 +64,7 @@ struct MediaView: View {
     private func details(_ item: NowPlaying) -> some View {
         if let app = item.app {
             HStack(spacing: 6) {
-                AppIcon(app: app).frame(width: 14, height: 14).foregroundColor(Theme.fgMute)
+                AppIcon(app: app, bundleID: item.bundleID).frame(width: 14, height: 14).foregroundColor(Theme.fgMute)
                 Text(item.sourceDetail)
                     .font(Theme.caption).foregroundColor(Theme.fgMute)
                     .lineLimit(1).truncationMode(.middle)
@@ -93,7 +93,13 @@ struct MediaView: View {
         } else {
             Text("Nothing is playing")
                 .font(.system(size: 18, weight: .semibold)).foregroundColor(Theme.fg)
-            Text("Apple Music, Spotify, Yandex Music and music sites in Safari, Chrome and Edge show up here.")
+            Group {
+                if monitor.feed == .system {
+                    Text("Music, podcasts and videos from any app that reports to macOS show up here.")
+                } else {
+                    Text("Apple Music, Spotify, Yandex Music and music sites in Safari, Chrome and Edge show up here.")
+                }
+            }
                 .font(Theme.caption).foregroundColor(Theme.fgMute)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 4)
@@ -269,7 +275,7 @@ private struct SourcePicker: View {
                 let active = item.app == selected
                 Button { pick(item.app) } label: {
                     HStack(spacing: 5) {
-                        if let app = item.app { AppIcon(app: app).frame(width: 13, height: 13) }
+                        if let app = item.app { AppIcon(app: app, bundleID: item.bundleID).frame(width: 13, height: 13) }
                         Text(item.source).lineLimit(1)
                         if item.isPlaying {
                             Image(systemName: "speaker.wave.2.fill").font(.system(size: 9))
@@ -291,9 +297,11 @@ private struct SourcePicker: View {
 /// The app's own icon, or a symbol when it isn't installed.
 struct AppIcon: View {
     let app: MediaApp
+    /// The app the system Now Playing named, which wins over `app` (e.g. Podcasts for `.other`).
+    var bundleID: String?
 
     var body: some View {
-        if let icon = Self.icon(for: app) {
+        if let icon = bundleID.flatMap(Self.icon(forBundleID:)) ?? Self.icon(for: app) {
             Image(nsImage: icon).resizable().aspectRatio(contentMode: .fit)
         } else {
             Image(systemName: "music.note").resizable().aspectRatio(contentMode: .fit)
@@ -302,11 +310,22 @@ struct AppIcon: View {
 
     @MainActor private static var cache: [MediaApp: NSImage] = [:]
 
+    @MainActor private static var bundleCache: [String: NSImage] = [:]
+
     @MainActor static func icon(for app: MediaApp) -> NSImage? {
         if let cached = cache[app] { return cached }
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.bundleID) else { return nil }
+        guard !app.bundleID.isEmpty,
+              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.bundleID) else { return nil }
         let icon = NSWorkspace.shared.icon(forFile: url.path)
         cache[app] = icon
+        return icon
+    }
+
+    @MainActor static func icon(forBundleID id: String) -> NSImage? {
+        if let cached = bundleCache[id] { return cached }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return nil }
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        bundleCache[id] = icon
         return icon
     }
 }

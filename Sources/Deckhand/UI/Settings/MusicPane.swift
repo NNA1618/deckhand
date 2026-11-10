@@ -7,6 +7,7 @@ import ApplicationServices
 struct MusicPane: View {
     @ObservedObject private var media = MediaSettings.shared
     @ObservedObject private var settings = Settings.shared
+    @ObservedObject private var monitor = NowPlayingMonitor.shared
     @StateObject private var status = MusicSourceStatus()
 
     var body: some View {
@@ -17,6 +18,7 @@ struct MusicPane: View {
                                 value: settings.showPlayingInNotch ? String(localized: "On") : String(localized: "Off"),
                                 to: .section(.closedNotch))
                     .disabled(!media.enabled)
+                FeedRow(feed: monitor.feed)
             } footer: {
                 SettingsFooter("Shows the track in the Music tab and at the notch. When this is off, Deckhand checks nothing.")
             }
@@ -42,7 +44,7 @@ struct MusicPane: View {
                     }
                 }
                 SettingsToggleRow(String(localized: "Album artwork"),
-                                  detail: String(localized: "From Apple Music and Spotify, when they allow it"),
+                                  detail: String(localized: "From the player, when it provides one"),
                                   isOn: $media.showArtwork)
             } header: {
                 Text(String(localized: "music.display", defaultValue: "Display"))
@@ -78,6 +80,33 @@ struct MusicPane: View {
     }
 }
 
+/// Which source the track comes from right now: the system Now Playing, or the apps asked directly.
+private struct FeedRow: View {
+    let feed: NowPlayingRules.Feed
+
+    var body: some View {
+        SettingsRow(String(localized: "Track source"), detail: detail) {
+            StatusChip(label, kind: feed == .system ? .good : .neutral)
+        }
+    }
+
+    private var label: String {
+        switch feed {
+        case .system: return String(localized: "System Now Playing")
+        case .fallback: return String(localized: "Fallback")
+        case .off: return String(localized: "Not running")
+        }
+    }
+
+    private var detail: String {
+        switch feed {
+        case .system: return String(localized: "Every app that reports to macOS Now Playing")
+        case .fallback: return String(localized: "Deckhand asks the apps below directly")
+        case .off: return String(localized: "Starts while the badge is on or the Music tab is open")
+        }
+    }
+}
+
 /// One source: its icon, what it needs, its permission, a button to fix it, and the switch.
 private struct SourceRow: View {
     let app: MediaApp
@@ -86,7 +115,7 @@ private struct SourceRow: View {
 
     var body: some View {
         SettingsRow(app.displayName, detail: String(localized: need), icon: icon) {
-            if isOn {
+            if isOn, app.kind != .other {
                 PermissionBadge(state: state)
                 action
             }
@@ -98,7 +127,8 @@ private struct SourceRow: View {
     }
 
     private var icon: SettingsRowIcon {
-        AppIcon.icon(for: app).map(SettingsRowIcon.image) ?? .symbol("music.note", .pink)
+        if app == .other { return .symbol("square.grid.2x2", .indigo) }
+        return AppIcon.icon(for: app).map(SettingsRowIcon.image) ?? .symbol("music.note", .pink)
     }
 
     private var need: String.LocalizationValue {
@@ -106,6 +136,7 @@ private struct SourceRow: View {
         case .player: return "Controls and artwork need Automation"
         case .yandexApp: return "Reads the window title with Accessibility"
         case .browser: return "Tab titles while sound plays, with Automation"
+        case .other: return "Podcasts, VLC, IINA and more, through macOS Now Playing"
         }
     }
 
