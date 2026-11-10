@@ -286,6 +286,7 @@ struct QuickTogglesCard: View {
 /// Home tab control: pick a length to start, the active one again or × to stop.
 struct KeepAwakeCard: View {
     @ObservedObject private var awake = KeepAwake.shared
+    @ObservedObject private var lid = KeepAwake.shared.lid
 
     var body: some View {
         HomeCard {
@@ -313,7 +314,8 @@ struct KeepAwakeCard: View {
 
     private func status(now: Date) -> String {
         guard awake.isActive else { return String(localized: "Off") }
-        if awake.endsAt == nil { return String(localized: "On, no time limit") }
-        return String(localized: "\(awake.remainingDescription(now: now)) left")
+        let time = awake.endsAt == nil ? String(localized: "On, no time limit")
+                                       : String(localized: "\(awake.remainingDescription(now: now)) left")
+        return lid.isOn ? "\(time) · \(String(localized: "Lid closed: on"))" : time
     }
 }

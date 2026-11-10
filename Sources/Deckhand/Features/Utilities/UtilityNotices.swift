@@ -35,6 +35,11 @@ enum UtilityNotices {
             notch?.withdrawToast(symbol: "timer", text: String(localized: "Time is up"))
         }
 
+        // Not behind the Keep Awake notice switch: the Mac sleeping with the lid closed again is worth knowing
+        KeepAwake.shared.lid.onBatteryOff = { [weak notch] percent in
+            notch?.showToast(symbol: "battery.25percent", text: String(localized: "Lid closed: sleep is back on, battery \(percent)%"))
+        }
+
         KeepAwake.shared.onEnd = { [weak notch] reason in
             guard Settings.shared.noticeKeepAwake else { return }
             switch reason {

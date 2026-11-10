@@ -130,7 +130,6 @@
 "Off" = "Выключено";
 "Awake for %@" = "«Не спать»: %@";
 "Default length" = "Длительность по умолчанию";
-"Stops the Mac from sleeping when idle. With the lid closed it still sleeps unless an external display, keyboard and power are connected." = "Не даёт Mac уснуть от бездействия. С закрытой крышкой он всё равно уснёт, если не подключены внешний монитор, клавиатура и питание.";
 "Charging, %lld%%" = "Заряжается, %lld%%";
 "Battery %lld%%" = "Батарея %lld%%";
 
@@ -975,6 +974,26 @@
 "The Codex hooks file has an unexpected layout, so it was left as is." = "У файла хуков Codex неожиданная структура, поэтому он оставлен как есть.";
 "The Codex hooks file is not valid JSON, so it was left as is." = "Файл хуков Codex — не корректный JSON, поэтому он оставлен как есть.";
 "Waiting for approval" = "Ждёт одобрения";
+
+/* == lid-awake == */
+"Stops the Mac from sleeping when idle. With the lid closed it still sleeps, unless the setting below is on or an external display, keyboard and power are connected." = "Не даёт Mac уснуть от бездействия. С закрытой крышкой он всё равно уснёт, если не включена настройка ниже или не подключены внешний монитор, клавиатура и питание.";
+"With the Lid Closed" = "С закрытой крышкой";
+"Closed-lid helper" = "Помощник для закрытой крышки";
+"Installed. Lets you run only the two pmset commands." = "Установлен. Разрешает только две команды pmset.";
+"Asks for an administrator password once." = "Один раз попросит пароль администратора.";
+"Remove the closed-lid helper?" = "Удалить помощник для закрытой крышки?";
+"macOS asks for an administrator password. The Mac then sleeps with the lid closed again." = "macOS попросит пароль администратора. После этого Mac снова будет засыпать с закрытой крышкой.";
+"Also when the lid is closed" = "И с закрытой крышкой";
+"Turns sleep off only while Keep Awake is on." = "Сон выключается, только пока работает «Не спать».";
+"On battery, sleep again below" = "От аккумулятора снова засыпать ниже";
+"Lid closed: on" = "Закрытая крышка: включено";
+"Lid closed: off" = "Закрытая крышка: выключено";
+"Sleep is off, not by Deckhand" = "Сон выключен, но не Deckhand";
+"The helper is a rule in /etc/sudoers.d/deckhand that lets your account run “pmset -a disablesleep 1” and “pmset -a disablesleep 0” without a password, nothing else. Sleep comes back when Keep Awake ends, when Deckhand quits, on shutdown, and on the next launch after a crash." = "Помощник — это правило в /etc/sudoers.d/deckhand, которое разрешает вашей учётной записи запускать без пароля «pmset -a disablesleep 1» и «pmset -a disablesleep 0» и больше ничего. Сон возвращается, когда «Не спать» выключается, когда Deckhand закрывается, при выключении Mac и при следующем запуске после сбоя.";
+"Lid closed: sleep is back on, battery %lld%%" = "Закрытая крышка: сон снова включён, заряд %lld%%";
+"This account name can't be used in a sudoers rule." = "Это имя учётной записи нельзя использовать в правиле sudoers.";
+"Deckhand wants to let Keep Awake turn sleep off while the lid is closed." = "Deckhand хочет разрешить «Не спать» выключать сон при закрытой крышке.";
+"Deckhand wants to remove its Keep Awake rule for the closed lid." = "Deckhand хочет удалить своё правило «Не спать» для закрытой крышки.";
 
 /* == end == */
 

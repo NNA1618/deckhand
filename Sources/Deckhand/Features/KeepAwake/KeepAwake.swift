@@ -6,7 +6,8 @@ import Combine
 ///
 /// Holds power assertions that stop idle sleep (and optionally display sleep).
 /// They are released when the session ends or Deckhand quits, so nothing outlives the app.
-/// A closed lid still puts the Mac to sleep unless an external display is connected.
+/// A closed lid still puts the Mac to sleep unless an external display is connected, or `LidSleep`
+/// stops it ("Also when the lid is closed"); it ends together with the session.
 @MainActor
 final class KeepAwake: ObservableObject {
     static let shared = KeepAwake()
@@ -28,6 +29,10 @@ final class KeepAwake: ObservableObject {
 
     /// Called when a session ends by itself, for the notice in the notch.
     var onEnd: (EndReason) -> Void = { _ in }
+    /// Closed-lid sleep for sessions with "Also when the lid is closed". The self-test puts in one with a fake runner.
+    var lid: LidSleep = .shared
+    /// The battery reading used for the closed-lid floor; the self-test replaces it.
+    var battery: () -> BatteryMonitor.State? = { BatteryMonitor.read() }
 
     private var systemAssertion: IOPMAssertionID = 0
     private var displayAssertion: IOPMAssertionID = 0
@@ -41,11 +46,20 @@ final class KeepAwake: ObservableObject {
         Settings.shared.$keepAwakeAllowDisplaySleep.dropFirst().sink { [weak self] allow in
             self?.updateDisplayAssertion(allowDisplaySleep: allow)
         }.store(in: &subscriptions)
+        // The lid switch and its battery floor also apply to a running session
+        UtilitySettings.shared.$keepAwakeLidClosed.dropFirst().sink { [weak self] on in
+            self?.updateLid(on: on)
+        }.store(in: &subscriptions)
+        UtilitySettings.shared.$keepAwakeLidBatteryFloor.dropFirst().sink { [weak self] floor in
+            guard let self, self.isActive else { return }
+            self.lid.batteryChanged(to: self.battery(), floor: floor)
+        }.store(in: &subscriptions)
     }
 
     /// Starts a session or replaces the current one.
     func start(for duration: TimeInterval?) {
-        release()
+        // A new length keeps the lid setting as it is instead of turning it on and off again
+        release(keepingLid: true)
         guard Self.create(kIOPMAssertionTypePreventUserIdleSystemSleep, &systemAssertion) else {
             Log.info("keep awake: assertion failed")
             release()
@@ -55,6 +69,7 @@ final class KeepAwake: ObservableObject {
         isActive = true
         self.duration = duration
         endsAt = duration.map { Date().addingTimeInterval($0) }
+        updateLid(on: UtilitySettings.shared.keepAwakeLidClosed)
         if let duration {
             endTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(duration))
@@ -79,10 +94,20 @@ final class KeepAwake: ObservableObject {
 
     /// Turns the session off when the battery drops below the floor from Settings.
     func batteryChanged(from old: BatteryMonitor.State?, to new: BatteryMonitor.State) {
-        guard isActive,
-              Self.shouldStop(previous: old, now: new, floor: UtilitySettings.shared.keepAwakeBatteryFloor) else { return }
+        guard isActive else { return }
+        lid.batteryChanged(to: new, floor: UtilitySettings.shared.keepAwakeLidBatteryFloor)
+        guard Self.shouldStop(previous: old, now: new, floor: UtilitySettings.shared.keepAwakeBatteryFloor) else { return }
         stop()
         onEnd(.lowBattery(percent: new.percent))
+    }
+
+    /// Turns closed-lid sleep off for a running session when `on`, and back on otherwise.
+    private func updateLid(on: Bool) {
+        if isActive && on {
+            lid.turnOn(battery: battery(), floor: UtilitySettings.shared.keepAwakeLidBatteryFloor)
+        } else {
+            lid.turnOff()
+        }
     }
 
     private func updateDisplayAssertion(allowDisplaySleep: Bool) {
@@ -100,7 +125,9 @@ final class KeepAwake: ObservableObject {
         IOPMAssertionCreateWithName(type as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn), reason, &id) == kIOReturnSuccess
     }
 
-    private func release() {
+    /// Every way a session ends comes through here, so closed-lid sleep always comes back with it.
+    private func release(keepingLid: Bool = false) {
+        if !keepingLid { lid.turnOff() }
         endTask?.cancel()
         endTask = nil
         if systemAssertion != 0 { IOPMAssertionRelease(systemAssertion); systemAssertion = 0 }
