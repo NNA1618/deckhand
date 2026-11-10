@@ -213,6 +213,16 @@ extension SelfTest {
     }
 
     private static func captureOptions(_ check: Check) {
+        let picked = ScreenColorPicker.pixel(at: CGPoint(x: 0, y: 900), in: CGSize(width: 1440, height: 900),
+                                             pixels: CGSize(width: 2880, height: 1800))
+        check(picked.x == 0 && picked.y == 0, "picker top left is the first pixel")
+        let corner = ScreenColorPicker.pixel(at: CGPoint(x: 1440, y: 0), in: CGSize(width: 1440, height: 900),
+                                             pixels: CGSize(width: 2880, height: 1800))
+        check(corner.x == 2879 && corner.y == 1799, "picker bottom right stays inside the image")
+        let mid = ScreenColorPicker.pixel(at: CGPoint(x: 10.6, y: 899.2), in: CGSize(width: 1440, height: 900),
+                                          pixels: CGSize(width: 2880, height: 1800))
+        check(mid.x == 21 && mid.y == 1, "picker maps points to retina pixels")
+        check(ScreenColorPicker.timeout <= 120, "picker gives up by itself")
         check(OCROptions.join(["Hello", "  world  ", ""], keepLineBreaks: true) == "Hello\nworld", "ocr keeps line breaks")
         check(OCROptions.join(["Some exam-", "ple text", "Next"], keepLineBreaks: false) == "Some example text Next", "ocr joins lines and hyphenation")
         check(OCROptions.defaultLanguages(preferred: ["ru-RU", "en-GB"]) == ["ru-RU", "en-US"], "ocr default languages from the system")

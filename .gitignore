@@ -6,3 +6,4 @@ xcuserdata/
 DerivedData/
 *.zip
 *.dmg
+.claude/worktrees/

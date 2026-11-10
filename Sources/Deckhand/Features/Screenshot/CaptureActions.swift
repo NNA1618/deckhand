@@ -17,8 +17,6 @@ enum CaptureActions {
     /// capture started while it was open doesn't catch it half closed.
     static let panelCloseDelay: TimeInterval = 0.5
     private static var delayedPending = false
-    /// Kept alive while the system color sampler is up.
-    private static var sampler: NSColorSampler?
 
     static func captureArea(notch: NotchController) { capture(.area, notch: notch) }
 
@@ -134,23 +132,22 @@ enum CaptureActions {
     }
 
     static func pickColor(notch: NotchController) {
-        guard sampler == nil, !ScreenshotService.isRunning, !delayedPending else { return }
+        guard !ScreenColorPicker.isRunning, !ScreenshotService.isRunning, !delayedPending else { return }
         notch.close()
+        guard ScreenRecordingPermission.isGranted else {
+            ScreenRecordingPermission.explainMissing()
+            return
+        }
         notch.suspendHover(true)
-        let picker = NSColorSampler()
-        sampler = picker
-        picker.show { [weak notch] color in
-            MainActor.assumeIsolated {
-                sampler = nil
-                notch?.suspendHover(false)
-                guard let rgb = color?.usingColorSpace(.sRGB) else { return }
-                let format = CaptureSettings.shared.colorFormat
-                let (r, g, b) = (Double(rgb.redComponent), Double(rgb.greenComponent), Double(rgb.blueComponent))
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(format.string(red: r, green: g, blue: b), forType: .string)
-                if Settings.shared.noticeColor {
-                    notch?.showToast(symbol: "eyedropper", text: format.notice(red: r, green: g, blue: b))
-                }
+        ScreenColorPicker.show { [weak notch] color in
+            notch?.suspendHover(false)
+            guard let rgb = color?.usingColorSpace(.sRGB) else { return }
+            let format = CaptureSettings.shared.colorFormat
+            let (r, g, b) = (Double(rgb.redComponent), Double(rgb.greenComponent), Double(rgb.blueComponent))
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(format.string(red: r, green: g, blue: b), forType: .string)
+            if Settings.shared.noticeColor {
+                notch?.showToast(symbol: "eyedropper", text: format.notice(red: r, green: g, blue: b))
             }
         }
     }
