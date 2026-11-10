@@ -10,6 +10,7 @@ permissions:
 jobs:
   release:
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Use the newest Xcode
@@ -30,9 +31,18 @@ jobs:
           printf '%s' "$RELEASE_P12" | base64 -D > "$RUNNER_TEMP/release.p12"
           security import "$RUNNER_TEMP/release.p12" -k "$KEYCHAIN" -P "$RELEASE_P12_PASSWORD" -T /usr/bin/codesign >/dev/null
           rm "$RUNNER_TEMP/release.p12"
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN" >/dev/null
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN" >/dev/null
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security default-keychain -s "$KEYCHAIN"
+          security set-keychain-settings -lut 7200 "$KEYCHAIN"
+          security find-identity -p codesigning "$KEYCHAIN"
+          # Fail fast instead of hanging on a keychain prompt nobody can answer
+          echo test > "$RUNNER_TEMP/probe"
+          ( codesign --sign "Deckhand Release Signing" --keychain "$KEYCHAIN" "$RUNNER_TEMP/probe" & PID=$!; \
+            for _ in $(seq 60); do kill -0 $PID 2>/dev/null || break; sleep 1; done; \
+            if kill -0 $PID 2>/dev/null; then kill $PID; echo "error: codesign hangs"; exit 1; fi; wait $PID )
       - name: Build
+        timeout-minutes: 15
         run: NO_INSTALL=1 SIGN_ID="Deckhand Release Signing" ./scripts/bundle.sh release
       - name: Check the version matches the tag
         run: |
