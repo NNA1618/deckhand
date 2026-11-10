@@ -1,18 +1,21 @@
 import Foundation
 
 /// An app Deckhand can tell is playing. Each one is a source the user can turn off in Settings → Music.
+/// `.other` is any other app that reports to the system's Now Playing (Podcasts, VLC, IINA, Telegram…);
+/// only the system Now Playing can see those.
 enum MediaApp: String, CaseIterable, Identifiable, Sendable {
-    case music, spotify, yandexMusic, safari, chrome, edge
+    case music, spotify, yandexMusic, safari, chrome, edge, other
 
     var id: String { rawValue }
 
-    enum Kind: Sendable { case player, yandexApp, browser }
+    enum Kind: Sendable { case player, yandexApp, browser, other }
 
     var kind: Kind {
         switch self {
         case .music, .spotify: return .player
         case .yandexMusic: return .yandexApp
         case .safari, .chrome, .edge: return .browser
+        case .other: return .other
         }
     }
 
@@ -25,6 +28,7 @@ enum MediaApp: String, CaseIterable, Identifiable, Sendable {
         case .safari: return "com.apple.Safari"
         case .chrome: return "com.google.Chrome"
         case .edge: return "com.microsoft.edgemac"
+        case .other: return ""
         }
     }
 
@@ -36,18 +40,19 @@ enum MediaApp: String, CaseIterable, Identifiable, Sendable {
         case .safari: return "Safari"
         case .chrome: return "Google Chrome"
         case .edge: return "Microsoft Edge"
+        case .other: return String(localized: "Other apps")
         }
     }
 
     /// Sends Apple Events for the track, artwork and controls (Automation permission).
-    var usesAppleEvents: Bool { kind != .yandexApp }
+    var usesAppleEvents: Bool { kind != .yandexApp && kind != .other }
 
     /// The app a bundle identifier belongs to. Helper processes (`com.microsoft.edgemac.helper`,
     /// `com.google.Chrome.helper.renderer`) belong to the app whose identifier they extend.
     /// Safari plays sound through WebKit's shared GPU process, which has no app of its own.
     static func owner(ofBundleID id: String) -> MediaApp? {
         if id.hasPrefix("com.apple.WebKit.") || id.hasPrefix("com.apple.Safari.") { return .safari }
-        for app in allCases where id == app.bundleID || id.hasPrefix(app.bundleID + ".") {
+        for app in allCases where app != .other && (id == app.bundleID || id.hasPrefix(app.bundleID + ".")) {
             return app
         }
         // The Yandex Music app has shipped under more than one identifier; its browser must not match.
@@ -117,16 +122,20 @@ struct NowPlaying: Equatable, Sendable {
     /// Seconds at `positionDate`.
     var position: Double?
     var positionDate: Date?
+    /// From the system Now Playing: the app that plays, for its icon.
+    var bundleID: String?
+    /// From the system Now Playing: the name of an app Deckhand has no source for.
+    var appName: String?
 
     static let empty = NowPlaying(title: "", artist: "", isPlaying: false)
 
     /// The source as people know it: the site for a browser tab, else the app.
-    var source: String { site?.displayName ?? app?.displayName ?? "" }
+    var source: String { site?.displayName ?? appName ?? app?.displayName ?? "" }
 
     /// "YouTube Music · Microsoft Edge" for a tab, "Spotify" for an app.
     var sourceDetail: String {
         guard let app else { return source }
-        guard let site else { return app.displayName }
+        guard let site else { return appName ?? app.displayName }
         return "\(site.displayName) · \(app.displayName)"
     }
 
@@ -276,6 +285,43 @@ enum NowPlayingRules {
         if isPlaying { return true }
         guard let stoppedAt else { return false }
         return now.timeIntervalSince(stoppedAt) < hideDelay
+    }
+
+    /// When a source stopped, after a report that it plays or not. `wasPlaying` is nil for a source seen
+    /// for the first time. Found paused means it never played while Deckhand watched: no badge to keep.
+    static func stoppedAt(wasPlaying: Bool?, isPlaying: Bool, stoppedAt: Date?, now: Date) -> Date? {
+        if isPlaying { return nil }
+        if wasPlaying == true { return now }
+        return stoppedAt ?? .distantPast
+    }
+
+    /// The system Now Playing adapter as the source choice sees it.
+    enum AdapterAvailability: Equatable { case starting, live, unavailable }
+
+    /// Where the track comes from, for Settings → Music.
+    enum Feed: Equatable {
+        /// Nothing watches: now playing is off, or neither the badge nor the Music tab needs it.
+        case off
+        /// The system Now Playing.
+        case system
+        /// Deckhand asks the apps directly.
+        case fallback
+    }
+
+    /// Whether to ask the apps directly: when the adapter can't run, or runs and the system has nothing to show.
+    /// While the adapter starts for the first time the apps wait a moment, so nothing is asked twice.
+    static func usesFallback(adapter: AdapterAvailability, systemHasTrack: Bool) -> Bool {
+        switch adapter {
+        case .starting: return false
+        case .live: return !systemHasTrack
+        case .unavailable: return true
+        }
+    }
+
+    static func feed(running: Bool, adapter: AdapterAvailability, showsFallbackTrack: Bool) -> Feed {
+        guard running else { return .off }
+        if adapter == .unavailable || showsFallbackTrack { return .fallback }
+        return .system
     }
 
     /// Playing state of a source known only from its audio output.

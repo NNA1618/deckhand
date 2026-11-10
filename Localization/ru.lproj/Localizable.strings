@@ -391,6 +391,17 @@
 "Not allowed yet" = "Ещё не разрешено";
 "Turned off" = "Запрещено";
 "Checked when the app is open" = "Проверится, когда приложение открыто";
+/* media: system Now Playing */
+"Other apps" = "Другие приложения";
+"Podcasts, VLC, IINA and more, through macOS Now Playing" = "Подкасты, VLC, IINA и другие — через системное «Сейчас играет»";
+"Track source" = "Откуда трек";
+"System Now Playing" = "Системное «Сейчас играет»";
+"Fallback" = "Запасной способ";
+"Every app that reports to macOS Now Playing" = "Все приложения, которые сообщают macOS, что играет";
+"Deckhand asks the apps below directly" = "Deckhand спрашивает приложения ниже напрямую";
+"Starts while the badge is on or the Music tab is open" = "Работает, пока включён значок у чёлки или открыта вкладка «Музыка»";
+"From the player, when it provides one" = "От плеера, если он её даёт";
+"Music, podcasts and videos from any app that reports to macOS show up here." = "Здесь появятся музыка, подкасты и видео из любого приложения, которое сообщает macOS, что играет.";
 
 
 /* == translate == */

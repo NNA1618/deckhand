@@ -31,6 +31,14 @@ cp -R Localization/*.lproj "$APP_PATH/Contents/Resources/"
 cp Resources/AppIcon.icns "$APP_PATH/Contents/Resources/"
 cp Resources/Brand/*.svg "$APP_PATH/Contents/Resources/"
 
+# --- media: the system Now Playing adapter (Adapter/), which /usr/bin/perl loads at run time ---
+echo "==> building the Now Playing adapter"
+clang -dynamiclib -fobjc-arc -O2 -Wall -Wextra -mmacosx-version-min=15.0 -arch arm64 -arch x86_64 \
+    -framework Foundation -o "$APP_PATH/Contents/Resources/DeckhandNowPlaying.dylib" Adapter/DeckhandNowPlaying.m
+codesign --force --sign - "$APP_PATH/Contents/Resources/DeckhandNowPlaying.dylib"
+cp Adapter/now-playing.pl "$APP_PATH/Contents/Resources/"
+# --- end media ---
+
 cat > "$APP_PATH/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
